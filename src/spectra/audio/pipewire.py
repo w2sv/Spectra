@@ -1,12 +1,30 @@
 """Output-monitor capture through PipeWire's PulseAudio compatibility server."""
 
 import json
+import select
 import subprocess
+from threading import Event
+from typing import IO
 
 from spectra.audio import AudioSamples, AudioSourceError, AudioSourceInfo
 from spectra.audio.pcm import read_float32_frames
 
 DEFAULT_OUTPUT_MONITOR = AudioSourceInfo("@DEFAULT_MONITOR@", "Default output monitor")
+
+
+class _CancellableStream:
+    """Adapt a raw pipe to the PCM reader without blocking cancellation."""
+
+    def __init__(self, stream: IO[bytes], cancelled: Event) -> None:
+        self._stream = stream
+        self._cancelled = cancelled
+
+    def read(self, size: int = -1) -> bytes:
+        while not self._cancelled.is_set():
+            readable, _, _ = select.select([self._stream], [], [], 0.1)
+            if readable:
+                return self._stream.read(size)
+        raise AudioSourceError("Audio capture was stopped.")
 
 
 def discover_output_monitors() -> list[AudioSourceInfo]:
@@ -61,11 +79,13 @@ class PipeWireSource:
     def __init__(self, source: AudioSourceInfo = DEFAULT_OUTPUT_MONITOR) -> None:
         self.info = source
         self._process: subprocess.Popen[bytes] | None = None
+        self._cancelled = Event()
 
     def start(self) -> None:
         """Launch parec with raw little-endian float32, left/right PCM."""
         if self._process is not None:
             raise AudioSourceError("Audio capture has already started.")
+        self._cancelled.clear()
 
         try:
             # Inherit stderr so server errors stay visible without an undrained pipe.
@@ -98,7 +118,8 @@ class PipeWireSource:
             raise AudioSourceError("Start audio capture before reading samples.")
 
         try:
-            samples = read_float32_frames(process.stdout, frames, self.channels)
+            stream = _CancellableStream(process.stdout, self._cancelled)
+            samples = read_float32_frames(stream, frames, self.channels)
         except (OSError, ValueError) as error:
             self.stop()
             raise AudioSourceError(f"Cannot read captured PCM: {error}") from error
@@ -115,6 +136,10 @@ class PipeWireSource:
                 "Check that PipeWire's PulseAudio server and the selected output are available."
             )
         return samples
+
+    def request_stop(self) -> None:
+        """Wake a blocked read within 100 ms; the owner performs cleanup."""
+        self._cancelled.set()
 
     def stop(self) -> None:
         """Terminate and reap parec, killing it if graceful shutdown times out."""

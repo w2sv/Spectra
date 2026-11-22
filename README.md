@@ -1,12 +1,12 @@
 # Spectra
 
 Spectra is a real-time, music-reactive LED visualization application for Ubuntu 24.04.
-The current CLI captures desktop playback without changing audio routing and prints RMS/peak
-levels, with optional streaming frequency analysis. A virtual LED strip and physical LED output
-over Wi-Fi will follow later.
+Spectra captures desktop playback without changing audio routing. Its optional desktop interface
+shows a live frequency spectrum and a virtual strip of 300 RGB LEDs; CLI diagnostics remain available.
+Physical LED output over Wi-Fi will follow later.
 
 The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/pyqtgraph
-for the future desktop interface and live plots. Audio capture uses `parec` through PipeWire's
+for the desktop interface and live plots. Audio capture uses `parec` through PipeWire's
 PulseAudio compatibility server; `pactl` discovers output monitors.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage Python and
@@ -26,7 +26,20 @@ Capture is 48 kHz, stereo float32, with left/right columns in `(frames, channels
 uv run spectra --list-sources
 uv run spectra --source '<monitor identifier from --list-sources>'
 uv run spectra --spectrum
+uv run spectra --gui
 ```
+
+In graphical mode, choose an output monitor and click **Start**. **Stop** releases capture;
+closing the window also stops its worker and subprocess. Capture/analysis run off the GUI thread,
+and a 30 FPS timer displays the latest result. Source selection also works with `--gui --source`.
+If results stop arriving for 500 ms, the display clears while capture stays active and recovers
+automatically when results resume.
+
+The spectrum displays the 24 log-spaced bands on a fixed −80 to 0 dB scale, with a power floor
+of 10⁻¹² (−120 dB). LED colors progress from red at low frequencies to blue at high frequencies.
+Brightness maps −60 to −6 dB to off/full, with no adaptive gain or smoothing; each band controls
+12 or 13 consecutive LEDs. Silence leaves the strip unlit. The Qt-independent `frequency_frame`
+function accepts LED count, decibel limits, and hue endpoints explicitly.
 
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined
 with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs

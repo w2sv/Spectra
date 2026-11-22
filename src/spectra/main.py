@@ -1,4 +1,4 @@
-"""Temporary CLI diagnostics for audio capture."""
+"""Spectra's graphical and diagnostic entry points."""
 
 import argparse
 import math
@@ -60,28 +60,44 @@ def capture_diagnostics(source: AudioSource, *, spectrum: bool = False) -> None:
 
 
 def main() -> None:
-    """Select an output monitor and run the audio diagnostic."""
-    parser = argparse.ArgumentParser(description="Capture desktop audio and print RMS and peak levels.")
+    """Select an output monitor and launch the requested presentation."""
+    parser = argparse.ArgumentParser(description="Capture and visualize desktop audio.")
     parser.add_argument("--list-sources", action="store_true", help="List available output monitors and exit.")
     parser.add_argument("--source", metavar="ID", help="Capture a monitor identifier from --list-sources.")
-    parser.add_argument("--spectrum", action="store_true", help="Also display the strongest frequency bands.")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--spectrum", action="store_true", help="Also display the strongest frequency bands.")
+    modes.add_argument("--gui", action="store_true", help="Open the graphical spectrum and virtual LED strip.")
     arguments = parser.parse_args()
 
     try:
+        sources = [DEFAULT_OUTPUT_MONITOR]
+        discovery_error = None
+        if arguments.gui or arguments.list_sources or arguments.source not in (None, DEFAULT_OUTPUT_MONITOR.identifier):
+            try:
+                sources.extend(discover_output_monitors())
+            except AudioSourceError as error:
+                if not arguments.gui or arguments.list_sources or arguments.source:
+                    raise
+                discovery_error = str(error)
         if arguments.list_sources:
-            for info in [DEFAULT_OUTPUT_MONITOR, *discover_output_monitors()]:
+            for info in sources:
                 print(f"{info.identifier}\t{info.display_name}")
             return
 
         selected = DEFAULT_OUTPUT_MONITOR
         if arguments.source and arguments.source != selected.identifier:
             selected = next(
-                (info for info in discover_output_monitors() if info.identifier == arguments.source),
+                (info for info in sources if info.identifier == arguments.source),
                 None,
             )
             if selected is None:
                 parser.error("Unknown output monitor. Use --list-sources to see available identifiers.")
-        capture_diagnostics(PipeWireSource(selected), spectrum=arguments.spectrum)
+        if arguments.gui:
+            from spectra.ui import run_gui
+
+            run_gui(sources, selected, discovery_error)
+        else:
+            capture_diagnostics(PipeWireSource(selected), spectrum=arguments.spectrum)
     except AudioSourceError as error:
         parser.exit(1, f"Audio capture error: {error}\n")
     except KeyboardInterrupt:

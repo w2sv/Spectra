@@ -27,7 +27,8 @@ class AudioSource(Protocol):
     Samples are native float32 arrays of shape (frames, channels), contiguous
     in frame order. Stereo columns are left, right. Full scale is nominally
     [-1, 1]; samples are not clipped. Start before reading and always stop in
-    a finally block. Calls must be serialized by the owner.
+    a finally block. Calls must be serialized by the owner, except for the
+    thread-safe request_stop() method used to interrupt a blocked read.
     """
 
     @property
@@ -53,4 +54,12 @@ class AudioSource(Protocol):
 
     def stop(self) -> None:
         """Release capture resources; safe to call again or before starting."""
+        ...
+
+    def request_stop(self) -> None:
+        """Request cancellation from any thread without waiting for cleanup.
+
+        A blocked read must promptly raise AudioSourceError. The owner still
+        calls stop() to release resources. Starting a new capture clears this request.
+        """
         ...
