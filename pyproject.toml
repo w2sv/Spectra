@@ -1,0 +1,43 @@
+[project]
+name = "spectra"
+version = "0.1.0"
+description = "Real-time, music-reactive LED visualization for Ubuntu."
+readme = "README.md"
+requires-python = ">=3.15"
+dependencies = [
+    "numpy>=2.5.5",
+    "pyqtgraph>=0.14.0",
+    "pyside6>=6.12.0",
+    "scipy>=1.18.1",
+]
+
+[project.scripts]
+spectra = "spectra.main:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pyright]
+pythonVersion = "3.15"
+typeCheckingMode = "standard"
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+target-version = "py315"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
