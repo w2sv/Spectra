@@ -5,14 +5,14 @@ from time import monotonic
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QCloseEvent, QPalette, QShortcut, QKeySequence
+from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
 from spectra.audio import AudioSourceInfo
 from spectra.audio.pipewire import PipeWireSource
 from spectra.capture import CaptureWorker
 from spectra.ui.led_preview import LedPreview
-from spectra.visualization.frequency import frequency_frame, power_to_decibels
+from spectra.visualization.frequency import band_colors, frequency_frame, power_to_decibels
 
 FRAME_RATE = 30
 SPECTRUM_MIN_DB = -80.0
@@ -87,7 +87,6 @@ class SpectraWindow(QMainWindow):
             y0=SPECTRUM_MIN_DB,
             height=[],
             pen=None,
-            brush=self.palette().color(QPalette.ColorRole.Highlight),
         )
         self._plot.addItem(self._bars)
         layout.addWidget(self._plot, 1)
@@ -126,7 +125,16 @@ class SpectraWindow(QMainWindow):
         edges = np.log10(worker.band_edges)
         self._band_count = len(edges) - 1
         gap = np.diff(edges) * 0.08
-        self._bars.setOpts(x0=edges[:-1] + gap, x1=edges[1:] - gap, height=np.zeros(self._band_count))
+        brushes = [
+            pg.mkBrush(QColor.fromRgbF(float(rgb[0]), float(rgb[1]), float(rgb[2])))
+            for rgb in band_colors(self._band_count)
+        ]
+        self._bars.setOpts(
+            x0=edges[:-1] + gap,
+            x1=edges[1:] - gap,
+            height=np.zeros(self._band_count),
+            brushes=brushes,
+        )
         self._plot.getViewBox().setXRange(float(edges[0]), float(edges[-1]), padding=0.03)
         self._worker = worker
         self._error.clear()

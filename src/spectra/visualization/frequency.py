@@ -13,6 +13,26 @@ def power_to_decibels(power: NDArray[np.float64]) -> NDArray[np.float64]:
     return 10.0 * np.log10(np.maximum(power, POWER_FLOOR))
 
 
+def band_colors(
+    band_count: int,
+    *,
+    low_hue: float = 0.0,
+    high_hue: float = 2.0 / 3.0,
+) -> NDArray[np.float64]:
+    """Return full-brightness RGB colors in frequency order, shape (band_count, 3).
+
+    Components are float64 values in [0, 1], retaining precision for later
+    brightness scaling. The default hues progress from red to blue.
+    """
+    if band_count <= 0:
+        raise ValueError("Band count must be positive.")
+    if not 0 <= low_hue <= 1 or not 0 <= high_hue <= 1:
+        raise ValueError("Hue endpoints must lie between 0 and 1.")
+
+    hues = np.linspace(low_hue, high_hue, band_count)
+    return np.array([hsv_to_rgb(float(hue), 1.0, 1.0) for hue in hues], dtype=np.float64)
+
+
 def frequency_frame(
     band_energies: NDArray[np.float64],
     *,
@@ -33,12 +53,8 @@ def frequency_frame(
         raise ValueError("Provide a nonempty band-energy vector and a positive LED count.")
     if not np.isfinite(min_db) or not np.isfinite(max_db) or min_db >= max_db:
         raise ValueError("Brightness limits must be finite, with min_db < max_db.")
-    if not 0 <= low_hue <= 1 or not 0 <= high_hue <= 1:
-        raise ValueError("Hue endpoints must lie between 0 and 1.")
-
+    colors = band_colors(len(band_energies), low_hue=low_hue, high_hue=high_hue)
     brightness = np.clip((power_to_decibels(band_energies) - min_db) / (max_db - min_db), 0.0, 1.0)
-    hues = np.linspace(low_hue, high_hue, len(band_energies))
-    colors = np.array([hsv_to_rgb(float(hue), 1.0, float(level)) for hue, level in zip(hues, brightness, strict=True)])
-    colors = np.rint(colors * 255).astype(np.uint8)
+    colors = np.rint(colors * brightness[:, None] * 255).astype(np.uint8)
     band_indices = np.arange(led_count) * len(band_energies) // led_count
     return colors[band_indices]
