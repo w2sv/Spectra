@@ -5,6 +5,8 @@ from colorsys import hsv_to_rgb
 import numpy as np
 from numpy.typing import NDArray
 
+from spectra.analysis import KickEvent
+
 POWER_FLOOR = 1e-12  # -120 dB relative to unit mean-square PCM power.
 
 
@@ -55,3 +57,23 @@ def frequency_frame(
     colors = np.rint(colors * intensities[:, None] * 255).astype(np.uint8)
     band_indices = np.arange(led_count) * len(intensities) // led_count
     return colors[band_indices]
+
+
+class FrequencyVisualization:
+    """Adapt frequency_frame to the visualization interface without animation."""
+
+    def __init__(self, led_count: int = 300) -> None:
+        if led_count <= 0:
+            raise ValueError("LED count must be positive.")
+        self._led_count = led_count
+
+    def render(
+        self,
+        intensities: NDArray[np.float64],
+        kicks: tuple[KickEvent, ...],
+        timestamp: float,
+    ) -> NDArray[np.uint8]:
+        return frequency_frame(intensities, led_count=self._led_count)
+
+    def reset(self) -> None:
+        """Frequency colors have no animation state to clear."""

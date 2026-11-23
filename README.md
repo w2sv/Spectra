@@ -53,10 +53,21 @@ The **Kick** indicator briefly highlights detected bass transients; its session 
 capture restart. Detection uses raw 40–160 Hz power changes, independently of LED controls, with
 an adaptive flux threshold, minimum and rising bass-power gates, and a 200 ms refractory period. It detects
 kick-like low-frequency onsets, including some non-kick sounds. Defaults are adjustable in
-`analysis/kick.py`; no tempo estimation or onset-driven LED effects are applied. The worker checks
+`analysis/kick.py`; no tempo estimation is applied. The worker checks
 every FFT result and drains pending events on GUI updates (newest 32 retained during long stalls,
 with the full detection count preserved).
 See [kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining limitations.
+
+The **Visualization** selector offers **Frequency Spectrum** (default), **Kick Pulses**,
+and **Combined**. White kick pulses travel from the first LED to the last, with a
+60-LED fading tail and a 0.75-second lifetime. Multiple kicks can coexist; Combined
+uses per-channel maximum to preserve the frequency colors underneath. All modes
+share a small Qt-independent `Visualization` protocol and render at the GUI's 30 FPS.
+Animation uses original kick audio timestamps and interpolates between spectrum updates.
+Switching modes is immediate, leaves capture and detection running, and waits for new
+kicks without replaying previous events. Stop, restart, and stale capture clear animation
+state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`;
+there are no individual effect controls or physical LED output yet.
 
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined
 with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs

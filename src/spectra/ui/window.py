@@ -5,6 +5,7 @@ from time import monotonic
 
 import numpy as np
 import pyqtgraph as pg
+from numpy.typing import NDArray
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
@@ -20,12 +21,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from spectra.analysis import KickEvent
 from spectra.audio import AudioSourceInfo
 from spectra.audio.pipewire import PipeWireSource
 from spectra.capture import CaptureWorker
 from spectra.ui.led_preview import LedPreview
-from spectra.visualization.frequency import band_colors, frequency_frame, power_to_decibels
+from spectra.visualization import Visualization
+from spectra.visualization.combined import CombinedVisualization
+from spectra.visualization.frequency import FrequencyVisualization, band_colors, power_to_decibels
 from spectra.visualization.intensity import BandIntensitySettings
+from spectra.visualization.pulses import TravelingPulses
 
 FRAME_RATE = 30
 SPECTRUM_MIN_DB = -80.0
@@ -52,6 +57,10 @@ class SpectraWindow(QMainWindow):
         self._closing = False
         self._band_count = 0
         self._last_result_at: float | None = None
+        self._latest_audio_timestamp: float | None = None
+        self._rendered_audio_timestamp = 0.0
+        self._latest_intensities: NDArray[np.float64] | None = None
+        self._mode_started_at: float | None = None
         self._intensity_settings = BandIntensitySettings()
         self._kick_flash_until: float | None = None
         self._kick_count = 0
@@ -135,6 +144,10 @@ class SpectraWindow(QMainWindow):
         self._kick_count_label = QLabel("Kicks: 0")
         kick_feedback.addWidget(self._kick_count_label)
         kick_feedback.addStretch()
+        kick_feedback.addWidget(QLabel("Visualization:"))
+        self._visualization_selector = QComboBox()
+        self._visualization_selector.addItems(["Frequency Spectrum", "Kick Pulses", "Combined"])
+        kick_feedback.addWidget(self._visualization_selector)
         layout.addLayout(kick_feedback)
 
         self._plot = pg.PlotWidget(background=self.palette().color(QPalette.ColorRole.Base).name())
@@ -164,6 +177,8 @@ class SpectraWindow(QMainWindow):
         layout.addWidget(self._plot, 1)
 
         self._leds = LedPreview()
+        self._visualization: Visualization = FrequencyVisualization(led_count=self._leds.led_count)
+        self._visualization_selector.currentIndexChanged.connect(self._change_visualization)
         layout.addWidget(QLabel(f"Virtual LED strip · {self._leds.led_count} LEDs"))
         layout.addWidget(self._leds)
         self.setCentralWidget(content)
@@ -197,8 +212,44 @@ class SpectraWindow(QMainWindow):
     def _clear_display(self) -> None:
         self._bars.setOpts(height=np.zeros(self._band_count))
         self._leds.set_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
+        self._visualization.reset()
         self._last_result_at = None
+        self._latest_audio_timestamp = None
+        self._rendered_audio_timestamp = 0.0
+        self._latest_intensities = None
+        self._mode_started_at = None
         self._clear_kick_flash()
+
+    def _change_visualization(self, index: int) -> None:
+        self._visualization.reset()
+        if index == 0:
+            self._visualization = FrequencyVisualization(led_count=self._leds.led_count)
+        elif index == 1:
+            self._visualization = TravelingPulses(led_count=self._leds.led_count)
+        else:
+            self._visualization = CombinedVisualization(led_count=self._leds.led_count)
+        now = monotonic()
+        # Ignore kicks from before the switch even if the worker has not yet
+        # delivered them. The indicator and session counter still receive them.
+        self._mode_started_at = self._audio_time(now)
+        self._render_led_frame(now)
+
+    def _audio_time(self, now: float) -> float | None:
+        if self._latest_audio_timestamp is None or self._last_result_at is None:
+            return None
+        # Interpolate between measurements without rewinding on a delayed poll.
+        # Stale capture clears the audio anchor and the animation state.
+        self._rendered_audio_timestamp = max(
+            self._rendered_audio_timestamp, self._latest_audio_timestamp + now - self._last_result_at
+        )
+        return self._rendered_audio_timestamp
+
+    def _render_led_frame(self, now: float, kicks: tuple[KickEvent, ...] = ()) -> None:
+        timestamp = self._audio_time(now)
+        if timestamp is None or self._latest_intensities is None:
+            return
+        kicks = tuple(kick for kick in kicks if self._mode_started_at is None or kick.timestamp > self._mode_started_at)
+        self._leds.set_frame(self._visualization.render(self._latest_intensities, kicks, timestamp))
 
     def _clear_kick_flash(self) -> None:
         self._kick_indicator.setStyleSheet("")
@@ -265,13 +316,16 @@ class SpectraWindow(QMainWindow):
         if result is not None and not self._stopping and error is None:
             levels = np.clip(power_to_decibels(result.spectrum.band_energies), SPECTRUM_MIN_DB, SPECTRUM_MAX_DB)
             self._bars.setOpts(height=levels - SPECTRUM_MIN_DB)
-            self._leds.set_frame(frequency_frame(result.intensities, led_count=self._leds.led_count))
-            self._last_result_at = monotonic()
+            self._latest_intensities = result.intensities
+            self._latest_audio_timestamp = result.spectrum.timestamp
+            self._last_result_at = now
             self._status.setText("Capturing")
-        elif self._last_result_at is not None and monotonic() - self._last_result_at >= STALE_RESULT_TIMEOUT:
+        elif self._last_result_at is not None and now - self._last_result_at >= STALE_RESULT_TIMEOUT:
             self._clear_display()
             if error is None and not self._stopping:
                 self._status.setText("Waiting for audio…")
+        if not self._stopping and error is None:
+            self._render_led_frame(now, kicks)
         if finished:
             worker.join()
             self._worker = None
