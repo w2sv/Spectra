@@ -5,7 +5,7 @@ from time import monotonic
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QCloseEvent, QPalette
+from PySide6.QtGui import QCloseEvent, QPalette, QShortcut, QKeySequence
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
 from spectra.audio import AudioSourceInfo
@@ -96,6 +96,10 @@ class SpectraWindow(QMainWindow):
         layout.addWidget(QLabel(f"Virtual LED strip · {self._leds.led_count} LEDs"))
         layout.addWidget(self._leds)
         self.setCentralWidget(content)
+
+        # Terminate application on 'Esc' keystroke
+        self._close_shortcut = QShortcut(QKeySequence("Esc"), self)
+        self._close_shortcut.activated.connect(self.close)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update_capture)
