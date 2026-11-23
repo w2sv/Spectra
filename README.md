@@ -82,6 +82,7 @@ Development commands:
 ```bash
 uv run pyright
 uv run ruff check .
+uv run ruff format --check .
 uv run ruff format .
 uv run pytest
 ```

@@ -58,9 +58,11 @@ uv run python scripts/audio_test.py play tests/fixtures/audio/lyserb.wav \
   --start 1 --duration 5 --capture
 ```
 
-This creates a low-priority `spectra_test` null sink, waits for its monitor to
-capture silence, plays the file into that sink, and reports captured audio times,
+This creates a low-priority `spectra_test` null sink, starts its monitor capture
+and playback without waiting for an initial buffer, and reports captured audio times,
 RMS, and peaks through the existing `PipeWireSource` and `SpectrumAnalyzer`.
+Playback has a deadline of the selected audio duration plus five seconds. A
+watcher cancels blocked capture reads when playback ends or reaches that deadline.
 Every captured chunk is checked for signal, independently of diagnostic printing.
 After playback, `--capture` fails if no chunk exceeded RMS `1e-5` (-100 dB
 relative to unit PCM amplitude). Initial silence is allowed; a wholly silent or

@@ -112,8 +112,6 @@ class CaptureWorker:
                 with self._lock:
                     self._error = str(error) or type(error).__name__
         finally:
-            self._processor.reset()
-            self._kick_detector.reset()
             try:
                 self._source.stop()
             except Exception as error:

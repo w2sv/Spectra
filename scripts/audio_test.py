@@ -19,6 +19,7 @@ import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Event, Thread
 
 import numpy as np
 
@@ -336,16 +337,19 @@ def play(path: Path, capture: bool, start: float = 0.0, duration: float | None =
     require_tools("pactl", "paplay", *(("parec",) if capture else ()))
     with playback_excerpt(path, start, duration) as playback_path, test_sink() as monitor:
         from spectra.analysis import SpectrumAnalyzer
-        from spectra.audio import AudioSourceInfo
+        from spectra.audio import AudioSourceError, AudioSourceInfo
         from spectra.audio.pipewire import PipeWireSource
 
+        with audio_file(playback_path) as audio:
+            playback_timeout = audio.getnframes() / RATE + 5.0
         source = PipeWireSource(AudioSourceInfo(monitor, "Spectra test monitor")) if capture else None
         player = None
+        watcher = None
+        capture_cancelled = Event()
         signal_captured = False
         try:
             if source is not None:
                 source.start()
-                source.read()  # Wait for a connected monitor before starting playback.
             player = subprocess.Popen(
                 [
                     "paplay",
@@ -358,12 +362,31 @@ def play(path: Path, capture: bool, start: float = 0.0, duration: float | None =
                 start_new_session=True,
             )
             if source is None:
-                player.wait()
+                player.wait(timeout=playback_timeout)
             else:
+
+                def finish_capture() -> None:
+                    try:
+                        player.wait(timeout=playback_timeout)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    finally:
+                        capture_cancelled.set()
+                        source.request_stop()
+
+                # A stalled read must not prevent playback completion or its
+                # deadline from waking the capture loop.
+                watcher = Thread(target=finish_capture, name="spectra-test-playback")
+                watcher.start()
                 analyzer = SpectrumAnalyzer()
                 report_at = time.monotonic()
                 while player.poll() is None:
-                    pcm = source.read()
+                    try:
+                        pcm = source.read()
+                    except AudioSourceError:
+                        if capture_cancelled.is_set():
+                            break
+                        raise
                     rms = float(np.sqrt(np.mean(np.square(pcm, dtype=np.float64))))
                     signal_captured |= rms > SIGNAL_RMS_FLOOR
                     spectra = analyzer.process(pcm)
@@ -371,6 +394,8 @@ def play(path: Path, capture: bool, start: float = 0.0, duration: float | None =
                         peak = float(np.max(np.abs(pcm)))
                         print(f"audio={spectra[-1].timestamp:.3f}s RMS={rms:.4f} Peak={peak:.4f}", flush=True)
                         report_at = time.monotonic() + 0.5
+            if player.poll() is None:
+                raise RuntimeError(f"Playback timed out after {playback_timeout:g} seconds; stopping capture.")
             if player.returncode != 0:
                 raise RuntimeError(f"paplay failed with exit status {player.returncode}.")
             if source is not None:
@@ -383,6 +408,8 @@ def play(path: Path, capture: bool, start: float = 0.0, duration: float | None =
         finally:
             if player is not None:
                 stop_process(player)
+            if watcher is not None:
+                watcher.join(timeout=3)
             if source is not None:
                 source.stop()
 

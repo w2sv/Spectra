@@ -1,9 +1,9 @@
 """A framebuffer-only preview of an ordered RGB LED strip."""
 
 import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtGui import QColor, QPainter, QPaintEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
-from numpy.typing import NDArray
 
 
 class LedPreview(QWidget):
@@ -44,6 +44,6 @@ class LedPreview(QWidget):
                 pixels_per_led - gap,
                 self.height(),
                 color,
-                )
+            )
 
         painter.end()
