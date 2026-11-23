@@ -1,5 +1,6 @@
 """Capture and analysis on a caller-controlled thread, without Qt."""
 
+from dataclasses import dataclass
 from threading import Event, Lock, Thread
 
 import numpy as np
@@ -7,6 +8,15 @@ from numpy.typing import NDArray
 
 from spectra.analysis import SpectrumAnalyzer, SpectrumResult
 from spectra.audio import AudioSource, AudioSourceError
+from spectra.visualization.intensity import BandIntensityProcessor, BandIntensitySettings
+
+
+@dataclass(frozen=True)
+class CaptureResult:
+    """Matching raw spectrum and read-only float64 LED intensities, shape (bands,)."""
+
+    spectrum: SpectrumResult
+    intensities: NDArray[np.float64]
 
 
 class CaptureWorker:
@@ -17,12 +27,15 @@ class CaptureWorker:
     whose audio contract explicitly allows cross-thread cancellation.
     """
 
-    def __init__(self, source: AudioSource) -> None:
+    def __init__(self, source: AudioSource, settings: BandIntensitySettings | None = None) -> None:
+        settings = BandIntensitySettings() if settings is None else settings
         self._source = source
         self._analyzer = SpectrumAnalyzer(sample_rate=source.sample_rate)
+        self._processor = BandIntensityProcessor(len(self._analyzer.band_edges) - 1, settings)
+        self._settings = settings
         self._stop_requested = Event()
         self._lock = Lock()
-        self._latest: SpectrumResult | None = None
+        self._latest: CaptureResult | None = None
         self._error: str | None = None
         self._thread = Thread(target=self._run, name="spectra-capture")
 
@@ -48,7 +61,12 @@ class CaptureWorker:
         if self.is_alive:
             raise AudioSourceError("Audio capture did not stop within the shutdown timeout.")
 
-    def take_latest(self) -> tuple[SpectrumResult | None, str | None]:
+    def update_settings(self, settings: BandIntensitySettings) -> None:
+        """Publish an immutable settings snapshot; only the worker applies it."""
+        with self._lock:
+            self._settings = settings
+
+    def take_latest(self) -> tuple[CaptureResult | None, str | None]:
         """Consume the current result; terminal errors remain available."""
         with self._lock:
             result = self._latest
@@ -62,14 +80,19 @@ class CaptureWorker:
             self._source.start()
             while not self._stop_requested.is_set():
                 results = self._analyzer.process(self._source.read())
-                if results:
+                for result in results:
                     with self._lock:
-                        self._latest = results[-1]
+                        settings = self._settings
+                    self._processor.update_settings(settings)
+                    intensities = self._processor.process(result.band_energies, result.timestamp)
+                    with self._lock:
+                        self._latest = CaptureResult(result, intensities)
         except Exception as error:
             if not self._stop_requested.is_set():
                 with self._lock:
                     self._error = str(error) or type(error).__name__
         finally:
+            self._processor.reset()
             try:
                 self._source.stop()
             except Exception as error:

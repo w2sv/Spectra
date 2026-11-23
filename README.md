@@ -37,9 +37,17 @@ automatically when results resume.
 
 The spectrum displays the 24 log-spaced bands on a fixed −80 to 0 dB scale, with a power floor
 of 10⁻¹² (−120 dB). LED colors progress from red at low frequencies to blue at high frequencies.
-Brightness maps −60 to −6 dB to off/full, with no adaptive gain or smoothing; each band controls
-12 or 13 consecutive LEDs. Silence leaves the strip unlit. The Qt-independent `frequency_frame`
-function accepts LED count, decibel limits, and hue endpoints explicitly.
+LED intensity uses a fixed −60 to −6 dB range, with adjustable sensitivity and a fixed frequency
+balance tilt. The initial 6 dB tilt applies −3 dB to the lowest band and +3 dB to the highest;
+there is no automatic per-band gain or per-frame normalization. Each band controls 12 or 13 LEDs.
+
+The GUI's **LED sensitivity**, **Frequency balance**, **Attack**, and **Release** controls update
+during playback. Defaults are 0 dB sensitivity, 20 ms attack, and 180 ms release. Positive balance
+favors higher frequencies; negative balance favors lower ones. Attack/release use elapsed audio
+time for every FFT result, independently of GUI rendering. Changes preserve the current envelope;
+zero milliseconds disables smoothing in that direction. Silence releases to an unlit strip.
+These controls affect only LED brightness: the spectrum graph and CLI retain raw power readings.
+The Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues.
 
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined
 with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs

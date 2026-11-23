@@ -1,18 +1,31 @@
 """Main-thread presentation and controls for live spectral measurements."""
 
+from dataclasses import replace
 from time import monotonic
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from spectra.audio import AudioSourceInfo
 from spectra.audio.pipewire import PipeWireSource
 from spectra.capture import CaptureWorker
 from spectra.ui.led_preview import LedPreview
 from spectra.visualization.frequency import band_colors, frequency_frame, power_to_decibels
+from spectra.visualization.intensity import BandIntensitySettings
 
 FRAME_RATE = 30
 SPECTRUM_MIN_DB = -80.0
@@ -38,6 +51,7 @@ class SpectraWindow(QMainWindow):
         self._closing = False
         self._band_count = 0
         self._last_result_at: float | None = None
+        self._intensity_settings = BandIntensitySettings()
 
         content = QWidget()
         layout = QVBoxLayout(content)
@@ -64,6 +78,47 @@ class SpectraWindow(QMainWindow):
         self._error.setWordWrap(True)
         self._error.setVisible(bool(discovery_error))
         layout.addWidget(self._error)
+
+        self._sensitivity = QDoubleSpinBox()
+        self._frequency_balance = QDoubleSpinBox()
+        self._attack = QSpinBox()
+        self._release = QSpinBox()
+        for control, value in (
+            (self._sensitivity, self._intensity_settings.sensitivity_db),
+            (self._frequency_balance, self._intensity_settings.frequency_balance_db),
+        ):
+            control.setRange(-24, 24)
+            control.setDecimals(1)
+            control.setSingleStep(1)
+            control.setSuffix(" dB")
+            control.setValue(value)
+        for control, maximum, step, seconds in (
+            (self._attack, 500, 5, self._intensity_settings.attack_seconds),
+            (self._release, 3000, 20, self._intensity_settings.release_seconds),
+        ):
+            control.setRange(0, maximum)
+            control.setSingleStep(step)
+            control.setSuffix(" ms")
+            control.setValue(round(seconds * 1000))
+        self._sensitivity.setToolTip("Additional gain for LED brightness; the spectrum graph stays raw.")
+        self._frequency_balance.setToolTip(
+            "High-minus-low gain across log-spaced bands. Positive values reduce bass and boost highs equally."
+        )
+        self._attack.setToolTip("Intensity rise time constant; zero makes increases instantaneous.")
+        self._release.setToolTip("Intensity fall time constant; zero makes decreases instantaneous.")
+        processing_controls = QGridLayout()
+        for row, column, label, control in (
+            (0, 0, "LED sensitivity:", self._sensitivity),
+            (0, 2, "Attack:", self._attack),
+            (1, 0, "Frequency balance:", self._frequency_balance),
+            (1, 2, "Release:", self._release),
+        ):
+            processing_controls.addWidget(QLabel(label), row, column)
+            processing_controls.addWidget(control, row, column + 1)
+            control.valueChanged.connect(self._update_intensity_settings)
+        processing_controls.setColumnStretch(1, 1)
+        processing_controls.setColumnStretch(3, 1)
+        layout.addLayout(processing_controls)
 
         self._plot = pg.PlotWidget(background=self.palette().color(QPalette.ColorRole.Base).name())
         self._plot.setLabel("left", "Band power", units="dB re 1 PCM²")
@@ -111,6 +166,17 @@ class SpectraWindow(QMainWindow):
         self._start_button.setEnabled(idle)
         self._stop_button.setEnabled(self._worker is not None and not self._stopping and not self._closing)
 
+    def _update_intensity_settings(self) -> None:
+        self._intensity_settings = replace(
+            self._intensity_settings,
+            sensitivity_db=self._sensitivity.value(),
+            frequency_balance_db=self._frequency_balance.value(),
+            attack_seconds=self._attack.value() / 1000,
+            release_seconds=self._release.value() / 1000,
+        )
+        if self._worker is not None:
+            self._worker.update_settings(self._intensity_settings)
+
     def _clear_display(self) -> None:
         self._bars.setOpts(height=np.zeros(self._band_count))
         self._leds.set_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
@@ -120,7 +186,7 @@ class SpectraWindow(QMainWindow):
         selected = self._sources.currentData()
         if self._worker is not None or not isinstance(selected, AudioSourceInfo):
             return
-        worker = CaptureWorker(PipeWireSource(selected))
+        worker = CaptureWorker(PipeWireSource(selected), self._intensity_settings)
         self._clear_display()
         edges = np.log10(worker.band_edges)
         self._band_count = len(edges) - 1
@@ -164,9 +230,9 @@ class SpectraWindow(QMainWindow):
             self._error.show()
             self._status.setText("Capture failed")
         if result is not None and not self._stopping and error is None:
-            levels = np.clip(power_to_decibels(result.band_energies), SPECTRUM_MIN_DB, SPECTRUM_MAX_DB)
+            levels = np.clip(power_to_decibels(result.spectrum.band_energies), SPECTRUM_MIN_DB, SPECTRUM_MAX_DB)
             self._bars.setOpts(height=levels - SPECTRUM_MIN_DB)
-            self._leds.set_frame(frequency_frame(result.band_energies, led_count=self._leds.led_count))
+            self._leds.set_frame(frequency_frame(result.intensities, led_count=self._leds.led_count))
             self._last_result_at = monotonic()
             self._status.setText("Capturing")
         elif self._last_result_at is not None and monotonic() - self._last_result_at >= STALE_RESULT_TIMEOUT:

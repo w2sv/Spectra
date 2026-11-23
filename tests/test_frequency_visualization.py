@@ -9,8 +9,8 @@ def test_frame_covers_every_led_in_frequency_order() -> None:
     led_count = 300
     next_led = 0
     # Illuminate each band independently to check its region without choosing a palette.
-    for band_energies in np.eye(24, dtype=np.float64):
-        frame = frequency_frame(band_energies, led_count=led_count)
+    for intensities in np.eye(24, dtype=np.float64):
+        frame = frequency_frame(intensities, led_count=led_count)
 
         assert frame.shape == (led_count, 3)
         assert frame.dtype == np.uint8

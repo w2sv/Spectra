@@ -1,4 +1,4 @@
-"""A fixed frequency-to-hue and power-to-brightness mapping."""
+"""Frequency colors, diagnostic decibels, and intensity-to-RGB mapping."""
 
 from colorsys import hsv_to_rgb
 
@@ -34,27 +34,24 @@ def band_colors(
 
 
 def frequency_frame(
-    band_energies: NDArray[np.float64],
+    intensities: NDArray[np.float64],
     *,
     led_count: int = 300,
-    min_db: float = -60.0,
-    max_db: float = -6.0,
     low_hue: float = 0.0,
     high_hue: float = 2.0 / 3.0,
 ) -> NDArray[np.uint8]:
     """Map ordered bands to a complete (led_count, 3) uint8 RGB framebuffer.
 
     Hue runs from red at the lowest band to blue at the highest by default.
-    Brightness is linear in dB between min_db (off) and max_db (full).
+    Normalized intensities in [0, 1] directly control LED brightness.
     Every LED receives one band, in order; region sizes differ by at most one.
-    No frame-dependent normalization, smoothing, or clipping of source power occurs.
+    Intensity processing belongs to BandIntensityProcessor, not this renderer.
     """
-    if band_energies.ndim != 1 or len(band_energies) == 0 or led_count <= 0:
-        raise ValueError("Provide a nonempty band-energy vector and a positive LED count.")
-    if not np.isfinite(min_db) or not np.isfinite(max_db) or min_db >= max_db:
-        raise ValueError("Brightness limits must be finite, with min_db < max_db.")
-    colors = band_colors(len(band_energies), low_hue=low_hue, high_hue=high_hue)
-    brightness = np.clip((power_to_decibels(band_energies) - min_db) / (max_db - min_db), 0.0, 1.0)
-    colors = np.rint(colors * brightness[:, None] * 255).astype(np.uint8)
-    band_indices = np.arange(led_count) * len(band_energies) // led_count
+    if intensities.ndim != 1 or len(intensities) == 0 or led_count <= 0:
+        raise ValueError("Provide a nonempty intensity vector and a positive LED count.")
+    if not np.all(np.isfinite(intensities)) or np.any((intensities < 0) | (intensities > 1)):
+        raise ValueError("Band intensities must be finite values between 0 and 1.")
+    colors = band_colors(len(intensities), low_hue=low_hue, high_hue=high_hue)
+    colors = np.rint(colors * intensities[:, None] * 255).astype(np.uint8)
+    band_indices = np.arange(led_count) * len(intensities) // led_count
     return colors[band_indices]
