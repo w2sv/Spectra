@@ -21,6 +21,7 @@ build-backend = "uv_build"
 [tool.pyright]
 pythonVersion = "3.15"
 typeCheckingMode = "standard"
+reportUninitializedInstanceVariable = "error"
 include = ["src", "tests"]
 venvPath = "."
 venv = ".venv"

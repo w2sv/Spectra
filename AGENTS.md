@@ -26,6 +26,7 @@ The project prioritizes clean, modular, readable code and experimentation over u
 - Use exceptions for exceptional conditions rather than obscuring failures with fallback values.
 - Add comments and docstrings when they explain non-obvious behavior, important constraints, or design decisions. Avoid restating what the code already expresses.
 - Do not introduce compatibility code for Python versions older than the project's minimum supported version.
+- Initialize instance attributes explicitly in __init__.
 
 ## Architecture and modularity
 

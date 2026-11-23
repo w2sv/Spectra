@@ -75,7 +75,8 @@ class SpectrumAnalyzer:
         self._band_weights = np.maximum(overlaps, 0.0) / np.diff(bin_edges)
 
         self._buffer = np.empty(fft_size, dtype=np.float64)
-        self.reset()
+        self._buffered = 0
+        self._frames_received = 0
 
     @property
     def sample_rate(self) -> int:
