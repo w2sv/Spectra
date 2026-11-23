@@ -72,6 +72,11 @@ selecting a different default output.
 `uv sync` creates `.venv` and installs runtime and development dependencies from the committed
 `uv.lock`. In PyCharm, select the existing interpreter at `.venv/bin/python`.
 
+For repeatable local WAV fixtures, isolated `spectra_test` playback, and offline
+excerpt analysis with JSON detections, see [Audio testing](docs/audio-testing.md).
+The [curated CC0 fixture collection](tests/fixtures/audio/README.md) is version-controlled;
+full tracks and experiments in `samples/` remain local.
+
 Development commands:
 
 ```bash

@@ -7,3 +7,5 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+# Local full tracks, generated audio, and experiment results (curated fixtures stay tracked).
+samples/

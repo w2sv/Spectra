@@ -1,0 +1,225 @@
+{
+  "format": {
+    "container": "WAV",
+    "encoding": "PCM signed 16-bit little-endian",
+    "sample_rate": 48000,
+    "channels": 2,
+    "sample_width_bytes": 2
+  },
+  "preparation": {
+    "ffmpeg_version": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+    "command_template": "ffmpeg -v error -nostdin -n -i SOURCE -ss START [-t DURATION] -map 0:a:0 -vn -ar 48000 -ac 2 -c:a pcm_s16le -map_metadata -1 -fflags +bitexact FIXTURE.wav",
+    "gain_normalization": false,
+    "selection_basis": "Publisher descriptions, decoded content/energy checks, complete loop or active excerpts; not detector outputs.",
+    "license_verified_date": "2026-11-23"
+  },
+  "reference_annotations": "null means not annotated; future timestamps must be independently established, never copied from detector output.",
+  "fixtures": [
+    {
+      "filename": "lyserb.wav",
+      "title": "Lyserb",
+      "artist": "cinameng",
+      "attribution": "James Gargette (cinameng)",
+      "source_url": "https://opengameart.org/content/lyserb",
+      "download_url": "https://opengameart.org/sites/default/files/lyserb_6.mp3",
+      "characteristics": [
+        "techno drum loop",
+        "regular low-frequency transients",
+        "lo-fi drum texture"
+      ],
+      "purpose": "Basic kick-onset evaluation on a straightforward techno drum loop.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 16.0,
+      "duration_seconds": 12.0,
+      "frame_count": 576000,
+      "size_bytes": 2304044,
+      "sha256": "d3eb14f9efca3771c0021d0d1a46fe0d8c45c990839a94d6e83756cc6a9811f0",
+      "source_audio_sha256": "09bbad319230e0c8adf9eea9be0a92d32f3302d55eb955e17cb3bdca1d62b02d",
+      "source_codec": "mp3",
+      "source_sample_rate": 44100,
+      "source_channels": 2,
+      "source_duration_seconds": 63.999975,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.11170014169405552,
+        "peak": 0.422576904296875,
+        "bass_40_160_hz_fraction": 0.834172091074547,
+        "high_above_4khz_fraction": 0.00025009717856302956
+      },
+      "reference_kicks_seconds": null
+    },
+    {
+      "filename": "160bpm-electronic.wav",
+      "title": "160BPM Electronic Loop",
+      "artist": "RUOK",
+      "attribution": "RUOK",
+      "source_url": "https://opengameart.org/content/160bpm-electronic-loop",
+      "download_url": "https://opengameart.org/sites/default/files/160bpm_electronic_loop.wav",
+      "characteristics": [
+        "fast electronic beat",
+        "160 BPM according to source title",
+        "closely spaced transients"
+      ],
+      "purpose": "Faster patterns, percussion interference, and refractory-period evaluation.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 12.0,
+      "duration_seconds": 12.0,
+      "frame_count": 576000,
+      "size_bytes": 2304044,
+      "sha256": "8c8a7a013dc9d99b2cff40ecfc95268f7f2a54cbf1cf35c3fac258d368265f7b",
+      "source_audio_sha256": "c660a0ac9cdf06e5abe2ce83021319c589b6b43b265d87b97e679fb9d8bb8943",
+      "source_codec": "pcm_s16le",
+      "source_sample_rate": 96000,
+      "source_channels": 2,
+      "source_duration_seconds": 60.0,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.3317726010919681,
+        "peak": 1.0,
+        "bass_40_160_hz_fraction": 0.4883770159577184,
+        "high_above_4khz_fraction": 0.011714593556627606
+      },
+      "reference_kicks_seconds": null
+    },
+    {
+      "filename": "empacotatron.wav",
+      "title": "Empacotatron",
+      "artist": "Fupi",
+      "attribution": "Fupi",
+      "source_url": "https://opengameart.org/content/empacotatron",
+      "download_url": "https://opengameart.org/sites/default/files/empacotatron_loop.flac",
+      "characteristics": [
+        "dense electronic arrangement",
+        "bleeps and melodic layers",
+        "competing transients"
+      ],
+      "purpose": "Evaluate detections amid a complex, energetic electronic arrangement.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 20.0,
+      "duration_seconds": 12.0,
+      "frame_count": 576000,
+      "size_bytes": 2304044,
+      "sha256": "36e5a844e058f7a32c2cb6547f84ceedb384d513505783125fd6f1abebc375cd",
+      "source_audio_sha256": "66fc14d71d7137ea391644b24e4f18e207c74c813ab42068523319914231435a",
+      "source_codec": "flac",
+      "source_sample_rate": 44100,
+      "source_channels": 2,
+      "source_duration_seconds": 80.0,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.12057733273554175,
+        "peak": 0.596405029296875,
+        "bass_40_160_hz_fraction": 0.7210045470543089,
+        "high_above_4khz_fraction": 0.010527917729580349
+      },
+      "reference_kicks_seconds": null
+    },
+    {
+      "filename": "algate.wav",
+      "title": "Algate",
+      "artist": "cinameng",
+      "attribution": "James Gargette (cinameng)",
+      "source_url": "https://opengameart.org/content/algate",
+      "download_url": "https://opengameart.org/sites/default/files/algate.zip",
+      "characteristics": [
+        "dub-techno full mix",
+        "bass and low-frequency material",
+        "complete lossless loop"
+      ],
+      "purpose": "Bass-heavy rhythmic material; distinguish kick-like changes from the surrounding bass line.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 0.0,
+      "duration_seconds": 15.118125,
+      "frame_count": 725670,
+      "size_bytes": 2902724,
+      "sha256": "dbaf64d35b17db5c9c4a6e1961cd6db0ad6b5c33b738ff39ffda692eae12cf59",
+      "source_audio_sha256": "314c44c33d0cc0e909e1629941b1bdf7de3241a6ab51915c2043a5b58b517474",
+      "source_codec": "pcm_s24le",
+      "source_sample_rate": 44100,
+      "source_channels": 2,
+      "source_duration_seconds": 15.118118,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.09528793143506031,
+        "peak": 0.479766845703125,
+        "bass_40_160_hz_fraction": 0.8729423997376132,
+        "high_above_4khz_fraction": 0.0006770916558385924
+      },
+      "reference_kicks_seconds": null,
+      "archive_member": "Algate/wav/algate.wav",
+      "archive_sha256": "394868e3d533f6e447165391ab2876913b712559390bf73f4f839b798ebd8ced"
+    },
+    {
+      "filename": "synth-pop-four-on-floor.wav",
+      "title": "Synth Pop with 4 on the Floor",
+      "artist": "Mesostic",
+      "attribution": "Mesostic",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Synth_pop_with_4_on_the_floor.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/c/c2/Synth_pop_with_4_on_the_floor.ogg",
+      "characteristics": [
+        "four-on-the-floor full mix",
+        "synth pads, bass, melody, and drums",
+        "paired with matching bass stem excerpt"
+      ],
+      "purpose": "Regular kick rhythm and full-mix versus isolated-instrument comparison.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 45.0,
+      "duration_seconds": 12.0,
+      "frame_count": 576000,
+      "size_bytes": 2304044,
+      "sha256": "7147b82b92fef1f3e76014eb81582c4d9562d01ed3b7b720a08c42e1ee55dc45",
+      "source_audio_sha256": "84e78d94b46aadcb8a5c5eb3a32ad438d070639e0620725bb70574efc867c0ee",
+      "source_codec": "vorbis",
+      "source_sample_rate": 44100,
+      "source_channels": 2,
+      "source_duration_seconds": 198.000907,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.2606753728564012,
+        "peak": 0.97369384765625,
+        "bass_40_160_hz_fraction": 0.36127501489994557,
+        "high_above_4khz_fraction": 0.013033211127100694
+      },
+      "reference_kicks_seconds": null
+    },
+    {
+      "filename": "synth-pop-bass-only.wav",
+      "title": "Stem 3 from \"Synth pop with 10 on the floor\"",
+      "artist": "Mesostic",
+      "attribution": "Mesostic",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Stem_3_from_%22Synth_pop_with_10_on_the_floor%22.ogg",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/4/44/Stem_3_from_%22Synth_pop_with_10_on_the_floor%22.ogg",
+      "characteristics": [
+        "isolated Ableton Analog bass stem",
+        "bass-note attacks without the drum track",
+        "same source-time range as full mix"
+      ],
+      "purpose": "Intended negative case for semantic kick discrimination; bass note onsets can still trigger the current detector.",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "excerpt_start_seconds": 45.0,
+      "duration_seconds": 12.0,
+      "frame_count": 576000,
+      "size_bytes": 2304044,
+      "sha256": "4ac5ab9d4f6276faa21aca26b52c9206b35c5b30d01ba748c325111d0912fbf8",
+      "source_audio_sha256": "e8390bf062a90a9b804ccd305a2bf364c61f0be3813b2b38a2ca3260032b9325",
+      "source_codec": "vorbis",
+      "source_sample_rate": 44100,
+      "source_channels": 2,
+      "source_duration_seconds": 198.000907,
+      "verification": {
+        "full_source_decode": "ffmpeg -err_detect explode: successful",
+        "rms": 0.4483966616204926,
+        "peak": 1.0,
+        "bass_40_160_hz_fraction": 0.172671048176549,
+        "high_above_4khz_fraction": 2.5901060269508925e-09
+      },
+      "reference_kicks_seconds": null
+    }
+  ]
+}

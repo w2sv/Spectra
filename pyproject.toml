@@ -22,7 +22,7 @@ build-backend = "uv_build"
 pythonVersion = "3.15"
 typeCheckingMode = "standard"
 reportUninitializedInstanceVariable = "error"
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 venvPath = "."
 venv = ".venv"
 
