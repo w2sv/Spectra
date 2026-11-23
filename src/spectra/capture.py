@@ -1,22 +1,28 @@
 """Capture and analysis on a caller-controlled thread, without Qt."""
 
+from collections import deque
 from dataclasses import dataclass
 from threading import Event, Lock, Thread
 
 import numpy as np
 from numpy.typing import NDArray
 
-from spectra.analysis import SpectrumAnalyzer, SpectrumResult
+from spectra.analysis import KickEvent, KickOnsetDetector, SpectrumAnalyzer, SpectrumResult
 from spectra.audio import AudioSource, AudioSourceError
 from spectra.visualization.intensity import BandIntensityProcessor, BandIntensitySettings
 
 
 @dataclass(frozen=True)
 class CaptureResult:
-    """Matching raw spectrum and read-only float64 LED intensities, shape (bands,)."""
+    """Matching raw spectrum, read-only float64 intensities, and session kick count.
+
+    Intensities have shape (bands,). kick_count includes all detections,
+    including older events evicted from the bounded pending-event buffer.
+    """
 
     spectrum: SpectrumResult
     intensities: NDArray[np.float64]
+    kick_count: int = 0
 
 
 class CaptureWorker:
@@ -32,10 +38,13 @@ class CaptureWorker:
         self._source = source
         self._analyzer = SpectrumAnalyzer(sample_rate=source.sample_rate)
         self._processor = BandIntensityProcessor(len(self._analyzer.band_edges) - 1, settings)
+        self._kick_detector = KickOnsetDetector(self._analyzer.band_edges)
         self._settings = settings
         self._stop_requested = Event()
         self._lock = Lock()
         self._latest: CaptureResult | None = None
+        self._pending_kicks: deque[KickEvent] = deque(maxlen=32)
+        self._kick_count = 0
         self._error: str | None = None
         self._thread = Thread(target=self._run, name="spectra-capture")
 
@@ -66,12 +75,19 @@ class CaptureWorker:
         with self._lock:
             self._settings = settings
 
-    def take_latest(self) -> tuple[CaptureResult | None, str | None]:
-        """Consume the current result; terminal errors remain available."""
+    def take_latest(self) -> tuple[CaptureResult | None, tuple[KickEvent, ...], str | None]:
+        """Consume the latest frame and drain pending events atomically.
+
+        Keep the newest 32 events if presentation stalls; the session count
+        includes every detection even if that bounded buffer overflows.
+        Terminal errors remain available.
+        """
         with self._lock:
             result = self._latest
             self._latest = None
-            return result, self._error
+            events = tuple(self._pending_kicks)
+            self._pending_kicks.clear()
+            return result, events, self._error
 
     def _run(self) -> None:
         try:
@@ -81,18 +97,23 @@ class CaptureWorker:
             while not self._stop_requested.is_set():
                 results = self._analyzer.process(self._source.read())
                 for result in results:
+                    kick = self._kick_detector.process(result)
                     with self._lock:
                         settings = self._settings
                     self._processor.update_settings(settings)
                     intensities = self._processor.process(result.band_energies, result.timestamp)
                     with self._lock:
-                        self._latest = CaptureResult(result, intensities)
+                        if kick is not None:
+                            self._pending_kicks.append(kick)
+                            self._kick_count += 1
+                        self._latest = CaptureResult(result, intensities, self._kick_count)
         except Exception as error:
             if not self._stop_requested.is_set():
                 with self._lock:
                     self._error = str(error) or type(error).__name__
         finally:
             self._processor.reset()
+            self._kick_detector.reset()
             try:
                 self._source.stop()
             except Exception as error:

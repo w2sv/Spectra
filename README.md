@@ -49,6 +49,15 @@ zero milliseconds disables smoothing in that direction. Silence releases to an u
 These controls affect only LED brightness: the spectrum graph and CLI retain raw power readings.
 The Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues.
 
+The **Kick** indicator briefly highlights detected bass transients; its session count resets on
+capture restart. Detection uses raw 40–160 Hz power changes, independently of LED controls, with
+an adaptive flux threshold, minimum and rising bass-power gates, and a 200 ms refractory period. It detects
+kick-like low-frequency onsets, including some non-kick sounds. Defaults are adjustable in
+`analysis/kick.py`; no tempo estimation or onset-driven LED effects are applied. The worker checks
+every FFT result and drains pending events on GUI updates (newest 32 retained during long stalls,
+with the full detection count preserved).
+See [kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining limitations.
+
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined
 with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs
 an overlapping real FFT every 512 samples. Power is summed into 24 logarithmic bands from

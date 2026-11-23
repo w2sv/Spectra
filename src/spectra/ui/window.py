@@ -5,7 +5,7 @@ from time import monotonic
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
@@ -31,6 +31,7 @@ FRAME_RATE = 30
 SPECTRUM_MIN_DB = -80.0
 SPECTRUM_MAX_DB = 0.0
 STALE_RESULT_TIMEOUT = 0.5
+KICK_FLASH_SECONDS = 0.12
 
 
 class SpectraWindow(QMainWindow):
@@ -52,6 +53,12 @@ class SpectraWindow(QMainWindow):
         self._band_count = 0
         self._last_result_at: float | None = None
         self._intensity_settings = BandIntensitySettings()
+        self._kick_flash_until: float | None = None
+        self._kick_count = 0
+        self._kick_flash_style = (
+            f"background-color: {self.palette().color(QPalette.ColorRole.Highlight).name()};"
+            f"color: {self.palette().color(QPalette.ColorRole.HighlightedText).name()};"
+        )
 
         content = QWidget()
         layout = QVBoxLayout(content)
@@ -120,6 +127,16 @@ class SpectraWindow(QMainWindow):
         processing_controls.setColumnStretch(3, 1)
         layout.addLayout(processing_controls)
 
+        kick_feedback = QHBoxLayout()
+        self._kick_indicator = QLabel("Kick")
+        self._kick_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._kick_indicator.setContentsMargins(8, 3, 8, 3)
+        kick_feedback.addWidget(self._kick_indicator)
+        self._kick_count_label = QLabel("Kicks: 0")
+        kick_feedback.addWidget(self._kick_count_label)
+        kick_feedback.addStretch()
+        layout.addLayout(kick_feedback)
+
         self._plot = pg.PlotWidget(background=self.palette().color(QPalette.ColorRole.Base).name())
         self._plot.setLabel("left", "Band power", units="dB re 1 PCM²")
         self._plot.setLabel("bottom", "Frequency", units="Hz")
@@ -181,6 +198,11 @@ class SpectraWindow(QMainWindow):
         self._bars.setOpts(height=np.zeros(self._band_count))
         self._leds.set_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
         self._last_result_at = None
+        self._clear_kick_flash()
+
+    def _clear_kick_flash(self) -> None:
+        self._kick_indicator.setStyleSheet("")
+        self._kick_flash_until = None
 
     def _start_capture(self) -> None:
         selected = self._sources.currentData()
@@ -188,6 +210,8 @@ class SpectraWindow(QMainWindow):
             return
         worker = CaptureWorker(PipeWireSource(selected), self._intensity_settings)
         self._clear_display()
+        self._kick_count = 0
+        self._kick_count_label.setText("Kicks: 0")
         edges = np.log10(worker.band_edges)
         self._band_count = len(edges) - 1
         gap = np.diff(edges) * 0.08
@@ -218,13 +242,22 @@ class SpectraWindow(QMainWindow):
             self._worker.request_stop()
 
     def _update_capture(self) -> None:
+        now = monotonic()
+        if self._kick_flash_until is not None and now >= self._kick_flash_until:
+            self._clear_kick_flash()
         worker = self._worker
         if worker is None:
             return
         # Observe termination before taking the snapshot so a final error
         # cannot arrive between the snapshot and discarding the worker.
         finished = not worker.is_alive
-        result, error = worker.take_latest()
+        result, kicks, error = worker.take_latest()
+        if result is not None:
+            self._kick_count = result.kick_count
+            self._kick_count_label.setText(f"Kicks: {self._kick_count}")
+        if kicks and not self._stopping and error is None:
+            self._kick_indicator.setStyleSheet(self._kick_flash_style)
+            self._kick_flash_until = now + KICK_FLASH_SECONDS
         if error:
             self._error.setText(f"Error: {error}")
             self._error.show()
