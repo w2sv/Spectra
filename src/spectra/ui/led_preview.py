@@ -1,10 +1,9 @@
 """A framebuffer-only preview of an ordered RGB LED strip."""
 
 import numpy as np
-from numpy.typing import NDArray
-from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QPainter, QPaintEvent
 from PySide6.QtWidgets import QSizePolicy, QWidget
+from numpy.typing import NDArray
 
 
 class LedPreview(QWidget):
@@ -30,10 +29,21 @@ class LedPreview(QWidget):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
-        segment_width = self.width() / self.led_count
-        gap = min(1.0, segment_width * 0.2)
+        painter.fillRect(self.rect(), self.palette().color(self.backgroundRole()))
+
+        pixels_per_led = max(1, self.width() // self.led_count)
+        strip_width = pixels_per_led * self.led_count
+        start_x = (self.width() - strip_width) // 2
+        gap = 1 if pixels_per_led > 1 else 0
+
         for index, rgb in enumerate(self._frame):
             color = QColor(int(rgb[0]), int(rgb[1]), int(rgb[2]))
-            rectangle = QRectF(index * segment_width, 0, segment_width - gap, self.height())
-            painter.fillRect(rectangle, color)
+            painter.fillRect(
+                start_x + index * pixels_per_led,
+                0,
+                pixels_per_led - gap,
+                self.height(),
+                color,
+                )
+
         painter.end()
