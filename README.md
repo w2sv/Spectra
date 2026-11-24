@@ -3,7 +3,7 @@
 Spectra is a real-time, music-reactive LED visualization application for Ubuntu 24.04.
 Spectra captures desktop playback without changing audio routing. Its optional desktop interface
 shows a live frequency spectrum and a virtual strip of 300 RGB LEDs; CLI diagnostics remain available.
-Physical LED output over Wi-Fi will follow later.
+Optional WLED output sends the same RGB frames over Wi-Fi using DDP.
 
 The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/pyqtgraph
 for the desktop interface and live plots. Audio capture uses `parec` through PipeWire's
@@ -67,7 +67,24 @@ Animation uses original kick audio timestamps and interpolates between spectrum 
 Switching modes is immediate, leaves capture and detection running, and waits for new
 kicks without replaying previous events. Stop, restart, and stale capture clear animation
 state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`;
-there are no individual effect controls or physical LED output yet.
+there are no individual effect controls yet.
+
+For physical output, configure WLED for **300 WS2812B RGB LEDs** with the correct
+GPIO and strip color order. WLED receives [DDP on UDP port 4048](https://kno.wled.ge/interfaces/ddp/);
+keep realtime input available and its realtime override disabled. Spectra always sends
+RGB order; WLED handles the strip's physical channel order.
+
+In **WLED output**, enter the controller's IPv4 address and check **Enable WLED**.
+Output is disabled by default. Disable it to edit the address. All three visualizations
+continue driving the virtual preview, and output can be toggled without restarting capture.
+**UDP sent · delivery unverified** means the local socket accepted a packet, not that
+WLED received it. A busy socket drops the current frame; other socket errors disable
+only WLED output. There is no discovery, handshake, or automatic reconnection.
+
+Spectra attempts a final black frame on capture stop, stale capture, output disable,
+and window close. UDP delivery cannot be guaranteed, and WLED may resume its own
+effect after its realtime timeout. Hardware validation on the ESP8266 is still pending;
+loopback tests verify DDP encoding, RGB order, transmission, and cleanup without a controller.
 
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined
 with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs

@@ -9,11 +9,13 @@ from numpy.typing import NDArray
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QPushButton,
     QSpinBox,
@@ -25,6 +27,7 @@ from spectra.analysis import KickEvent
 from spectra.audio import AudioSourceInfo
 from spectra.audio.pipewire import PipeWireSource
 from spectra.capture import CaptureWorker
+from spectra.output.ddp import DDPOutput
 from spectra.ui.led_preview import LedPreview
 from spectra.visualization import Visualization
 from spectra.visualization.combined import CombinedVisualization
@@ -53,6 +56,7 @@ class SpectraWindow(QMainWindow):
         self.resize(1000, 600)
         self.setMinimumSize(680, 400)
         self._worker: CaptureWorker | None = None
+        self._ddp_output: DDPOutput | None = None
         self._stopping = False
         self._closing = False
         self._band_count = 0
@@ -150,6 +154,21 @@ class SpectraWindow(QMainWindow):
         kick_feedback.addWidget(self._visualization_selector)
         layout.addLayout(kick_feedback)
 
+        wled_controls = QHBoxLayout()
+        wled_controls.addWidget(QLabel("WLED output:"))
+        self._wled_address = QLineEdit()
+        self._wled_address.setPlaceholderText("IPv4 address, e.g. 192.168.1.50")
+        self._wled_address.setMinimumWidth(180)
+        self._wled_address.setMaximumWidth(300)
+        wled_controls.addWidget(self._wled_address)
+        self._wled_enabled = QCheckBox("Enable WLED")
+        self._wled_enabled.toggled.connect(self._set_wled_enabled)
+        wled_controls.addWidget(self._wled_enabled)
+        self._wled_status = QLabel("Disabled")
+        self._wled_status.setWordWrap(True)
+        wled_controls.addWidget(self._wled_status, 1)
+        layout.addLayout(wled_controls)
+
         self._plot = pg.PlotWidget(background=self.palette().color(QPalette.ColorRole.Base).name())
         self._plot.setLabel("left", "Band power", units="dB re 1 PCM²")
         self._plot.setLabel("bottom", "Frequency", units="Hz")
@@ -177,6 +196,7 @@ class SpectraWindow(QMainWindow):
         layout.addWidget(self._plot, 1)
 
         self._leds = LedPreview()
+        self._last_frame = np.zeros((self._leds.led_count, 3), dtype=np.uint8)
         self._visualization: Visualization = FrequencyVisualization(led_count=self._leds.led_count)
         self._visualization_selector.currentIndexChanged.connect(self._change_visualization)
         layout.addWidget(QLabel(f"Virtual LED strip · {self._leds.led_count} LEDs"))
@@ -211,7 +231,7 @@ class SpectraWindow(QMainWindow):
 
     def _clear_display(self) -> None:
         self._bars.setOpts(height=np.zeros(self._band_count))
-        self._leds.set_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
+        self._display_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
         self._visualization.reset()
         self._last_result_at = None
         self._latest_audio_timestamp = None
@@ -219,6 +239,46 @@ class SpectraWindow(QMainWindow):
         self._latest_intensities = None
         self._mode_started_at = None
         self._clear_kick_flash()
+
+    def _set_wled_status(self, text: str) -> None:
+        if self._wled_status.text() != text:
+            self._wled_status.setText(text)
+
+    def _set_wled_enabled(self, enabled: bool) -> None:
+        if enabled:
+            try:
+                self._ddp_output = DDPOutput(self._wled_address.text(), led_count=self._leds.led_count)
+            except (ValueError, OSError) as error:
+                self._wled_enabled.setChecked(False)
+                self._set_wled_status(f"Output error: {error}")
+                return
+            self._wled_address.setEnabled(False)
+            self._send_wled_frame(self._last_frame)
+        else:
+            self._wled_address.setEnabled(True)
+            output, self._ddp_output = self._ddp_output, None
+            try:
+                black_sent = output.close() if output is not None else True
+            except OSError as error:
+                self._set_wled_status(f"Disabled · blackout failed: {error}")
+            else:
+                self._set_wled_status("Disabled" if black_sent else "Disabled · blackout dropped")
+
+    def _send_wled_frame(self, frame: NDArray[np.uint8]) -> None:
+        if self._ddp_output is None:
+            return
+        try:
+            sent = self._ddp_output.send(frame)
+        except OSError as error:
+            self._wled_enabled.setChecked(False)
+            self._set_wled_status(f"Output error: {error}")
+        else:
+            self._set_wled_status("UDP sent · delivery unverified" if sent else "Frame dropped · UDP buffer busy")
+
+    def _display_frame(self, frame: NDArray[np.uint8]) -> None:
+        self._last_frame = frame
+        self._leds.set_frame(frame)
+        self._send_wled_frame(frame)
 
     def _change_visualization(self, index: int) -> None:
         self._visualization.reset()
@@ -249,7 +309,7 @@ class SpectraWindow(QMainWindow):
         if timestamp is None or self._latest_intensities is None:
             return
         kicks = tuple(kick for kick in kicks if self._mode_started_at is None or kick.timestamp > self._mode_started_at)
-        self._leds.set_frame(self._visualization.render(self._latest_intensities, kicks, timestamp))
+        self._display_frame(self._visualization.render(self._latest_intensities, kicks, timestamp))
 
     def _clear_kick_flash(self) -> None:
         self._kick_indicator.setStyleSheet("")
@@ -337,6 +397,7 @@ class SpectraWindow(QMainWindow):
                 self.close()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._wled_enabled.setChecked(False)
         if self._worker is not None:
             self._closing = True
             self._stop_capture()
@@ -348,9 +409,12 @@ class SpectraWindow(QMainWindow):
     def shutdown(self) -> None:
         """Bounded cleanup if the application exits outside the window-close path."""
         self._timer.stop()
-        if self._worker is not None:
-            self._stop_capture()
-            self._worker.join()
-            self._worker = None
-            self._stopping = False
-        self._update_controls()
+        try:
+            if self._worker is not None:
+                self._stop_capture()
+                self._worker.join()
+                self._worker = None
+                self._stopping = False
+            self._update_controls()
+        finally:
+            self._wled_enabled.setChecked(False)
