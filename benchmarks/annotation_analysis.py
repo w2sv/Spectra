@@ -7,7 +7,7 @@ Array conventions: time along axis zero, frequency/bands along axis one.
 from dataclasses import asdict, dataclass
 from math import ceil, gcd
 from time import perf_counter
-from typing import TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,6 +19,20 @@ from scipy.signal.windows import hann
 from spectra.audio import AudioSamples
 
 ALGORITHM_VERSION = 1
+TEMPLATE_BANDS = (
+    (20, 40),
+    (40, 60),
+    (60, 90),
+    (90, 130),
+    (130, 180),
+    (180, 250),
+    (250, 350),
+    (350, 500),
+    (500, 750),
+    (750, 1000),
+    (1000, 2000),
+    (2000, 3000),
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +69,7 @@ class AcousticAnalysis:
     bass: NDArray[np.float64]
     broadband: NDArray[np.float64]
     duration_seconds: float
+    template_band_power: NDArray[np.float64]
 
 
 class Candidate(TypedDict):
@@ -64,6 +79,14 @@ class Candidate(TypedDict):
     broadband_evidence: float
     nearest_beat_distance_seconds: float | None
     grid_aligned: bool
+    novelty_timestamp: NotRequired[float]
+    refined_timestamp: NotRequired[float | None]
+    positive_similarity: NotRequired[float | None]
+    negative_similarity: NotRequired[float | None]
+    best_positive_template_timestamp: NotRequired[float | None]
+    alignment_offset_seconds: NotRequired[float | None]
+    classification: NotRequired[Literal["unclassified", "likely", "ambiguous", "unlikely"]]
+    alignment_at_search_boundary: NotRequired[bool]
 
 
 class GridSection(TypedDict):
@@ -88,6 +111,16 @@ class Proposal(TypedDict):
     duration_seconds: float
     source_sample_rate: int
     informational: dict[str, float]
+    acoustic_algorithm_version: NotRequired[int]
+    template_definition_sha256: NotRequired[str | None]
+    template_parameters: NotRequired[dict[str, object]]
+    alternative_phase_seconds: NotRequired[float | None]
+    alternative_beat_positions: NotRequired[list[float]]
+    grid_comparisons: NotRequired[list[dict[str, object]]]
+    invalid_positive_templates: NotRequired[list[float]]
+    invalid_negative_templates: NotRequired[list[float]]
+    positive_template_count: NotRequired[int]
+    reference_alignment_checks: NotRequired[list[dict[str, object]]]
 
 
 def analyze_audio(samples: AudioSamples, source_rate: int) -> AcousticAnalysis:
@@ -105,12 +138,18 @@ def analyze_audio(samples: AudioSamples, source_rate: int) -> AcousticAnalysis:
     limits = np.asarray(p.bands)
     overlap = np.minimum(limits[:, 1, None], bin_edges[None, 1:]) - np.maximum(limits[:, 0, None], bin_edges[None, :-1])
     weights = np.maximum(overlap, 0) / np.diff(bin_edges)
+    template_limits = np.asarray(TEMPLATE_BANDS)
+    template_overlap = np.minimum(template_limits[:, 1, None], bin_edges[None, 1:]) - np.maximum(
+        template_limits[:, 0, None], bin_edges[None, :-1]
+    )
+    template_weights = np.maximum(template_overlap, 0) / np.diff(bin_edges)
     window = hann(p.fft_size, sym=False).astype(np.float32)
     scale = np.full(len(frequencies), 2 / (p.fft_size * float(np.sum(window**2))))
     scale[[0, -1]] *= 0.5
     low = (frequencies >= 20) & (frequencies <= 500)
     band_power = np.empty((count, 4), dtype=np.float64)
     low_power = np.empty((count, int(low.sum())), dtype=np.float32)
+    template_power = np.empty((count, len(TEMPLATE_BANDS)), dtype=np.float64)
     padded = np.pad(mono, (p.fft_size // 2, p.fft_size // 2))
     windows = np.lib.stride_tricks.sliding_window_view(padded, p.fft_size)[:: p.hop_size][:count]
     # Bound temporary FFT storage for complete multi-minute recordings.
@@ -118,6 +157,7 @@ def analyze_audio(samples: AudioSamples, source_rate: int) -> AcousticAnalysis:
         spectrum = np.asarray(rfft(windows[start : start + 2048] * window, axis=1), dtype=np.complex64)
         power = (spectrum.real**2 + spectrum.imag**2) * scale
         band_power[start : start + len(power)] = power @ weights.T
+        template_power[start : start + len(power)] = power @ template_weights.T
         low_power[start : start + len(power)] = power[:, low]
     log_power = np.log(band_power + p.log_power_floor)
     differences = np.maximum(np.diff(log_power, axis=0, prepend=log_power[:1]), 0)
@@ -141,6 +181,7 @@ def analyze_audio(samples: AudioSamples, source_rate: int) -> AcousticAnalysis:
         gaussian_filter1d(bass, p.smoothing_frames),
         gaussian_filter1d(broadband, p.smoothing_frames),
         duration,
+        template_power,
     )
 
 

@@ -4,6 +4,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 from benchmarks.fixtures import AudioFixture, Partition, load_wav, verify_checksum
 from spectra.audio import AudioSamples
@@ -99,3 +100,25 @@ def reviewed_fixtures(tracks: list[Track], root: Path = TECHNO) -> tuple[list[Au
             )
         )
     return fixtures, missing
+
+
+class CollectionStatus(TypedDict):
+    requested_track_identifiers: list[str]
+    evaluated_track_identifiers: list[str]
+    missing_audio: list[str]
+    missing_reviewed_annotations: list[str]
+    complete: bool
+
+
+def collection_status(tracks: list[Track], fixtures: list[AudioFixture], root: Path = TECHNO) -> CollectionStatus:
+    annotations = json.loads((root / "annotations.json").read_text(encoding="utf-8"))
+    reviewed = {record["track_identifier"] for record in annotations if record.get("review_status") == "reviewed"}
+    requested = [track.identifier for track in tracks]
+    evaluated = [fixture.identifier for fixture in fixtures if fixture.dataset == "techno"]
+    return {
+        "requested_track_identifiers": requested,
+        "evaluated_track_identifiers": evaluated,
+        "missing_audio": [track.identifier for track in tracks if not (root / "audio" / track.filename).is_file()],
+        "missing_reviewed_annotations": [track.identifier for track in tracks if track.identifier not in reviewed],
+        "complete": set(requested) == set(evaluated),
+    }

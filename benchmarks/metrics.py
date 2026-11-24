@@ -27,7 +27,7 @@ class Evaluation:
             "precision": tp / (tp + fp) if tp + fp else None,
             "recall": tp / (tp + fn) if tp + fn else None,
             "f1": 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else None,
-            "false_positives_per_minute": fp * 60 / self.duration_seconds,
+            "false_positives_per_minute": fp * 60 / self.duration_seconds if self.duration_seconds > 0 else None,
             "median_signed_error_seconds": float(np.median(self.signed_errors)) if self.signed_errors else None,
             "median_absolute_error_seconds": float(np.median(absolute)) if self.signed_errors else None,
             "p95_absolute_error_seconds": float(np.percentile(absolute, 95)) if self.signed_errors else None,

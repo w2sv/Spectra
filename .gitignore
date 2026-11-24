@@ -15,7 +15,12 @@ benchmarks/datasets/*
 benchmarks/datasets/techno/*
 !benchmarks/datasets/techno/tracks.json
 !benchmarks/datasets/techno/annotations.json
+!benchmarks/datasets/techno/templates/
+benchmarks/datasets/techno/templates/*
+!benchmarks/datasets/techno/templates/*.json
 benchmarks/results/*
 !benchmarks/results/baseline.json
 !benchmarks/results/annotation_synthetic_baseline.json
 !benchmarks/results/annotation_pilot.json
+!benchmarks/results/annotation_refinement_baseline.json
+!benchmarks/results/annotation_refinement_pilot.json

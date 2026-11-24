@@ -17,12 +17,12 @@ from scipy.signal import firwin, upfirdn
 
 from benchmarks.fixtures import AudioFixture, load_manifest, synthetic_fixtures
 from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
-from benchmarks.tracks import read_catalog, reviewed_fixtures
+from benchmarks.tracks import CollectionStatus, collection_status, read_catalog, reviewed_fixtures
 from spectra.analysis import KickDetectionConfig, KickOnsetDetector, SpectrumAnalyzer
 from spectra.audio import DEFAULT_READ_FRAMES, AudioSamples
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class FixtureReport(TypedDict):
@@ -68,6 +68,9 @@ class BenchmarkReport(TypedDict):
     aggregates_by_dataset: dict[str, AggregateReport]
     aggregates_by_category: dict[str, dict[str, AggregateReport]]
     aggregates_by_partition: dict[str, AggregateReport]
+    collection_completeness: CollectionStatus
+    result_scope: str
+    benchmark_executed: bool
 
 
 @dataclass(frozen=True)
@@ -213,8 +216,10 @@ def grouped_aggregates(
     return datasets, categories, partitions
 
 
-def benchmark(fixtures: list[AudioFixture], config: KickDetectionConfig) -> BenchmarkReport:
-    if not fixtures:
+def benchmark(
+    fixtures: list[AudioFixture], config: KickDetectionConfig, collection: CollectionStatus | None = None
+) -> BenchmarkReport:
+    if not fixtures and (collection is None or collection["complete"]):
         raise ValueError("Select at least one fixture.")
     pooled: dict[str, list[Evaluation]] = {str(round(window * 1000)): [] for window in TOLERANCES}
     results: list[FixtureReport] = []
@@ -277,6 +282,17 @@ def benchmark(fixtures: list[AudioFixture], config: KickDetectionConfig) -> Benc
         "aggregates_by_dataset": datasets,
         "aggregates_by_category": categories,
         "aggregates_by_partition": partitions,
+        "collection_completeness": collection
+        if collection is not None
+        else {
+            "requested_track_identifiers": [],
+            "evaluated_track_identifiers": [],
+            "missing_audio": [],
+            "missing_reviewed_annotations": [],
+            "complete": True,
+        },
+        "result_scope": "partial" if collection is not None and not collection["complete"] else "complete",
+        "benchmark_executed": bool(fixtures),
     }
 
 
@@ -294,6 +310,16 @@ def print_summary(report: BenchmarkReport) -> None:
             f"{number('median_absolute_error_seconds', 1000):>9} {number('p95_absolute_error_seconds', 1000):>9}"
         )
 
+    status = report["collection_completeness"]
+    if status["requested_track_identifiers"]:
+        print(
+            f"{'COMPLETE' if status['complete'] else 'PARTIAL'} COLLECTION: "
+            f"{len(status['evaluated_track_identifiers'])}/{len(status['requested_track_identifiers'])} requested tracks evaluated"
+        )
+        print(f"Requested: {', '.join(status['requested_track_identifiers'])}")
+        print(f"Evaluated: {', '.join(status['evaluated_track_identifiers']) or 'none'}")
+        print(f"Missing audio: {', '.join(status['missing_audio']) or 'none'}")
+        print(f"Missing reviewed annotations: {', '.join(status['missing_reviewed_annotations']) or 'none'}")
     print("Primary tolerance: +/-50 ms; positive timing error = late; n/a = undefined")
     print(f"{'fixture / aggregate':24}   TP   FP   FN    prec  recall      F1   FP/min signed ms    abs ms P95abs ms")
     for tolerance, metrics in report["aggregate_metrics_by_tolerance_ms"].items():
@@ -329,9 +355,13 @@ def main() -> None:
     )
     parser.add_argument("--json", type=Path, help="Write a JSON report (replaces an existing file).")
     parser.add_argument("--list", action="store_true", help="List fixture identifiers and categories, then exit.")
+    parser.add_argument(
+        "--allow-partial", action="store_true", help="Explicitly permit incomplete requested techno collections."
+    )
     arguments = parser.parse_args()
     try:
         datasets = arguments.dataset or ["synthetic"]
+        collection: CollectionStatus | None = None
         fixtures = synthetic_fixtures() if "synthetic" in datasets else []
         for manifest in arguments.manifest:
             fixtures.extend(load_manifest(manifest))
@@ -352,6 +382,7 @@ def main() -> None:
             if arguments.category:
                 tracks = [track for track in tracks if track.category in arguments.category]
             real_fixtures, missing = reviewed_fixtures(tracks)
+            collection = collection_status(tracks, real_fixtures)
             for message in missing:
                 print(message)
             fixtures.extend(real_fixtures)
@@ -366,6 +397,13 @@ def main() -> None:
             raise ValueError("Unknown fixture identifier; use --list.")
         if set(arguments.category) - available_categories:
             raise ValueError("Unknown fixture category; use --list.")
+        if collection is not None and not collection["complete"] and not arguments.allow_partial:
+            raise ValueError(
+                f"Incomplete requested collection: evaluated {len(collection['evaluated_track_identifiers'])}/"
+                f"{len(collection['requested_track_identifiers'])} tracks; missing audio: {collection['missing_audio']}; "
+                f"missing reviewed annotations: {collection['missing_reviewed_annotations']}. "
+                "Use --allow-partial to report an explicitly partial result."
+            )
         fixtures = [
             fixture
             for fixture in fixtures
@@ -374,7 +412,7 @@ def main() -> None:
             and fixture.dataset in datasets
             and (not arguments.partition or fixture.partition in arguments.partition)
         ]
-        if not fixtures:
+        if not fixtures and not (arguments.allow_partial and collection is not None and not collection["complete"]):
             raise ValueError(
                 "No benchmark fixtures satisfy this selection; techno requires audio and fully reviewed annotations."
             )
@@ -384,7 +422,7 @@ def main() -> None:
             if not separator or name not in {field.name for field in fields(KickDetectionConfig)}:
                 raise ValueError("Use --set NAME=VALUE with a KickDetectionConfig field name.")
             overrides[name] = float(value)
-        report = benchmark(fixtures, KickDetectionConfig(**overrides))
+        report = benchmark(fixtures, KickDetectionConfig(**overrides), collection)
         print_summary(report)
         if arguments.json is not None:
             arguments.json.parent.mkdir(parents=True, exist_ok=True)

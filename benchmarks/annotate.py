@@ -14,6 +14,14 @@ from benchmarks.annotation_analysis import (
     analyze_audio,
     generate_proposal,
 )
+from benchmarks.annotation_editing import reset_draft
+from benchmarks.annotation_templates import (
+    REFINED_ALGORITHM_VERSION,
+    load_templates,
+    refine_proposal,
+    save_templates,
+    template_checksum,
+)
 from benchmarks.fixtures import synthetic_fixtures, verify_checksum
 from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
 from benchmarks.tracks import TECHNO, Track, read_catalog, validate_timestamps, verified_audio
@@ -41,6 +49,19 @@ def proposal_summary(proposal: Proposal) -> dict[str, object]:
         "unsupported_beats": len(proposal["unsupported_beat_positions"]),
         "drift_sections": [section for section in proposal["beat_grid_validation"] if section["drift_flagged"]],
         "informational": proposal["informational"],
+        "annotation_algorithm_version": proposal["annotation_algorithm_version"],
+        "template_definition_sha256": proposal.get("template_definition_sha256"),
+        "classification_counts": {
+            label: sum(
+                candidate.get("classification", "unclassified") == label for candidate in proposal["kick_candidates"]
+            )
+            for label in ("unclassified", "likely", "ambiguous", "unlikely")
+        },
+        "grid_comparisons": proposal.get("grid_comparisons", []),
+        "reference_alignment_checks": proposal.get("reference_alignment_checks", []),
+        "positive_template_count": proposal.get("positive_template_count", 0),
+        "invalid_positive_templates": proposal.get("invalid_positive_templates", []),
+        "invalid_negative_templates": proposal.get("invalid_negative_templates", []),
     }
 
 
@@ -54,6 +75,7 @@ def annotate_track(
     start: float = 0,
     duration: float = 10,
     diagnostics: bool = False,
+    reset: bool = False,
     root: Path = TECHNO,
 ) -> dict[str, object]:
     if track.partition == "evaluation":
@@ -67,8 +89,16 @@ def annotate_track(
         verify_checksum(root / "audio" / track.filename, track.sha256)
         if proposal["track_identifier"] != track.identifier or proposal["audio_sha256"] != track.sha256:
             raise ValueError("Existing proposals do not match this recording.")
-        if proposal["annotation_algorithm_version"] != ALGORITHM_VERSION:
+        if proposal["annotation_algorithm_version"] != REFINED_ALGORITHM_VERSION:
             raise ValueError("Existing proposals use another algorithm version; explicitly --regenerate them.")
+        if track.sha256 is None:
+            raise ValueError("Template analysis requires a catalog audio checksum.")
+        templates = load_templates(
+            root / "templates" / f"{track.identifier}.json",
+            track.identifier,
+            track.sha256,
+            proposal["duration_seconds"],
+        )
         analysis = None
     else:
         bpm = track.bpm if bpm is None else bpm
@@ -79,9 +109,19 @@ def annotate_track(
         analysis = analyze_audio(samples, rate)
         del samples
         proposal = generate_proposal(analysis, track.identifier, track.sha256, rate, bpm, phase)
+        if track.sha256 is None:
+            raise ValueError("Template analysis requires a catalog audio checksum.")
+        template_path = root / "templates" / f"{track.identifier}.json"
+        templates = load_templates(template_path, track.identifier, track.sha256, analysis.duration_seconds)
+        if not template_path.exists():
+            save_templates(template_path, templates, analysis.duration_seconds)
+        proposal = refine_proposal(analysis, proposal, templates)
         proposal["informational"]["annotation_processing_seconds"] = perf_counter() - started
         write_json(path, proposal)
+    if reset:
+        reset_draft(root / "drafts" / f"{track.identifier}.json", proposal)
     summary = proposal_summary(proposal)
+    summary["template_definitions_current"] = proposal.get("template_definition_sha256") == template_checksum(templates)
     if plot or diagnostics:
         if (
             not math.isfinite(start)
@@ -101,11 +141,13 @@ def annotate_track(
             matplotlib.use("Agg")
             from benchmarks.annotation_review import save_diagnostics
 
-            summary["diagnostic_intervals"] = save_diagnostics(analysis, proposal, root / "proposals" / "diagnostics")
+            summary["diagnostic_intervals"] = save_diagnostics(
+                analysis, proposal, root / "proposals" / "diagnostics_v2", templates
+            )
         if plot:
             from benchmarks.annotation_review import show_review
 
-            show_review(analysis, proposal, root / "drafts" / f"{track.identifier}.json", start, duration)
+            show_review(analysis, proposal, root / "drafts" / f"{track.identifier}.json", start, duration, root=root)
     write_json(root / "proposals" / f"{track.identifier}-summary.json", summary)
     return summary
 
@@ -206,9 +248,17 @@ def main() -> None:
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--track")
     selection.add_argument("--synthetic", action="store_true", help="Validate proposals on all 15 synthetic fixtures.")
+    selection.add_argument(
+        "--refined-synthetic", action="store_true", help="Validate template refinement, excluding reference events."
+    )
     parser.add_argument("--bpm", type=float)
     parser.add_argument("--phase", type=float)
     parser.add_argument("--regenerate", action="store_true", help="Explicitly replace automatic proposals only.")
+    parser.add_argument(
+        "--reset-draft",
+        action="store_true",
+        help="Recreate a draft from current proposals; confirm before discarding edits.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--plot", action="store_true")
     mode.add_argument("--finalize", action="store_true")
@@ -218,16 +268,22 @@ def main() -> None:
     parser.add_argument("--json", type=Path, help="Export synthetic validation metrics.")
     arguments = parser.parse_args()
     try:
-        if arguments.synthetic:
+        if arguments.synthetic or arguments.refined_synthetic:
             if (
                 arguments.plot
                 or arguments.finalize
                 or arguments.diagnostics
                 or arguments.bpm is not None
                 or arguments.phase is not None
+                or arguments.reset_draft
             ):
                 raise ValueError("Synthetic validation uses fixture tempos and does not edit real annotations.")
-            report = validate_synthetics()
+            if arguments.refined_synthetic:
+                from benchmarks.refinement_validation import validate_refinement
+
+                report = validate_refinement()
+            else:
+                report = validate_synthetics()
             if arguments.json is not None:
                 write_json(arguments.json, report)
             print(json.dumps(report, indent=2, allow_nan=False))
@@ -237,7 +293,12 @@ def main() -> None:
             raise ValueError("Unknown catalog track identifier.")
         track = tracks[arguments.track]
         if arguments.finalize:
-            if arguments.regenerate or arguments.bpm is not None or arguments.phase is not None:
+            if (
+                arguments.regenerate
+                or arguments.reset_draft
+                or arguments.bpm is not None
+                or arguments.phase is not None
+            ):
                 raise ValueError("Finalization consumes the saved draft; edit its confirmed_bpm before finalizing.")
             finalize_annotation(track)
         else:
@@ -250,6 +311,7 @@ def main() -> None:
                 start=arguments.start,
                 duration=arguments.duration,
                 diagnostics=arguments.diagnostics,
+                reset=arguments.reset_draft,
             )
             print(json.dumps(summary, indent=2, allow_nan=False))
     except (OSError, ValueError, KeyError, TypeError, EOFError) as error:
