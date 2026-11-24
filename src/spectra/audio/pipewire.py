@@ -6,7 +6,7 @@ import subprocess
 from threading import Event
 from typing import IO
 
-from spectra.audio import AudioSamples, AudioSourceError, AudioSourceInfo
+from spectra.audio import DEFAULT_READ_FRAMES, DEFAULT_SAMPLE_RATE, AudioSamples, AudioSourceError, AudioSourceInfo
 from spectra.audio.pcm import read_float32_frames
 
 DEFAULT_OUTPUT_MONITOR = AudioSourceInfo("@DEFAULT_MONITOR@", "Default output monitor")
@@ -73,7 +73,7 @@ class PipeWireSource:
     selected using discovery results.
     """
 
-    sample_rate: int = 48_000
+    sample_rate: int = DEFAULT_SAMPLE_RATE
     channels: int = 2
 
     def __init__(self, source: AudioSourceInfo = DEFAULT_OUTPUT_MONITOR) -> None:
@@ -109,7 +109,7 @@ class PipeWireSource:
         except OSError as error:
             raise AudioSourceError(f"Cannot start parec: {error}") from error
 
-    def read(self, frames: int = 1024) -> AudioSamples:
+    def read(self, frames: int = DEFAULT_READ_FRAMES) -> AudioSamples:
         """Read complete frames, or report capture failure after draining PCM."""
         if frames <= 0:
             raise ValueError("Frame count must be positive.")

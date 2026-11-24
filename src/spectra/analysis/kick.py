@@ -10,6 +10,42 @@ from spectra.analysis.spectrum import SpectrumResult
 
 
 @dataclass(frozen=True)
+class KickDetectionConfig:
+    """Bass selection, novelty threshold, and audio-time adaptation parameters."""
+
+    min_frequency: float = 40.0
+    max_frequency: float = 160.0
+    min_energy: float = 1e-6
+    min_flux: float = 0.35
+    threshold_multiplier: float = 2.0
+    adaptation_seconds: float = 1.0
+    refractory_seconds: float = 0.2
+
+    def __post_init__(self) -> None:
+        parameters = (
+            self.min_frequency,
+            self.max_frequency,
+            self.min_energy,
+            self.min_flux,
+            self.threshold_multiplier,
+            self.adaptation_seconds,
+            self.refractory_seconds,
+        )
+        if (
+            not np.all(np.isfinite(parameters))
+            or not 0 <= self.min_frequency < self.max_frequency
+            or self.min_energy <= 0
+            or self.min_flux <= 0
+            or self.adaptation_seconds <= 0
+            or self.threshold_multiplier < 0
+            or self.refractory_seconds < 0
+        ):
+            raise ValueError(
+                "Use a valid bass range, positive energy/flux/adaptation, and nonnegative multiplier/refractory."
+            )
+
+
+@dataclass(frozen=True)
 class KickEvent:
     """A bass transient at an audio-relative spectrum-window center timestamp.
 
@@ -45,14 +81,7 @@ class KickOnsetDetector:
     def __init__(
         self,
         band_edges: NDArray[np.float64],
-        *,
-        min_frequency: float = 40.0,
-        max_frequency: float = 160.0,
-        min_energy: float = 1e-6,
-        min_flux: float = 0.35,
-        threshold_multiplier: float = 2.0,
-        adaptation_seconds: float = 1.0,
-        refractory_seconds: float = 0.2,
+        config: KickDetectionConfig = KickDetectionConfig(),
     ) -> None:
         if (
             band_edges.ndim != 1
@@ -61,37 +90,15 @@ class KickOnsetDetector:
             or np.any(np.diff(band_edges) <= 0)
         ):
             raise ValueError("Expected finite, increasing frequency-band boundaries.")
-        parameters = (
-            min_frequency,
-            max_frequency,
-            min_energy,
-            min_flux,
-            threshold_multiplier,
-            adaptation_seconds,
-            refractory_seconds,
-        )
-        if (
-            not np.all(np.isfinite(parameters))
-            or not 0 <= min_frequency < max_frequency
-            or min_energy <= 0
-            or min_flux <= 0
-            or adaptation_seconds <= 0
-            or threshold_multiplier < 0
-            or refractory_seconds < 0
-        ):
-            raise ValueError(
-                "Use a valid bass range, positive energy/flux/adaptation, and nonnegative multiplier/refractory."
-            )
-
-        overlap = np.minimum(band_edges[1:], max_frequency) - np.maximum(band_edges[:-1], min_frequency)
+        overlap = np.minimum(band_edges[1:], config.max_frequency) - np.maximum(band_edges[:-1], config.min_frequency)
         self._bass_weights = np.maximum(overlap, 0.0) / np.diff(band_edges)
         if not np.any(self._bass_weights):
             raise ValueError("The bass range must overlap the supplied frequency bands.")
-        self._min_energy = min_energy
-        self._min_flux = min_flux
-        self._threshold_multiplier = threshold_multiplier
-        self._adaptation_seconds = adaptation_seconds
-        self._refractory_seconds = refractory_seconds
+        self._min_energy = config.min_energy
+        self._min_flux = config.min_flux
+        self._threshold_multiplier = config.threshold_multiplier
+        self._adaptation_seconds = config.adaptation_seconds
+        self._refractory_seconds = config.refractory_seconds
         self._previous_log_power: NDArray[np.float64] | None = None
         self._previous_bass_energy = 0.0
         self._previous_timestamp: float | None = None

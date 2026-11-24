@@ -259,7 +259,7 @@ def synthesize(path: Path) -> None:
 
 
 def analyze_file(arguments: argparse.Namespace) -> dict[str, object]:
-    from spectra.analysis import KickOnsetDetector, SpectrumAnalyzer
+    from spectra.analysis import KickDetectionConfig, KickOnsetDetector, SpectrumAnalyzer
 
     analyzer = SpectrumAnalyzer()
     overrides = {
@@ -272,7 +272,7 @@ def analyze_file(arguments: argparse.Namespace) -> dict[str, object]:
         )
         if value is not None
     }
-    detector = KickOnsetDetector(analyzer.band_edges, **overrides)
+    detector = KickOnsetDetector(analyzer.band_edges, KickDetectionConfig(**overrides))
     detections = []
     with audio_file(arguments.file) as audio:
         first, count = excerpt_frames(audio, arguments.start, arguments.duration)

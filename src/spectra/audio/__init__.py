@@ -8,6 +8,9 @@ from numpy.typing import NDArray
 
 type AudioSamples = NDArray[np.float32]
 
+DEFAULT_SAMPLE_RATE = 48_000
+DEFAULT_READ_FRAMES = 1024
+
 
 @dataclass(frozen=True)
 class AudioSourceInfo:
@@ -44,7 +47,7 @@ class AudioSource(Protocol):
         """Start capture, or raise AudioSourceError."""
         ...
 
-    def read(self, frames: int = 1024) -> AudioSamples:
+    def read(self, frames: int = DEFAULT_READ_FRAMES) -> AudioSamples:
         """Block for up to frames complete frames; raise AudioSourceError on EOF.
 
         A short final chunk may precede EOF. Returned samples remain valid

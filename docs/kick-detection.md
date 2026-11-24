@@ -3,7 +3,10 @@
 The detector consumes every raw `SpectrumResult`, independently of LED settings
 and GUI refreshes. Defaults remain 40–160 Hz, minimum power `1e-6`, minimum
 log-power flux `0.35`, adaptive threshold multiplier `2`, one-second adaptation,
-and a 200 ms refractory period. Parameters live in `KickOnsetDetector.__init__`.
+and a 200 ms refractory period. Parameters live in the immutable
+`KickDetectionConfig`, passed to `KickOnsetDetector`. The annotated offline
+benchmark and its recorded baseline are documented in
+[`benchmarks/README.md`](../benchmarks/README.md).
 
 Positive changes in individual bands can occur while total bass power falls:
 energy moves between bands during a sound's release. The detector now also

@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from spectra.analysis import KickOnsetDetector, SpectrumAnalyzer, SpectrumResult
+from spectra.analysis import KickDetectionConfig, KickOnsetDetector, SpectrumAnalyzer, SpectrumResult
 
 
 def spectrum(timestamp: float, bass: float = 0.0, high: float = 0.0) -> SpectrumResult:
@@ -40,7 +40,7 @@ def test_sudden_bass_increase_produces_an_onset() -> None:
 
 
 def test_refractory_period_suppresses_duplicate_transients() -> None:
-    detector = KickOnsetDetector(np.geomspace(40, 16_000, 25), refractory_seconds=0.2)
+    detector = KickOnsetDetector(np.geomspace(40, 16_000, 25), KickDetectionConfig(refractory_seconds=0.2))
     detector.process(spectrum(0.0))
     assert detector.process(spectrum(0.01, bass=1e-3)) is not None
     assert detector.process(spectrum(0.03)) is None

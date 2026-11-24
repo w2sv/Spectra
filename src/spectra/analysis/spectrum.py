@@ -7,6 +7,8 @@ from numpy.fft import rfft, rfftfreq
 from numpy.typing import NDArray
 from scipy.signal.windows import hann
 
+from spectra.audio import DEFAULT_SAMPLE_RATE
+
 
 @dataclass(frozen=True)
 class SpectrumResult:
@@ -44,7 +46,7 @@ class SpectrumAnalyzer:
 
     def __init__(
         self,
-        sample_rate: int = 48_000,
+        sample_rate: int = DEFAULT_SAMPLE_RATE,
         fft_size: int = 4096,
         hop_size: int = 512,
         min_frequency: float = 40.0,

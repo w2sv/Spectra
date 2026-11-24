@@ -9,3 +9,13 @@ dist/
 *.egg-info/
 # Local full tracks, generated audio, and experiment results (curated fixtures stay tracked).
 samples/
+# Local annotated datasets and ad hoc runs; keep the intentional reference.
+benchmarks/datasets/*
+!benchmarks/datasets/techno/
+benchmarks/datasets/techno/*
+!benchmarks/datasets/techno/tracks.json
+!benchmarks/datasets/techno/annotations.json
+benchmarks/results/*
+!benchmarks/results/baseline.json
+!benchmarks/results/annotation_synthetic_baseline.json
+!benchmarks/results/annotation_pilot.json

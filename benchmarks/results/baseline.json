@@ -1,0 +1,2662 @@
+{
+  "aggregate_metrics_by_tolerance_ms": {
+    "100": {
+      "f1": 0.867816091954023,
+      "false_negatives": 18,
+      "false_positives": 28,
+      "false_positives_per_minute": 14.0,
+      "median_absolute_error_seconds": 0.025333333333333208,
+      "median_signed_error_seconds": 0.025333333333333208,
+      "p95_absolute_error_seconds": 0.03866666666666685,
+      "precision": 0.8435754189944135,
+      "recall": 0.893491124260355,
+      "true_positives": 151
+    },
+    "25": {
+      "f1": 0.41954022988505746,
+      "false_negatives": 96,
+      "false_positives": 106,
+      "false_positives_per_minute": 53.0,
+      "median_absolute_error_seconds": 0.018666666666666387,
+      "median_signed_error_seconds": 0.018666666666666387,
+      "p95_absolute_error_seconds": 0.02400000000000002,
+      "precision": 0.40782122905027934,
+      "recall": 0.4319526627218935,
+      "true_positives": 73
+    },
+    "50": {
+      "f1": 0.8620689655172413,
+      "false_negatives": 19,
+      "false_positives": 29,
+      "false_positives_per_minute": 14.5,
+      "median_absolute_error_seconds": 0.025333333333333208,
+      "median_signed_error_seconds": 0.025333333333333208,
+      "p95_absolute_error_seconds": 0.03866666666666685,
+      "precision": 0.8379888268156425,
+      "recall": 0.8875739644970414,
+      "true_positives": 150
+    }
+  },
+  "detector_configuration": {
+    "adaptation_seconds": 1.0,
+    "max_frequency": 160.0,
+    "min_energy": 1e-06,
+    "min_flux": 0.35,
+    "min_frequency": 40.0,
+    "refractory_seconds": 0.2,
+    "threshold_multiplier": 2.0
+  },
+  "dsp_configuration": {
+    "band_edges_hz": [
+      40.0,
+      51.342753684500664,
+      65.90195889768265,
+      84.58970107524516,
+      108.57670466379629,
+      139.36567508570167,
+      178.88543819998324,
+      229.61177478114257,
+      294.72251989123106,
+      378.2966436012705,
+      485.56978480233397,
+      623.2622464435556,
+      800.0000000000003,
+      1026.8550736900133,
+      1318.039177953653,
+      1691.7940215049034,
+      2171.5340932759264,
+      2787.3135017140335,
+      3577.7087639996653,
+      4592.235495622852,
+      5894.450397824621,
+      7565.932872025411,
+      9711.39569604668,
+      12465.244928871112,
+      16000.0
+    ],
+    "channel_mix": "arithmetic mean, accumulated in float64",
+    "channels": 2,
+    "detector_time": "audio-relative FFT window center",
+    "fft_size": 4096,
+    "hop_size": 512,
+    "partial_windows": "discarded; no padding or tail flush",
+    "pcm_dtype": "float32",
+    "power": "one-sided integrated mean-square, fractional bin-cell overlaps",
+    "read_frames": 1024,
+    "reported_time": "audio-relative end of capture read containing the completed FFT window",
+    "resampling": "causal polyphase FIR; Hamming window; 20*max(up,down)+1 taps; no delay compensation",
+    "sample_rate": 48000,
+    "timing_excludes": "OS/backend scheduling, DSP execution time, presentation and hardware output",
+    "window": "periodic Hann"
+  },
+  "environment": {
+    "mir_eval": "0.8.2",
+    "numpy": "2.5.5",
+    "python": "3.15.2",
+    "scipy": "1.18.1"
+  },
+  "fixtures": [
+    {
+      "audio_file": null,
+      "category": "clean",
+      "detected_kick_timestamps": [
+        0.512,
+        1.024,
+        1.5146666666666666,
+        2.026666666666667,
+        2.517333333333333,
+        3.029333333333333,
+        3.52,
+        4.010666666666666,
+        4.522666666666667,
+        5.013333333333334,
+        5.525333333333333,
+        6.016,
+        6.528,
+        7.018666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 32.71642138603092,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.9706666666666667,
+          "strength": 7.700163066461764,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.472,
+          "strength": 5.503538094852248,
+          "timestamp": 1.5146666666666666
+        },
+        {
+          "spectrum_center_timestamp": 1.9733333333333334,
+          "strength": 4.749991160965203,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.474666666666667,
+          "strength": 4.198752222227618,
+          "timestamp": 2.517333333333333
+        },
+        {
+          "spectrum_center_timestamp": 2.976,
+          "strength": 3.630166376149105,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.466666666666667,
+          "strength": 1.3998485304915183,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.968,
+          "strength": 1.9217518404437661,
+          "timestamp": 4.010666666666666
+        },
+        {
+          "spectrum_center_timestamp": 4.469333333333333,
+          "strength": 2.3818948851167066,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.970666666666666,
+          "strength": 2.7847319755112423,
+          "timestamp": 5.013333333333334
+        },
+        {
+          "spectrum_center_timestamp": 5.472,
+          "strength": 3.1337716968295735,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.973333333333334,
+          "strength": 3.377868432207582,
+          "timestamp": 6.016
+        },
+        {
+          "spectrum_center_timestamp": 6.474666666666667,
+          "strength": 3.396274585545701,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.976,
+          "strength": 3.1778068761964713,
+          "timestamp": 7.018666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": 120
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "four_on_floor",
+      "informational": {
+        "processing_seconds": 0.22935484198387712,
+        "processing_seconds_per_audio_second": 0.02866935524798464
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.019333333333333202,
+          "median_signed_error_seconds": 0.019333333333333202,
+          "p95_absolute_error_seconds": 0.028466666666666352,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.7142857142857143,
+          "false_negatives": 4,
+          "false_positives": 4,
+          "false_positives_per_minute": 30.0,
+          "median_absolute_error_seconds": 0.016666666666666607,
+          "median_signed_error_seconds": 0.016666666666666607,
+          "p95_absolute_error_seconds": 0.023400000000000087,
+          "precision": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "true_positives": 10
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.019333333333333202,
+          "median_signed_error_seconds": 0.019333333333333202,
+          "p95_absolute_error_seconds": 0.028466666666666352,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "892bbfe8da721a753cd14479c8beff4f5c16d7560036802879c9376485042a3f"
+    },
+    {
+      "audio_file": null,
+      "category": "tempo",
+      "detected_kick_timestamps": [
+        0.512,
+        1.2373333333333334,
+        1.9413333333333334,
+        2.6666666666666665,
+        3.3706666666666667,
+        4.096,
+        4.8,
+        5.525333333333333,
+        6.229333333333333,
+        6.954666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 32.71642138603092,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 1.184,
+          "strength": 8.401501676531504,
+          "timestamp": 1.2373333333333334
+        },
+        {
+          "spectrum_center_timestamp": 1.8986666666666667,
+          "strength": 5.559902852278313,
+          "timestamp": 1.9413333333333334
+        },
+        {
+          "spectrum_center_timestamp": 2.6133333333333333,
+          "strength": 4.768871983340806,
+          "timestamp": 2.6666666666666665
+        },
+        {
+          "spectrum_center_timestamp": 3.328,
+          "strength": 4.504295275453779,
+          "timestamp": 3.3706666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.042666666666666,
+          "strength": 4.444683172576288,
+          "timestamp": 4.096
+        },
+        {
+          "spectrum_center_timestamp": 4.757333333333333,
+          "strength": 4.486467928952171,
+          "timestamp": 4.8
+        },
+        {
+          "spectrum_center_timestamp": 5.472,
+          "strength": 4.561472165740804,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 6.1866666666666665,
+          "strength": 4.65430392527116,
+          "timestamp": 6.229333333333333
+        },
+        {
+          "spectrum_center_timestamp": 6.9013333333333335,
+          "strength": 4.755458247225957,
+          "timestamp": 6.954666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          58286,
+          92571,
+          126857,
+          161143,
+          195429,
+          229714,
+          264000,
+          298286,
+          332571
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": 84
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.2142916666666668,
+        1.9285625,
+        2.6428541666666665,
+        3.3571458333333335,
+        4.0714375,
+        4.785708333333333,
+        5.5,
+        6.214291666666667,
+        6.9285625
+      ],
+      "identifier": "slow",
+      "informational": {
+        "processing_seconds": 0.27423761700629257,
+        "processing_seconds_per_audio_second": 0.03427970212578657
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.01904166666666629,
+          "median_signed_error_seconds": 0.01904166666666629,
+          "p95_absolute_error_seconds": 0.02575729166666645,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 10
+        },
+        "25": {
+          "f1": 0.8,
+          "false_negatives": 2,
+          "false_positives": 2,
+          "false_positives_per_minute": 15.0,
+          "median_absolute_error_seconds": 0.014666666666666384,
+          "median_signed_error_seconds": 0.014666666666666384,
+          "p95_absolute_error_seconds": 0.024300000000000033,
+          "precision": 0.8,
+          "recall": 0.8,
+          "true_positives": 8
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.01904166666666629,
+          "median_signed_error_seconds": 0.01904166666666629,
+          "p95_absolute_error_seconds": 0.02575729166666645,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 10
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "e020b7c71b45d5cc8537b69598b043ead03c1ec3899bd9be7e9838f625a58a0c"
+    },
+    {
+      "audio_file": null,
+      "category": "tempo",
+      "detected_kick_timestamps": [
+        0.512,
+        0.8746666666666667,
+        1.216,
+        1.5573333333333332,
+        1.8986666666666667,
+        2.24,
+        2.6026666666666665,
+        2.944,
+        3.2853333333333334,
+        3.6266666666666665,
+        3.968,
+        4.309333333333333,
+        4.672,
+        5.013333333333334,
+        5.354666666666667,
+        5.696,
+        6.037333333333334,
+        6.378666666666667,
+        6.741333333333333,
+        7.082666666666666,
+        7.424
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 32.71642138603092,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.8213333333333334,
+          "strength": 7.487581961497428,
+          "timestamp": 0.8746666666666667
+        },
+        {
+          "spectrum_center_timestamp": 1.1626666666666667,
+          "strength": 5.314433132904239,
+          "timestamp": 1.216
+        },
+        {
+          "spectrum_center_timestamp": 1.5146666666666666,
+          "strength": 2.8048339973639544,
+          "timestamp": 1.5573333333333332
+        },
+        {
+          "spectrum_center_timestamp": 1.856,
+          "strength": 3.4783034855339015,
+          "timestamp": 1.8986666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.1973333333333334,
+          "strength": 3.3651382055996817,
+          "timestamp": 2.24
+        },
+        {
+          "spectrum_center_timestamp": 2.5493333333333332,
+          "strength": 2.0714990283088803,
+          "timestamp": 2.6026666666666665
+        },
+        {
+          "spectrum_center_timestamp": 2.8906666666666667,
+          "strength": 2.7838400324635577,
+          "timestamp": 2.944
+        },
+        {
+          "spectrum_center_timestamp": 3.232,
+          "strength": 2.923513418116492,
+          "timestamp": 3.2853333333333334
+        },
+        {
+          "spectrum_center_timestamp": 3.584,
+          "strength": 1.8423871882260792,
+          "timestamp": 3.6266666666666665
+        },
+        {
+          "spectrum_center_timestamp": 3.925333333333333,
+          "strength": 2.535272143916534,
+          "timestamp": 3.968
+        },
+        {
+          "spectrum_center_timestamp": 4.266666666666667,
+          "strength": 2.7842951004146865,
+          "timestamp": 4.309333333333333
+        },
+        {
+          "spectrum_center_timestamp": 4.618666666666667,
+          "strength": 1.7400076784317335,
+          "timestamp": 4.672
+        },
+        {
+          "spectrum_center_timestamp": 4.96,
+          "strength": 2.4176575289848636,
+          "timestamp": 5.013333333333334
+        },
+        {
+          "spectrum_center_timestamp": 5.301333333333333,
+          "strength": 2.741652834257636,
+          "timestamp": 5.354666666666667
+        },
+        {
+          "spectrum_center_timestamp": 5.653333333333333,
+          "strength": 1.6835432076552588,
+          "timestamp": 5.696
+        },
+        {
+          "spectrum_center_timestamp": 5.994666666666666,
+          "strength": 2.3518951899564446,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.336,
+          "strength": 2.733608359077063,
+          "timestamp": 6.378666666666667
+        },
+        {
+          "spectrum_center_timestamp": 6.688,
+          "strength": 1.6450230050868484,
+          "timestamp": 6.741333333333333
+        },
+        {
+          "spectrum_center_timestamp": 7.029333333333334,
+          "strength": 2.299303915214901,
+          "timestamp": 7.082666666666666
+        },
+        {
+          "spectrum_center_timestamp": 7.370666666666667,
+          "strength": 2.736762056194464,
+          "timestamp": 7.424
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          40552,
+          57103,
+          73655,
+          90207,
+          106759,
+          123310,
+          139862,
+          156414,
+          172966,
+          189517,
+          206069,
+          222621,
+          239172,
+          255724,
+          272276,
+          288828,
+          305379,
+          321931,
+          338483,
+          355034
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": 174
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        0.8448333333333333,
+        1.1896458333333333,
+        1.5344791666666666,
+        1.8793125,
+        2.2241458333333335,
+        2.5689583333333332,
+        2.9137916666666666,
+        3.258625,
+        3.603458333333333,
+        3.9482708333333334,
+        4.293104166666667,
+        4.6379375,
+        4.98275,
+        5.327583333333333,
+        5.672416666666667,
+        6.01725,
+        6.3620625,
+        6.706895833333333,
+        7.051729166666667,
+        7.396541666666667
+      ],
+      "identifier": "fast",
+      "informational": {
+        "processing_seconds": 0.2956198489991948,
+        "processing_seconds_per_audio_second": 0.03695248112489935
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02635416666666668,
+          "median_signed_error_seconds": 0.02635416666666668,
+          "p95_absolute_error_seconds": 0.03406250000000011,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 21
+        },
+        "25": {
+          "f1": 0.47619047619047616,
+          "false_negatives": 11,
+          "false_positives": 11,
+          "false_positives_per_minute": 82.5,
+          "median_absolute_error_seconds": 0.01954166666666668,
+          "median_signed_error_seconds": 0.01954166666666668,
+          "p95_absolute_error_seconds": 0.023414583333333037,
+          "precision": 0.47619047619047616,
+          "recall": 0.47619047619047616,
+          "true_positives": 10
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02635416666666668,
+          "median_signed_error_seconds": 0.02635416666666668,
+          "p95_absolute_error_seconds": 0.03406250000000011,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 21
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "8b16fdf8512be4e1d68409d572f9021bfbdb86aeca57c4d56d36f4d6fdccf007"
+    },
+    {
+      "audio_file": null,
+      "category": "frequency",
+      "detected_kick_timestamps": [
+        0.512,
+        1.024,
+        1.5146666666666666,
+        2.026666666666667,
+        2.517333333333333,
+        3.008,
+        3.52,
+        4.010666666666666,
+        4.522666666666667,
+        5.013333333333334,
+        5.525333333333333,
+        6.016,
+        6.528,
+        7.018666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 53.136726599662744,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.9706666666666667,
+          "strength": 15.039314376578822,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.472,
+          "strength": 10.133027569306272,
+          "timestamp": 1.5146666666666666
+        },
+        {
+          "spectrum_center_timestamp": 1.9733333333333334,
+          "strength": 8.56069816993147,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.474666666666667,
+          "strength": 7.475464184393546,
+          "timestamp": 2.517333333333333
+        },
+        {
+          "spectrum_center_timestamp": 2.965333333333333,
+          "strength": 1.4592946306680832,
+          "timestamp": 3.008
+        },
+        {
+          "spectrum_center_timestamp": 3.466666666666667,
+          "strength": 2.3597973729762654,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.968,
+          "strength": 3.2391179286155483,
+          "timestamp": 4.010666666666666
+        },
+        {
+          "spectrum_center_timestamp": 4.469333333333333,
+          "strength": 4.045922747871258,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.970666666666666,
+          "strength": 4.7723107387867305,
+          "timestamp": 5.013333333333334
+        },
+        {
+          "spectrum_center_timestamp": 5.472,
+          "strength": 5.404702168552589,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.973333333333334,
+          "strength": 5.857087920865436,
+          "timestamp": 6.016
+        },
+        {
+          "spectrum_center_timestamp": 6.474666666666667,
+          "strength": 5.9145538506929265,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.965333333333334,
+          "strength": 1.2536315441866763,
+          "timestamp": 7.018666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 28,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "low_pitch",
+      "informational": {
+        "processing_seconds": 0.2933018119947519,
+        "processing_seconds_per_audio_second": 0.03666272649934399
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.017999999999999794,
+          "median_signed_error_seconds": 0.017999999999999794,
+          "p95_absolute_error_seconds": 0.027133333333333298,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.7857142857142857,
+          "false_negatives": 3,
+          "false_positives": 3,
+          "false_positives_per_minute": 22.5,
+          "median_absolute_error_seconds": 0.016000000000000014,
+          "median_signed_error_seconds": 0.016000000000000014,
+          "p95_absolute_error_seconds": 0.023333333333333428,
+          "precision": 0.7857142857142857,
+          "recall": 0.7857142857142857,
+          "true_positives": 11
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.017999999999999794,
+          "median_signed_error_seconds": 0.017999999999999794,
+          "p95_absolute_error_seconds": 0.027133333333333298,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "14f97a3367cd72a44e295fd2b3c3663b84fe6836eca7889b9421aead5737783b"
+    },
+    {
+      "audio_file": null,
+      "category": "frequency",
+      "detected_kick_timestamps": [],
+      "detections": [],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 210,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "high_pitch",
+      "informational": {
+        "processing_seconds": 0.28220642599626444,
+        "processing_seconds_per_audio_second": 0.035275803249533055
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.0,
+          "false_negatives": 14,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": null,
+          "recall": 0.0,
+          "true_positives": 0
+        },
+        "25": {
+          "f1": 0.0,
+          "false_negatives": 14,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": null,
+          "recall": 0.0,
+          "true_positives": 0
+        },
+        "50": {
+          "f1": 0.0,
+          "false_negatives": 14,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": null,
+          "recall": 0.0,
+          "true_positives": 0
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "b819fd82d71f4290133d31a3b04d3917081287d1cb42c4dbe2e7c78fa2ea617c"
+    },
+    {
+      "audio_file": null,
+      "category": "frequency",
+      "detected_kick_timestamps": [
+        0.5333333333333333,
+        1.024,
+        1.536,
+        2.026666666666667,
+        2.538666666666667,
+        3.029333333333333,
+        3.541333333333333,
+        4.032,
+        4.522666666666667,
+        5.034666666666666,
+        5.525333333333333,
+        6.037333333333334,
+        6.528,
+        7.04
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.48,
+          "strength": 11.714856576941644,
+          "timestamp": 0.5333333333333333
+        },
+        {
+          "spectrum_center_timestamp": 0.9813333333333333,
+          "strength": 2.9953322730059058,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.4826666666666666,
+          "strength": 2.165918654606444,
+          "timestamp": 1.536
+        },
+        {
+          "spectrum_center_timestamp": 1.984,
+          "strength": 1.8765945635476735,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.485333333333333,
+          "strength": 1.7272141769609415,
+          "timestamp": 2.538666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.986666666666667,
+          "strength": 1.6363195609668197,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.488,
+          "strength": 1.592998554049698,
+          "timestamp": 3.541333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.989333333333333,
+          "strength": 1.5830467338519179,
+          "timestamp": 4.032
+        },
+        {
+          "spectrum_center_timestamp": 4.48,
+          "strength": 1.1108734849708766,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.981333333333334,
+          "strength": 1.2305970509441626,
+          "timestamp": 5.034666666666666
+        },
+        {
+          "spectrum_center_timestamp": 5.482666666666667,
+          "strength": 1.317576692920385,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.984,
+          "strength": 1.3940494409266517,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.485333333333333,
+          "strength": 1.4375730994726685,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.986666666666666,
+          "strength": 1.4578729238431314,
+          "timestamp": 7.04
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 95,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "mid_pitch",
+      "informational": {
+        "processing_seconds": 0.26792059899889864,
+        "processing_seconds_per_audio_second": 0.03349007487486233
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.03266666666666668,
+          "median_signed_error_seconds": 0.03266666666666668,
+          "p95_absolute_error_seconds": 0.04046666666666665,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.14285714285714285,
+          "false_negatives": 12,
+          "false_positives": 12,
+          "false_positives_per_minute": 90.0,
+          "median_absolute_error_seconds": 0.023333333333333428,
+          "median_signed_error_seconds": 0.023333333333333428,
+          "p95_absolute_error_seconds": 0.023933333333333362,
+          "precision": 0.14285714285714285,
+          "recall": 0.14285714285714285,
+          "true_positives": 2
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.03266666666666668,
+          "median_signed_error_seconds": 0.03266666666666668,
+          "p95_absolute_error_seconds": 0.04046666666666665,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "a95187a2217f94494bff195cb6a8edca1a3789108f1c0bfc7406cd85db9982e2"
+    },
+    {
+      "audio_file": null,
+      "category": "amplitude",
+      "detected_kick_timestamps": [
+        0.5333333333333333,
+        1.024,
+        1.536,
+        2.026666666666667,
+        2.538666666666667,
+        3.029333333333333,
+        3.52,
+        4.032,
+        4.522666666666667,
+        5.034666666666666,
+        5.525333333333333,
+        6.037333333333334,
+        6.528,
+        7.04
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.48,
+          "strength": 10.300904697540716,
+          "timestamp": 0.5333333333333333
+        },
+        {
+          "spectrum_center_timestamp": 0.9813333333333333,
+          "strength": 5.642270988593383,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.4826666666666666,
+          "strength": 3.5766060678618183,
+          "timestamp": 1.536
+        },
+        {
+          "spectrum_center_timestamp": 1.984,
+          "strength": 2.8913985304245853,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.485333333333333,
+          "strength": 2.5411972646101724,
+          "timestamp": 2.538666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.976,
+          "strength": 1.1412615394066203,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.477333333333333,
+          "strength": 1.3430890148630623,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.978666666666667,
+          "strength": 1.5417803508270356,
+          "timestamp": 4.032
+        },
+        {
+          "spectrum_center_timestamp": 4.48,
+          "strength": 1.7245065454756758,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.981333333333334,
+          "strength": 1.8776211956002484,
+          "timestamp": 5.034666666666666
+        },
+        {
+          "spectrum_center_timestamp": 5.482666666666667,
+          "strength": 1.9820437188370141,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.984,
+          "strength": 2.036473120450828,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.485333333333333,
+          "strength": 2.046812125526865,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.986666666666666,
+          "strength": 2.0252637513855234,
+          "timestamp": 7.04
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.04,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "quiet",
+      "informational": {
+        "processing_seconds": 0.24039763899054378,
+        "processing_seconds_per_audio_second": 0.030049704873817973
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.03066666666666662,
+          "median_signed_error_seconds": 0.03066666666666662,
+          "p95_absolute_error_seconds": 0.039133333333333464,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.21428571428571427,
+          "false_negatives": 11,
+          "false_positives": 11,
+          "false_positives_per_minute": 82.5,
+          "median_absolute_error_seconds": 0.022666666666666835,
+          "median_signed_error_seconds": 0.022666666666666835,
+          "p95_absolute_error_seconds": 0.023866666666666703,
+          "precision": 0.21428571428571427,
+          "recall": 0.21428571428571427,
+          "true_positives": 3
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.03066666666666662,
+          "median_signed_error_seconds": 0.03066666666666662,
+          "p95_absolute_error_seconds": 0.039133333333333464,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "9caed9a9fcbb087d26190127149c0e5d14bfb5d4742274fe7a1923094c1cda3d"
+    },
+    {
+      "audio_file": null,
+      "category": "amplitude",
+      "detected_kick_timestamps": [
+        0.512,
+        1.024,
+        1.5146666666666666,
+        2.026666666666667,
+        2.517333333333333,
+        3.029333333333333,
+        3.52,
+        4.010666666666666,
+        4.522666666666667,
+        5.013333333333334,
+        5.525333333333333,
+        6.016,
+        6.528,
+        7.018666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 43.633566106683446,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.9706666666666667,
+          "strength": 8.640134689893102,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.472,
+          "strength": 6.1133560271911715,
+          "timestamp": 1.5146666666666666
+        },
+        {
+          "spectrum_center_timestamp": 1.9733333333333334,
+          "strength": 5.141292212874962,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.474666666666667,
+          "strength": 4.316116514769648,
+          "timestamp": 2.517333333333333
+        },
+        {
+          "spectrum_center_timestamp": 2.976,
+          "strength": 3.579870329483533,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.466666666666667,
+          "strength": 1.845339733710542,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.968,
+          "strength": 2.3669942956071734,
+          "timestamp": 4.010666666666666
+        },
+        {
+          "spectrum_center_timestamp": 4.469333333333333,
+          "strength": 2.812650598011061,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.970666666666666,
+          "strength": 3.1973132503127046,
+          "timestamp": 5.013333333333334
+        },
+        {
+          "spectrum_center_timestamp": 5.472,
+          "strength": 3.5136099427453322,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.973333333333334,
+          "strength": 3.672516661699902,
+          "timestamp": 6.016
+        },
+        {
+          "spectrum_center_timestamp": 6.474666666666667,
+          "strength": 3.5049477429605993,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.976,
+          "strength": 3.1434933271757686,
+          "timestamp": 7.018666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.9,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "loud",
+      "informational": {
+        "processing_seconds": 0.2729935540119186,
+        "processing_seconds_per_audio_second": 0.034124194251489826
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.019333333333333202,
+          "median_signed_error_seconds": 0.019333333333333202,
+          "p95_absolute_error_seconds": 0.028466666666666352,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.7142857142857143,
+          "false_negatives": 4,
+          "false_positives": 4,
+          "false_positives_per_minute": 30.0,
+          "median_absolute_error_seconds": 0.016666666666666607,
+          "median_signed_error_seconds": 0.016666666666666607,
+          "p95_absolute_error_seconds": 0.023400000000000087,
+          "precision": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "true_positives": 10
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.019333333333333202,
+          "median_signed_error_seconds": 0.019333333333333202,
+          "p95_absolute_error_seconds": 0.028466666666666352,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "c14ed44db90530197db562ea5df6633960d840c6112a865c2d054562bcc0c2d9"
+    },
+    {
+      "audio_file": null,
+      "category": "decay",
+      "detected_kick_timestamps": [
+        0.512,
+        1.024,
+        1.536,
+        2.026666666666667,
+        2.538666666666667,
+        3.029333333333333,
+        3.52,
+        4.032,
+        4.522666666666667,
+        5.034666666666666,
+        5.525333333333333,
+        6.037333333333334,
+        6.528,
+        7.018666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 33.06334596701928,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.9813333333333333,
+          "strength": 4.588523142825961,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.4826666666666666,
+          "strength": 3.3323831239088824,
+          "timestamp": 1.536
+        },
+        {
+          "spectrum_center_timestamp": 1.984,
+          "strength": 2.616374418202197,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.485333333333333,
+          "strength": 2.187617143992104,
+          "timestamp": 2.538666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.976,
+          "strength": 4.010700891093399,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.477333333333333,
+          "strength": 3.593629467727498,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.978666666666667,
+          "strength": 3.2029346685336977,
+          "timestamp": 4.032
+        },
+        {
+          "spectrum_center_timestamp": 4.48,
+          "strength": 2.8717367301922145,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.981333333333334,
+          "strength": 2.5865797452561945,
+          "timestamp": 5.034666666666666
+        },
+        {
+          "spectrum_center_timestamp": 5.482666666666667,
+          "strength": 2.332863811698596,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.984,
+          "strength": 2.1116407711109013,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.485333333333333,
+          "strength": 1.909730062132615,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.976,
+          "strength": 3.6457101320942273,
+          "timestamp": 7.018666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.5,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 4.0,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "long_decay",
+      "informational": {
+        "processing_seconds": 0.29669958498561755,
+        "processing_seconds_per_audio_second": 0.037087448123202194
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02733333333333321,
+          "median_signed_error_seconds": 0.02733333333333321,
+          "p95_absolute_error_seconds": 0.03780000000000028,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.35714285714285715,
+          "false_negatives": 9,
+          "false_positives": 9,
+          "false_positives_per_minute": 67.5,
+          "median_absolute_error_seconds": 0.020000000000000018,
+          "median_signed_error_seconds": 0.020000000000000018,
+          "p95_absolute_error_seconds": 0.023733333333333384,
+          "precision": 0.35714285714285715,
+          "recall": 0.35714285714285715,
+          "true_positives": 5
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02733333333333321,
+          "median_signed_error_seconds": 0.02733333333333321,
+          "p95_absolute_error_seconds": 0.03780000000000028,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "19201dc85d3df5f4c665c290a4fefa94659d4cdf9058528f5bfe85ae1253cc90"
+    },
+    {
+      "audio_file": null,
+      "category": "sub_bass",
+      "detected_kick_timestamps": [
+        0.10666666666666667,
+        0.512,
+        0.7466666666666667,
+        1.024,
+        1.536,
+        2.026666666666667,
+        2.538666666666667,
+        3.029333333333333,
+        3.52,
+        4.032,
+        4.522666666666667,
+        5.034666666666666,
+        5.525333333333333,
+        6.037333333333334,
+        6.528,
+        7.018666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.064,
+          "strength": 1.4265754537014923,
+          "timestamp": 0.10666666666666667
+        },
+        {
+          "spectrum_center_timestamp": 0.4693333333333333,
+          "strength": 27.539665466819596,
+          "timestamp": 0.512
+        },
+        {
+          "spectrum_center_timestamp": 0.6933333333333334,
+          "strength": 1.156332214192957,
+          "timestamp": 0.7466666666666667
+        },
+        {
+          "spectrum_center_timestamp": 0.9813333333333333,
+          "strength": 5.2859564833861485,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.4826666666666666,
+          "strength": 3.395389463611618,
+          "timestamp": 1.536
+        },
+        {
+          "spectrum_center_timestamp": 1.984,
+          "strength": 2.7420645657465457,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.485333333333333,
+          "strength": 2.4201317743846373,
+          "timestamp": 2.538666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.976,
+          "strength": 3.770921945739096,
+          "timestamp": 3.029333333333333
+        },
+        {
+          "spectrum_center_timestamp": 3.477333333333333,
+          "strength": 3.3182725891826603,
+          "timestamp": 3.52
+        },
+        {
+          "spectrum_center_timestamp": 3.978666666666667,
+          "strength": 2.8866703541895538,
+          "timestamp": 4.032
+        },
+        {
+          "spectrum_center_timestamp": 4.48,
+          "strength": 2.5531496304638073,
+          "timestamp": 4.522666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.981333333333334,
+          "strength": 2.3259387591066583,
+          "timestamp": 5.034666666666666
+        },
+        {
+          "spectrum_center_timestamp": 5.482666666666667,
+          "strength": 2.174149219470307,
+          "timestamp": 5.525333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.984,
+          "strength": 2.0848098915793645,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.485333333333333,
+          "strength": 2.023393941230127,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.976,
+          "strength": 3.3127313242974354,
+          "timestamp": 7.018666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "sub",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "with_sub",
+      "informational": {
+        "processing_seconds": 0.3993619749962818,
+        "processing_seconds_per_audio_second": 0.04992024687453522
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.9333333333333333,
+          "false_negatives": 0,
+          "false_positives": 2,
+          "false_positives_per_minute": 15.0,
+          "median_absolute_error_seconds": 0.02733333333333321,
+          "median_signed_error_seconds": 0.02733333333333321,
+          "p95_absolute_error_seconds": 0.03780000000000028,
+          "precision": 0.875,
+          "recall": 1.0,
+          "true_positives": 14
+        },
+        "25": {
+          "f1": 0.3333333333333333,
+          "false_negatives": 9,
+          "false_positives": 11,
+          "false_positives_per_minute": 82.5,
+          "median_absolute_error_seconds": 0.020000000000000018,
+          "median_signed_error_seconds": 0.020000000000000018,
+          "p95_absolute_error_seconds": 0.023733333333333384,
+          "precision": 0.3125,
+          "recall": 0.35714285714285715,
+          "true_positives": 5
+        },
+        "50": {
+          "f1": 0.9333333333333333,
+          "false_negatives": 0,
+          "false_positives": 2,
+          "false_positives_per_minute": 15.0,
+          "median_absolute_error_seconds": 0.02733333333333321,
+          "median_signed_error_seconds": 0.02733333333333321,
+          "p95_absolute_error_seconds": 0.03780000000000028,
+          "precision": 0.875,
+          "recall": 1.0,
+          "true_positives": 14
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "7b7e6e946dd81f4666f1edc05aea7988b6d42410f36c781ea419df9bdfc16fcd"
+    },
+    {
+      "audio_file": null,
+      "category": "rumble",
+      "detected_kick_timestamps": [
+        0.10666666666666667,
+        0.2986666666666667,
+        0.5333333333333333,
+        0.768,
+        1.024,
+        1.3013333333333332,
+        1.536,
+        2.026666666666667,
+        2.3893333333333335,
+        2.986666666666667,
+        3.2853333333333334,
+        3.541333333333333,
+        4.288,
+        4.544,
+        4.778666666666667,
+        5.077333333333334,
+        5.290666666666667,
+        5.546666666666667,
+        6.037333333333334,
+        6.272,
+        6.528,
+        6.997333333333334,
+        7.509333333333333
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.05333333333333334,
+          "strength": 3.1773802407608254,
+          "timestamp": 0.10666666666666667
+        },
+        {
+          "spectrum_center_timestamp": 0.256,
+          "strength": 4.773038093884341,
+          "timestamp": 0.2986666666666667
+        },
+        {
+          "spectrum_center_timestamp": 0.48,
+          "strength": 6.291557187490402,
+          "timestamp": 0.5333333333333333
+        },
+        {
+          "spectrum_center_timestamp": 0.7253333333333334,
+          "strength": 1.552041061376169,
+          "timestamp": 0.768
+        },
+        {
+          "spectrum_center_timestamp": 0.9813333333333333,
+          "strength": 1.9970973577973017,
+          "timestamp": 1.024
+        },
+        {
+          "spectrum_center_timestamp": 1.2586666666666666,
+          "strength": 1.296213783631849,
+          "timestamp": 1.3013333333333332
+        },
+        {
+          "spectrum_center_timestamp": 1.4826666666666666,
+          "strength": 1.6666411150697857,
+          "timestamp": 1.536
+        },
+        {
+          "spectrum_center_timestamp": 1.984,
+          "strength": 1.6005655672068428,
+          "timestamp": 2.026666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.3466666666666667,
+          "strength": 1.1251365081787394,
+          "timestamp": 2.3893333333333335
+        },
+        {
+          "spectrum_center_timestamp": 2.933333333333333,
+          "strength": 1.064981959959851,
+          "timestamp": 2.986666666666667
+        },
+        {
+          "spectrum_center_timestamp": 3.2426666666666666,
+          "strength": 1.0204317286482434,
+          "timestamp": 3.2853333333333334
+        },
+        {
+          "spectrum_center_timestamp": 3.488,
+          "strength": 1.6933493599852287,
+          "timestamp": 3.541333333333333
+        },
+        {
+          "spectrum_center_timestamp": 4.234666666666667,
+          "strength": 1.000373109366754,
+          "timestamp": 4.288
+        },
+        {
+          "spectrum_center_timestamp": 4.490666666666667,
+          "strength": 1.6791714344546267,
+          "timestamp": 4.544
+        },
+        {
+          "spectrum_center_timestamp": 4.725333333333333,
+          "strength": 1.2682132320774169,
+          "timestamp": 4.778666666666667
+        },
+        {
+          "spectrum_center_timestamp": 5.024,
+          "strength": 1.319933709336475,
+          "timestamp": 5.077333333333334
+        },
+        {
+          "spectrum_center_timestamp": 5.248,
+          "strength": 1.0734620399849262,
+          "timestamp": 5.290666666666667
+        },
+        {
+          "spectrum_center_timestamp": 5.493333333333333,
+          "strength": 1.2990998392883502,
+          "timestamp": 5.546666666666667
+        },
+        {
+          "spectrum_center_timestamp": 5.994666666666666,
+          "strength": 1.374542040164838,
+          "timestamp": 6.037333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.218666666666667,
+          "strength": 1.3091631844077096,
+          "timestamp": 6.272
+        },
+        {
+          "spectrum_center_timestamp": 6.485333333333333,
+          "strength": 1.1732085088127644,
+          "timestamp": 6.528
+        },
+        {
+          "spectrum_center_timestamp": 6.954666666666666,
+          "strength": 1.382071027847473,
+          "timestamp": 6.997333333333334
+        },
+        {
+          "spectrum_center_timestamp": 7.466666666666667,
+          "strength": 1.8091554275906438,
+          "timestamp": 7.509333333333333
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "rumble",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          24000,
+          48000,
+          72000,
+          96000,
+          120000,
+          144000,
+          168000,
+          192000,
+          216000,
+          240000,
+          264000,
+          288000,
+          312000,
+          336000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        3.5,
+        4.0,
+        4.5,
+        5.0,
+        5.5,
+        6.0,
+        6.5,
+        7.0
+      ],
+      "identifier": "with_rumble",
+      "informational": {
+        "processing_seconds": 0.24665411800378934,
+        "processing_seconds_per_audio_second": 0.030831764750473667
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.6486486486486487,
+          "false_negatives": 2,
+          "false_positives": 11,
+          "false_positives_per_minute": 82.5,
+          "median_absolute_error_seconds": 0.03466666666666668,
+          "median_signed_error_seconds": 0.03466666666666668,
+          "p95_absolute_error_seconds": 0.06046666666666691,
+          "precision": 0.5217391304347826,
+          "recall": 0.8571428571428571,
+          "true_positives": 12
+        },
+        "25": {
+          "f1": 0.16216216216216217,
+          "false_negatives": 11,
+          "false_positives": 20,
+          "false_positives_per_minute": 150.0,
+          "median_absolute_error_seconds": 0.013333333333333197,
+          "median_signed_error_seconds": -0.002666666666666373,
+          "p95_absolute_error_seconds": 0.022933333333333337,
+          "precision": 0.13043478260869565,
+          "recall": 0.21428571428571427,
+          "true_positives": 3
+        },
+        "50": {
+          "f1": 0.5945945945945946,
+          "false_negatives": 3,
+          "false_positives": 12,
+          "false_positives_per_minute": 90.0,
+          "median_absolute_error_seconds": 0.033333333333333326,
+          "median_signed_error_seconds": 0.033333333333333326,
+          "p95_absolute_error_seconds": 0.045333333333333226,
+          "precision": 0.4782608695652174,
+          "recall": 0.7857142857142857,
+          "true_positives": 11
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "1e515b6fd24451bf87e9bf6c8f0b05cda6fe5969cb9da88f3271beee0c7e92b2"
+    },
+    {
+      "audio_file": null,
+      "category": "negative",
+      "detected_kick_timestamps": [
+        0.10666666666666667
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.064,
+          "strength": 1.4265754537014923,
+          "timestamp": 0.10666666666666667
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "sustained",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [],
+      "identifier": "sustained_bass",
+      "informational": {
+        "processing_seconds": 0.2742615460010711,
+        "processing_seconds_per_audio_second": 0.03428269325013389
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 1,
+          "false_positives_per_minute": 7.5,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        },
+        "25": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 1,
+          "false_positives_per_minute": 7.5,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        },
+        "50": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 1,
+          "false_positives_per_minute": 7.5,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "09cf9e6cd34ff24ec122472ba297d3311113b267ef0778ab44f6b763fe2f00d6"
+    },
+    {
+      "audio_file": null,
+      "category": "negative",
+      "detected_kick_timestamps": [
+        0.768,
+        1.2586666666666666,
+        1.7706666666666666,
+        2.2613333333333334,
+        2.7733333333333334,
+        3.264,
+        3.776,
+        4.266666666666667,
+        4.778666666666667,
+        5.269333333333333,
+        5.781333333333333,
+        6.272,
+        6.762666666666667,
+        7.274666666666667
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.7253333333333334,
+          "strength": 44.98533307275968,
+          "timestamp": 0.768
+        },
+        {
+          "spectrum_center_timestamp": 1.216,
+          "strength": 1.3045744584528087,
+          "timestamp": 1.2586666666666666
+        },
+        {
+          "spectrum_center_timestamp": 1.7173333333333334,
+          "strength": 1.6545373633205904,
+          "timestamp": 1.7706666666666666
+        },
+        {
+          "spectrum_center_timestamp": 2.2186666666666666,
+          "strength": 2.1973341760781326,
+          "timestamp": 2.2613333333333334
+        },
+        {
+          "spectrum_center_timestamp": 2.72,
+          "strength": 2.7791392156583097,
+          "timestamp": 2.7733333333333334
+        },
+        {
+          "spectrum_center_timestamp": 3.2213333333333334,
+          "strength": 3.3565499208261076,
+          "timestamp": 3.264
+        },
+        {
+          "spectrum_center_timestamp": 3.7226666666666666,
+          "strength": 3.911270216082082,
+          "timestamp": 3.776
+        },
+        {
+          "spectrum_center_timestamp": 4.224,
+          "strength": 4.420920782888489,
+          "timestamp": 4.266666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.725333333333333,
+          "strength": 4.837072494356969,
+          "timestamp": 4.778666666666667
+        },
+        {
+          "spectrum_center_timestamp": 5.226666666666667,
+          "strength": 5.04621108689677,
+          "timestamp": 5.269333333333333
+        },
+        {
+          "spectrum_center_timestamp": 5.728,
+          "strength": 4.984685310086581,
+          "timestamp": 5.781333333333333
+        },
+        {
+          "spectrum_center_timestamp": 6.218666666666667,
+          "strength": 1.509352549745493,
+          "timestamp": 6.272
+        },
+        {
+          "spectrum_center_timestamp": 6.72,
+          "strength": 2.200418991186912,
+          "timestamp": 6.762666666666667
+        },
+        {
+          "spectrum_center_timestamp": 7.221333333333333,
+          "strength": 2.895281771314134,
+          "timestamp": 7.274666666666667
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "offbeat",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [],
+      "identifier": "offbeat_bass",
+      "informational": {
+        "processing_seconds": 0.2452484419918619,
+        "processing_seconds_per_audio_second": 0.03065605524898274
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 14,
+          "false_positives_per_minute": 105.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        },
+        "25": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 14,
+          "false_positives_per_minute": 105.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        },
+        "50": {
+          "f1": 0.0,
+          "false_negatives": 0,
+          "false_positives": 14,
+          "false_positives_per_minute": 105.0,
+          "median_absolute_error_seconds": null,
+          "median_signed_error_seconds": null,
+          "p95_absolute_error_seconds": null,
+          "precision": 0.0,
+          "recall": null,
+          "true_positives": 0
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "6f5990eea695b00ef7180ddb229c31b335e94fab9fe606650c51e5f501a10f65"
+    },
+    {
+      "audio_file": null,
+      "category": "silence",
+      "detected_kick_timestamps": [
+        4.010666666666666
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 3.968,
+          "strength": 26.12221011805809,
+          "timestamp": 4.010666666666666
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          192000
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        4.0
+      ],
+      "identifier": "silence_then_kick",
+      "informational": {
+        "processing_seconds": 0.24676115499460138,
+        "processing_seconds_per_audio_second": 0.030845144374325173
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.01066666666666638,
+          "median_signed_error_seconds": 0.01066666666666638,
+          "p95_absolute_error_seconds": 0.01066666666666638,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 1
+        },
+        "25": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.01066666666666638,
+          "median_signed_error_seconds": 0.01066666666666638,
+          "p95_absolute_error_seconds": 0.01066666666666638,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 1
+        },
+        "50": {
+          "f1": 1.0,
+          "false_negatives": 0,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.01066666666666638,
+          "median_signed_error_seconds": 0.01066666666666638,
+          "p95_absolute_error_seconds": 0.01066666666666638,
+          "precision": 1.0,
+          "recall": 1.0,
+          "true_positives": 1
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "3ae17706c60c7b51484d22f10c5127f6019b6179bf82b635da6f157806fb3fb6"
+    },
+    {
+      "audio_file": null,
+      "category": "irregular",
+      "detected_kick_timestamps": [
+        0.14933333333333335,
+        0.4266666666666667,
+        1.1306666666666667,
+        2.7093333333333334,
+        3.050666666666667,
+        4.608,
+        6.165333333333334,
+        6.4,
+        7.125333333333334
+      ],
+      "detections": [
+        {
+          "spectrum_center_timestamp": 0.096,
+          "strength": 15.235045171369178,
+          "timestamp": 0.14933333333333335
+        },
+        {
+          "spectrum_center_timestamp": 0.37333333333333335,
+          "strength": 3.655041917363306,
+          "timestamp": 0.4266666666666667
+        },
+        {
+          "spectrum_center_timestamp": 1.0773333333333333,
+          "strength": 3.7326591918789074,
+          "timestamp": 1.1306666666666667
+        },
+        {
+          "spectrum_center_timestamp": 2.6666666666666665,
+          "strength": 3.387476957724959,
+          "timestamp": 2.7093333333333334
+        },
+        {
+          "spectrum_center_timestamp": 2.997333333333333,
+          "strength": 3.576442015513286,
+          "timestamp": 3.050666666666667
+        },
+        {
+          "spectrum_center_timestamp": 4.565333333333333,
+          "strength": 1.9072266284520478,
+          "timestamp": 4.608
+        },
+        {
+          "spectrum_center_timestamp": 6.1226666666666665,
+          "strength": 10.831289897184707,
+          "timestamp": 6.165333333333334
+        },
+        {
+          "spectrum_center_timestamp": 6.357333333333333,
+          "strength": 1.7330363066865357,
+          "timestamp": 6.4
+        },
+        {
+          "spectrum_center_timestamp": 7.072,
+          "strength": 5.529039715441254,
+          "timestamp": 7.125333333333334
+        }
+      ],
+      "duration_seconds": 8.0,
+      "generation_parameters": {
+        "amplitude": 0.6,
+        "attack_seconds": 0.002,
+        "background": "silence",
+        "beater_noise_ratio": 0.08,
+        "decay_seconds": 0.12,
+        "duration_seconds": 8.0,
+        "frequency_hz": 55.0,
+        "generator_version": 1,
+        "kick_duration_seconds": 0.96,
+        "kick_sample_positions": [
+          6240,
+          18720,
+          53280,
+          61440,
+          129600,
+          144960,
+          153120,
+          220800,
+          295200,
+          305760,
+          340800
+        ],
+        "pitch_decay_seconds": 0.025,
+        "pitch_ratio": 3.5,
+        "seed": 20261124,
+        "tempo_bpm": null
+      },
+      "ground_truth_kick_timestamps": [
+        0.13,
+        0.39,
+        1.11,
+        1.28,
+        2.7,
+        3.02,
+        3.19,
+        4.6,
+        6.15,
+        6.37,
+        7.1
+      ],
+      "identifier": "irregular",
+      "informational": {
+        "processing_seconds": 0.24827148899203166,
+        "processing_seconds_per_audio_second": 0.031033936124003958
+      },
+      "metrics_by_tolerance_ms": {
+        "100": {
+          "f1": 0.9,
+          "false_negatives": 2,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02066666666666661,
+          "median_signed_error_seconds": 0.02066666666666661,
+          "p95_absolute_error_seconds": 0.034266666666666744,
+          "precision": 1.0,
+          "recall": 0.8181818181818182,
+          "true_positives": 9
+        },
+        "25": {
+          "f1": 0.5,
+          "false_negatives": 6,
+          "false_positives": 4,
+          "false_positives_per_minute": 30.0,
+          "median_absolute_error_seconds": 0.015333333333333421,
+          "median_signed_error_seconds": 0.015333333333333421,
+          "p95_absolute_error_seconds": 0.020399999999999956,
+          "precision": 0.5555555555555556,
+          "recall": 0.45454545454545453,
+          "true_positives": 5
+        },
+        "50": {
+          "f1": 0.9,
+          "false_negatives": 2,
+          "false_positives": 0,
+          "false_positives_per_minute": 0.0,
+          "median_absolute_error_seconds": 0.02066666666666661,
+          "median_signed_error_seconds": 0.02066666666666661,
+          "p95_absolute_error_seconds": 0.034266666666666744,
+          "precision": 1.0,
+          "recall": 0.8181818181818182,
+          "true_positives": 9
+        }
+      },
+      "processed_sample_count": 384000,
+      "resampling_delay_seconds": 0.0,
+      "source_sample_count": 384000,
+      "source_sample_rate": 48000,
+      "source_stereo_float32_sha256": "bff7459a421711b7d9d568a27e2395fd0228e47faad45895bae473993702dfe3"
+    }
+  ],
+  "git": {
+    "commit": "670bd806a8e9e247f7f3031db8b597f1371eaa44",
+    "dirty": true
+  },
+  "implementation_sha256": {
+    "benchmarks/fixtures.py": "bc93e9a1a80d626e7bb2cb3bbce8e4619eeead9f9db1a21ed03694e8098b891e",
+    "benchmarks/kick_detection.py": "e969c0aafce77291f9c9b09011cd0185e73acd8ed719756c72e407d9d9e4faa1",
+    "benchmarks/metrics.py": "f3b6ed407e8391564d7170d70855d1652a941916722d5ba75188945846b0816e",
+    "src/spectra/analysis/kick.py": "fbbc44e6d380125cac54fb9dd597c6df75037c861a9e26ccace79c59793b7f05",
+    "src/spectra/analysis/spectrum.py": "d5325d10f48761c61a338892fe4437ff6137c94d291e20fb1aa14b124f113ef4",
+    "src/spectra/audio/__init__.py": "0c5c4a6a552d20cea6b910d039eab94e96bbf6b8194fc8dda1239d97f8cef40f",
+    "uv.lock": "0d47a4c9bb8029f1e3b37fb9f15be28ec28d7b778b333a96ef634449c0586265"
+  },
+  "primary_tolerance_ms": 50,
+  "schema_version": 1,
+  "total_duration_seconds": 120.0
+}

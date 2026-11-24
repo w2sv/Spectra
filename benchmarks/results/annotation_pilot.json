@@ -1,0 +1,218 @@
+{
+  "analysis_parameters": {
+    "association_radius_seconds": 0.05,
+    "bands": [
+      [
+        20,
+        60
+      ],
+      [
+        60,
+        150
+      ],
+      [
+        150,
+        300
+      ],
+      [
+        300,
+        3000
+      ]
+    ],
+    "drift_threshold_seconds": 0.03,
+    "fft_size": 2048,
+    "grid_evidence_radius_seconds": 0.02,
+    "grid_resolution_seconds": 0.005,
+    "hop_size": 240,
+    "log_power_floor": 1e-12,
+    "normalization_percentile": 95.0,
+    "peak_prominence": 0.25,
+    "peak_separation_seconds": 0.08,
+    "sample_rate": 48000,
+    "section_seconds": 30.0,
+    "smoothing_frames": 1.0
+  },
+  "annotation_algorithm_version": 1,
+  "note": "Unreviewed acoustic proposals; no real-world precision or recall is known.",
+  "tracks": [
+    {
+      "audio_sha256": "f356af4b44f89add177a0ffcb420a6cda5f940d62a94dc68a820b692be277ee4",
+      "beat_grid_phase_seconds": 0.025,
+      "bpm": 135,
+      "diagnostic_intervals": {
+        "challenging": 0.0,
+        "regular": 0.0
+      },
+      "drift_sections": [
+        {
+          "drift_flagged": true,
+          "end_seconds": 180.0,
+          "local_phase_seconds": 0.23500000000000001,
+          "phase_difference_seconds": 0.21000000000000002,
+          "start_seconds": 150.0
+        }
+      ],
+      "duration_seconds": 348.44444444444446,
+      "estimated_beats": 784,
+      "grid_aligned_candidates": 760,
+      "informational": {
+        "annotation_processing_seconds": 3.4262450879905373,
+        "proposal_processing_seconds": 0.668524859007448
+      },
+      "off_grid_candidates": 1212,
+      "source_sample_rate": 44100,
+      "track_identifier": "power_train",
+      "unsupported_beats": 24
+    },
+    {
+      "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+      "beat_grid_phase_seconds": 0.0,
+      "bpm": 147,
+      "diagnostic_intervals": {
+        "challenging": 0.0,
+        "regular": 0.0
+      },
+      "drift_sections": [
+        {
+          "drift_flagged": true,
+          "end_seconds": 90.0,
+          "local_phase_seconds": 0.20500000000000002,
+          "phase_difference_seconds": -0.20316326530612244,
+          "start_seconds": 60.0
+        }
+      ],
+      "duration_seconds": 317.0,
+      "estimated_beats": 777,
+      "grid_aligned_candidates": 708,
+      "informational": {
+        "annotation_processing_seconds": 3.771485842007678,
+        "proposal_processing_seconds": 0.6930097659933381
+      },
+      "off_grid_candidates": 1063,
+      "source_sample_rate": 44100,
+      "track_identifier": "universal",
+      "unsupported_beats": 69
+    },
+    {
+      "audio_sha256": "e3baea0d0fd58bb9a8d973b566f7d09aa90d8e0824f893d3600e3381eadde7fc",
+      "beat_grid_phase_seconds": 0.01,
+      "bpm": 148,
+      "diagnostic_intervals": {
+        "challenging": 0.0,
+        "regular": 0.0
+      },
+      "drift_sections": [
+        {
+          "drift_flagged": true,
+          "end_seconds": 150.0,
+          "local_phase_seconds": 0.185,
+          "phase_difference_seconds": 0.17499999999999996,
+          "start_seconds": 120.0
+        }
+      ],
+      "duration_seconds": 377.0270294784581,
+      "estimated_beats": 930,
+      "grid_aligned_candidates": 834,
+      "informational": {
+        "annotation_processing_seconds": 3.7817553030035924,
+        "proposal_processing_seconds": 0.6872644829854835
+      },
+      "off_grid_candidates": 963,
+      "source_sample_rate": 44100,
+      "track_identifier": "a_grim_premonition",
+      "unsupported_beats": 96
+    },
+    {
+      "audio_sha256": "4aa6a2f659650a6354d2f16fdd1ac1a9e9a675f068b8051da9beae087eb426f7",
+      "beat_grid_phase_seconds": 0.01,
+      "bpm": 150,
+      "diagnostic_intervals": {
+        "challenging": 0.0,
+        "regular": 0.0
+      },
+      "drift_sections": [
+        {
+          "drift_flagged": true,
+          "end_seconds": 30.0,
+          "local_phase_seconds": 0.375,
+          "phase_difference_seconds": -0.03500000000000009,
+          "start_seconds": 0.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 90.0,
+          "local_phase_seconds": 0.19,
+          "phase_difference_seconds": 0.18,
+          "start_seconds": 60.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 120.0,
+          "local_phase_seconds": 0.195,
+          "phase_difference_seconds": 0.185,
+          "start_seconds": 90.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 150.0,
+          "local_phase_seconds": 0.195,
+          "phase_difference_seconds": 0.185,
+          "start_seconds": 120.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 180.0,
+          "local_phase_seconds": 0.195,
+          "phase_difference_seconds": 0.185,
+          "start_seconds": 150.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 210.0,
+          "local_phase_seconds": 0.185,
+          "phase_difference_seconds": 0.175,
+          "start_seconds": 180.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 240.0,
+          "local_phase_seconds": 0.215,
+          "phase_difference_seconds": -0.195,
+          "start_seconds": 210.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 300.0,
+          "local_phase_seconds": 0.2,
+          "phase_difference_seconds": 0.19,
+          "start_seconds": 270.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 360.0,
+          "local_phase_seconds": 0.375,
+          "phase_difference_seconds": -0.03500000000000009,
+          "start_seconds": 330.0
+        },
+        {
+          "drift_flagged": true,
+          "end_seconds": 378.8,
+          "local_phase_seconds": 0.195,
+          "phase_difference_seconds": 0.185,
+          "start_seconds": 360.0
+        }
+      ],
+      "duration_seconds": 378.8,
+      "estimated_beats": 947,
+      "grid_aligned_candidates": 835,
+      "informational": {
+        "annotation_processing_seconds": 4.840285771002527,
+        "proposal_processing_seconds": 0.7725953479821328
+      },
+      "off_grid_candidates": 1117,
+      "source_sample_rate": 44100,
+      "track_identifier": "no_trust",
+      "unsupported_beats": 112
+    }
+  ]
+}
