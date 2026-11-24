@@ -31,7 +31,11 @@ uv run spectra --gui
 
 In graphical mode, choose an output monitor and click **Start**. **Stop** releases capture;
 closing the window also stops its worker and subprocess. Capture/analysis run off the GUI thread,
-and a 30 FPS timer displays the latest result. Source selection also works with `--gui --source`.
+and one GUI timer renders the latest result. The **FPS** selector beside **Visualization**
+offers **30** (default), **60**, **90**, and **120** target FPS, shared by the virtual LED
+preview and WLED/DDP output. Changes apply during playback without restarting capture
+or resetting animations. These are targets; actual rendering frequency can vary.
+Source selection also works with `--gui --source`.
 If results stop arriving for 500 ms, the display clears while capture stays active and recovers
 automatically when results resume.
 
@@ -62,7 +66,7 @@ The **Visualization** selector offers **Frequency Spectrum** (default), **Kick P
 and **Combined**. White kick pulses travel from the first LED to the last, with a
 60-LED fading tail and a 0.75-second lifetime. Multiple kicks can coexist; Combined
 uses per-channel maximum to preserve the frequency colors underneath. All modes
-share a small Qt-independent `Visualization` protocol and render at the GUI's 30 FPS.
+share a small Qt-independent `Visualization` protocol and render at the selected GUI frame rate.
 Animation uses original kick audio timestamps and interpolates between spectrum updates.
 Switching modes is immediate, leaves capture and detection running, and waits for new
 kicks without replaying previous events. Stop, restart, and stale capture clear animation

@@ -35,7 +35,6 @@ from spectra.visualization.frequency import FrequencyVisualization, band_colors,
 from spectra.visualization.intensity import BandIntensitySettings
 from spectra.visualization.pulses import TravelingPulses
 
-FRAME_RATE = 30
 SPECTRUM_MIN_DB = -80.0
 SPECTRUM_MAX_DB = 0.0
 STALE_RESULT_TIMEOUT = 0.5
@@ -152,6 +151,11 @@ class SpectraWindow(QMainWindow):
         self._visualization_selector = QComboBox()
         self._visualization_selector.addItems(["Frequency Spectrum", "Kick Pulses", "Combined"])
         kick_feedback.addWidget(self._visualization_selector)
+        kick_feedback.addWidget(QLabel("FPS:"))
+        self._frame_rate_selector = QComboBox()
+        self._frame_rate_selector.addItems(["30", "60", "90", "120"])
+        self._frame_rate_selector.setToolTip("Target frame rate shared by the LED preview and WLED output.")
+        kick_feedback.addWidget(self._frame_rate_selector)
         layout.addLayout(kick_feedback)
 
         wled_controls = QHBoxLayout()
@@ -208,9 +212,15 @@ class SpectraWindow(QMainWindow):
         self._close_shortcut.activated.connect(self.close)
 
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self._update_capture)
-        self._timer.start(round(1000 / FRAME_RATE))
+        self._frame_rate_selector.currentIndexChanged.connect(self._update_frame_rate)
+        self._update_frame_rate()
+        self._timer.start()
         self._update_controls()
+
+    def _update_frame_rate(self) -> None:
+        self._timer.setInterval(round(1000 / int(self._frame_rate_selector.currentText())))
 
     def _update_controls(self) -> None:
         idle = self._worker is None and not self._closing
