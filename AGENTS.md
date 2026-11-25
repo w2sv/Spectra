@@ -113,6 +113,8 @@ Tests should protect important invariants without obstructing experimentation.
 
 ## Development workflow
 
+- Run uv commands needed for the requested task without asking for permission. If the default tooling cache is not writable, use a writable repository-local or temporary cache.
+- Do not ask for permission for routine file or directory operations inside this repository, including creating directories and writing or copying command output and generated artifacts.
 - Make focused, cohesive changes that address the requested task.
 - Follow existing conventions rather than introducing competing approaches.
 - Avoid unrelated refactoring and speculative improvements.
