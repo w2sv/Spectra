@@ -463,15 +463,38 @@ crosses, and unclassified candidates triangles. Filled/high markers are
 grid-aligned; hollow/low markers are off-grid. Accepted draft events use blue
 plus signs, positive templates green stars, and negative templates red squares.
 Gray dashed lines show estimated beats; red crosses mark unsupported beats.
+The selected unsupported beat has a magenta vertical line and hollow diamond
+across all three plots. A separate legend below the plots uses the actual
+markers, fills, colors, and line styles; it never covers waveform or spectral
+data. Candidate class and grid alignment are explained independently. Before
+positive references exist, the likely/ambiguous/unlikely legend entries are
+hidden and candidates are identified as unclassified.
 State is encoded by shape and position as well as color. Hovering shows original
 novelty and refined timestamps, classification, similarity, and the search-edge
 warning. The title shows track, BPM, current range, active grid, stale-draft
 warnings, and unsaved state. The default interval is 10 s.
 
+The right-side control panel groups playback, interval navigation, unsupported
+beat review, annotation editing, optional templates, and display options.
+Buttons and keyboard shortcuts use the same action handlers. Unavailable
+buttons are disabled, play/grid/visibility controls reflect their current state,
+and destructive actions use a red tint. Mouse-position actions remain labeled
+hints instead of buttons. Every action occupies one row with its shortcut
+aligned on the right. Controls and legend text are at least 11 points.
+
+Click the Templates heading to expand/collapse its optional controls. At shorter
+window heights, scroll over the panel or use its scrollbar to reach the lower
+groups; the plot area retains its width. The layout has been rendered and
+visually inspected at 1920×1080 and 1366×768, with and without references and
+with the template section expanded. The dense shortcut footer is removed.
+
 | Interaction | Action |
 | --- | --- |
 | Toolbar zoom/pan | Inspect any section normally |
 | Right / Left | Advance / go back by the displayed interval; seek and pause |
+| ] / [ | Next / previous unsupported beat; center a two-second interval, seek and pause |
+| Y | Confirm a kick at the selected unsupported beat; add a provisional beat-time onset |
+| X | Confirm that the selected unsupported beat is a genuine gap; add no annotation |
 | Shift + left click | Add a manual kick at the selected timestamp |
 | Ctrl + left click | Remove the nearest accepted draft event within 50 ms |
 | K / N | Save a positive / negative reference at the cursor |
@@ -493,7 +516,7 @@ save the **cursor's precise onset**, not the novelty timestamp. Zoom the
 waveform and listen before choosing the onset. K/N near an existing reference
 replace/adjust it; Delete removes it. Template changes are saved independently
 and immediately, including when undone; R is required to apply them to
-classifications. The concise shortcut reference is also displayed in the window.
+classifications. These interactions are listed alongside the clickable controls.
 
 Bulk operations use half-open `[start, end)` intervals. A rejects duplicate
 candidate identities and skips suggestions within 30 ms of an existing event.
@@ -537,6 +560,47 @@ process and temporary socket. Install it on Ubuntu with `sudo apt install mpv`.
 If unavailable, the review window shows that instruction and all non-playback
 annotation features remain available. Noninteractive generation and production
 benchmarking do not depend on mpv.
+
+### Unsupported beat review
+
+The review queue starts from the unsupported positions of the **active** acoustic
+beat grid, using the same ±50 ms association tolerance. It excludes beats already
+covered by an accepted draft event and beats with a saved kick/gap review
+decision for that grid. It is recalculated after editing, undo, reclassification,
+and grid changes; template classification itself is unchanged.
+
+The first forward jump starts at the displayed interval's beginning; the first
+backward jump looks before it. Thereafter, [ and ] advance strictly relative to
+the selected beat, even when consecutive beats share the same two-second view.
+At recording boundaries the view shifts inward, preserving two seconds whenever
+the recording is that long. Playback seeks to the displayed start and pauses.
+Navigation does not wrap; a concise status message explains when no earlier or
+later unreviewed beat exists. Switching grids clears the selection anchor.
+
+Y records that a kick exists and adds the beat timestamp as a **provisional**
+onset. Adjust it using the waveform if needed: a beat-grid timestamp does not
+establish millisecond-accurate acoustic localization. X records a genuine gap
+without adding a kick. Both actions are undoable. A decided beat stays selected
+for context, while the next jump skips it and continues from its timestamp.
+
+Ctrl+S saves these decisions together with the editable draft. Decisions are
+keyed by a fingerprint of primary/alternative role, BPM, phase, and complete
+beat positions. Reopening skips saved decisions for the same grid; changing
+grids does not transfer them. Existing drafts without this field load with no
+review decisions. Ordinary deletion/clearing of annotation timestamps does not
+silently erase review decisions; undo restores decisions and provisional onsets
+together. No reviewed annotation manifest is modified by these actions.
+
+Progress stays next to the unsupported-beat controls. Total and in-view counts
+describe the active grid's acoustically unsupported positions. Awaiting review
+excludes decided and annotation-covered beats. Separate confirmed-kick,
+confirmed-gap, and covered-by-annotation counts explain the difference from
+the total. An awaiting selection shows its timestamp and one-based position
+in the remaining sequence; a decided selection shows its recorded decision.
+
+Completing this queue does **not** establish that the entire recording has
+been reviewed. Full-recording review and the existing explicit finalization
+confirmation remain mandatory.
 
 ## Finalizing ground truth
 

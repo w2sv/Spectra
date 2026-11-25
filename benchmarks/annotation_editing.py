@@ -3,10 +3,12 @@
 import copy
 import hashlib
 import json
+from bisect import bisect_left, bisect_right
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Literal
 
-from benchmarks.annotation_analysis import Proposal
+from benchmarks.annotation_analysis import PARAMETERS, Proposal
 from benchmarks.annotation_templates import TEMPLATE_PARAMETERS, TemplateDefinition, candidate_onset
 from benchmarks.tracks import validate_timestamps
 
@@ -31,6 +33,77 @@ class AnnotationDraft:
     originating_proposal_sha256: str | None = None
     # Keys identify the original acoustic candidate; values retain the accepted time.
     automatic_events: dict[str, float] = field(default_factory=dict)
+    # Grid identity includes its role, tempo, phase, and complete beat positions.
+    unsupported_beat_reviews: dict[str, dict[str, Literal["kick", "gap"]]] = field(default_factory=dict)
+
+
+def beat_grid_identity(proposal: Proposal, alternative: bool) -> str:
+    role = "alternative" if alternative else "primary"
+    phase = proposal.get("alternative_phase_seconds") if alternative else proposal["beat_grid_phase_seconds"]
+    content = {
+        "bpm": float(proposal["bpm"]) if proposal["bpm"] is not None else None,
+        "phase": float(phase) if phase is not None else None,
+        "beats": proposal.get("alternative_beat_positions", []) if alternative else proposal["beat_positions"],
+    }
+    digest = hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return f"{role}:{digest}"
+
+
+def covered_by_annotation(timestamp: float, onsets: list[float]) -> bool:
+    tolerance = PARAMETERS.association_radius_seconds + 1e-10
+    index = bisect_left(onsets, timestamp - tolerance)
+    return index < len(onsets) and onsets[index] <= timestamp + tolerance
+
+
+class UnsupportedBeatNavigator:
+    """Keep an event anchor across edits and decisions, independently of its viewport."""
+
+    def __init__(self) -> None:
+        self.grid_identity: str | None = None
+        self.selected: float | None = None
+
+    def use_grid(self, identity: str) -> None:
+        if identity != self.grid_identity:
+            self.grid_identity = identity
+            self.selected = None
+
+    def remaining(self, unsupported: list[float], draft: AnnotationDraft) -> list[float]:
+        decisions = draft.unsupported_beat_reviews.get(self.grid_identity or "", {})
+        return [
+            beat
+            for beat in unsupported
+            if str(beat) not in decisions and not covered_by_annotation(beat, draft.kick_onsets)
+        ]
+
+    def destination(self, direction: int, remaining: list[float], view_start: float) -> float | None:
+        if direction == 1:
+            index = (
+                bisect_right(remaining, self.selected)
+                if self.selected is not None
+                else bisect_left(remaining, view_start)
+            )
+        elif direction == -1:
+            index = bisect_left(remaining, self.selected if self.selected is not None else view_start) - 1
+        else:
+            raise ValueError("Unsupported-beat navigation requires direction -1 or +1.")
+        return remaining[index] if 0 <= index < len(remaining) else None
+
+    def jump(
+        self, direction: int, unsupported: list[float], draft: AnnotationDraft, view_start: float, duration: float
+    ) -> tuple[float, float] | None:
+        destination = self.destination(direction, self.remaining(unsupported, draft), view_start)
+        if destination is None:
+            return None
+        self.selected = destination
+        width = min(2.0, duration)
+        return max(0.0, min(destination - width / 2, duration - width)), width
+
+
+def validate_unsupported_reviews(draft: AnnotationDraft, duration: float) -> None:
+    for decisions in draft.unsupported_beat_reviews.values():
+        validate_timestamps(sorted(float(timestamp) for timestamp in decisions), duration)
+        if any(value not in ("kick", "gap") for value in decisions.values()):
+            raise ValueError("Unsupported-beat decisions must be 'kick' or 'gap'.")
 
 
 def new_draft(proposal: Proposal) -> AnnotationDraft:
@@ -67,6 +140,7 @@ def load_draft(path: Path, proposal: Proposal) -> AnnotationDraft:
         raise ValueError("Draft does not refer to this recording and checksum.")
     validate_timestamps(draft.kick_onsets, proposal["duration_seconds"])
     validate_timestamps(draft.manually_confirmed_kick_onsets, proposal["duration_seconds"])
+    validate_unsupported_reviews(draft, proposal["duration_seconds"])
     return draft
 
 
@@ -77,6 +151,7 @@ def is_stale(draft: AnnotationDraft, proposal: Proposal) -> bool:
 def save_draft(path: Path, draft: AnnotationDraft, duration: float) -> None:
     validate_timestamps(draft.kick_onsets, duration)
     validate_timestamps(draft.manually_confirmed_kick_onsets, duration)
+    validate_unsupported_reviews(draft, duration)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(asdict(draft), indent=2, allow_nan=False) + "\n", encoding="utf-8")
@@ -99,6 +174,22 @@ class DraftEditor:
         self.templates = templates
         self.proposal = proposal
         self._undo: list[tuple[AnnotationDraft, TemplateDefinition]] = []
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo)
+
+    def review_unsupported_beat(self, identity: str, timestamp: float, kick: bool) -> None:
+        """Confirm presence/absence; a beat-time kick remains provisionally localized."""
+        validate_timestamps([timestamp], self.proposal["duration_seconds"])
+        self.remember()
+        decisions = self.draft.unsupported_beat_reviews.setdefault(identity, {})
+        decisions[str(timestamp)] = "kick" if kick else "gap"
+        if kick and not covered_by_annotation(timestamp, self.draft.kick_onsets):
+            self.draft.kick_onsets = sorted([*self.draft.kick_onsets, timestamp])
+            self.draft.manually_confirmed_kick_onsets = sorted(
+                set([*self.draft.manually_confirmed_kick_onsets, timestamp])
+            )
 
     def remember(self) -> None:
         self._undo.append((copy.deepcopy(self.draft), copy.deepcopy(self.templates)))
