@@ -1,0 +1,51 @@
+{
+  "backend": "Agg",
+  "display_pixels": [
+    1920,
+    1080
+  ],
+  "recording": "universal",
+  "interval_seconds": [
+    60,
+    70
+  ],
+  "before_seconds": {
+    "construction": 3.778004496009089,
+    "interval_navigation": 1.8209478780045174,
+    "zoom_pan": 1.7525396784913028,
+    "legacy_edit_operation": 3.4108420929987915,
+    "legacy_edit_and_undo_mean": 1.6233611289935652,
+    "playback_cursor_simulated": 0.4875610879971646,
+    "mouse_inspection": 0.45924042399565224
+  },
+  "after_seconds": {
+    "construction": 1.6183668219891842,
+    "interval_navigation": 0.4198741540021729,
+    "zoom_pan": 0.493921732500894,
+    "candidate_toggle": 0.24743071000557393,
+    "toggle_and_undo_mean": 0.10383626200200524,
+    "playback_cursor_simulated": 0.003198853009962477,
+    "mouse_inspection": 3.26229928759858e-05
+  },
+  "note": "One-off paired run, interleaving old and new operations in the same process to reduce load differences. Original before code loaded from snapshots and v2 proposals regenerated without changing saved files. New code uses v3 candidates. Five pairs (ten mouse/cursor), median; construction includes resize and full draw. Before edit is add/remove; after edit is binary toggle. Undo includes editing cost. Repeated same-candidate hover is the unchanged fast path. Simulated positions isolate cursor rendering. Headless timing is not desktop responsiveness or audio latency.",
+  "initial_before_seconds": {
+    "construction": 2.4572298109997064,
+    "interval_navigation": 1.11202282900922,
+    "zoom_pan": 1.1074402810045285,
+    "legacy_edit_operation": 1.5501148984913016,
+    "legacy_edit_and_undo_mean": 1.1537094274972333,
+    "playback_cursor_simulated": 0.38952118549786974,
+    "mouse_inspection": 0.42257144150789827
+  },
+  "desktop_smoke_check": {
+    "backend": "QtAgg",
+    "actual_mpv": true,
+    "timestamp_unchanged_after_toggle_undo": true,
+    "actual_time_advanced": true,
+    "paused_at_interval_end": true,
+    "navigation_paused_and_sought": true,
+    "process_cleaned_up": true,
+    "socket_directory_removed": true
+  },
+  "bottlenecks": "Old full axis reconstruction, grid associations, layouts and unconditional figure redraws. New retained audio artists, cached spectra and associations, min/max waveform, indexed inspection, dynamic overlay/control blitting and cursor-only blitting."
+}

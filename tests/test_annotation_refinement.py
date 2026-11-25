@@ -13,7 +13,6 @@ import pytest
 from scipy.io import wavfile
 
 from benchmarks.annotation_analysis import Candidate, Proposal, analyze_audio
-from benchmarks.annotation_editing import DraftEditor, is_stale, load_draft, new_draft, reset_draft, save_draft
 from benchmarks.annotation_templates import (
     TemplateDefinition,
     alternative_phase,
@@ -141,62 +140,6 @@ def test_template_persistence_checks_audio_identity_and_timestamps(tmp_path: Pat
     audio.write_bytes(b"changed")
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         load_templates(path, "track", checksum, 2.0, audio)
-
-
-def test_draft_initialization_staleness_and_confirmed_reset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    initial = proposal([candidate(0.5), candidate(0.75, aligned=False), candidate(1.0)])
-    draft = new_draft(initial)
-    assert draft.kick_onsets == [0.5, 1.0]
-    assert not is_stale(draft, initial)
-    timed = initial.copy()
-    timed["informational"] = {"seconds": 3.0}
-    assert not is_stale(draft, timed)
-    classified = proposal(
-        [candidate(0.5, "likely", refined=0.515), candidate(0.75, "ambiguous"), candidate(1.0, "unlikely")],
-        positive_count=1,
-    )
-    assert new_draft(classified).kick_onsets == [0.515]
-    assert new_draft(proposal([candidate(0.5)], positive_count=1)).kick_onsets == []
-    assert is_stale(draft, classified)
-    path = tmp_path / "draft.json"
-    save_draft(path, draft, 2.0)
-    content = path.read_bytes()
-    assert load_draft(path, classified).kick_onsets == [0.5, 1.0]
-    assert path.read_bytes() == content
-    monkeypatch.setattr("builtins.input", lambda _: "no")
-    with pytest.raises(ValueError, match="not confirmed"):
-        reset_draft(path, classified)
-    assert path.read_bytes() == content
-    monkeypatch.setattr("builtins.input", lambda _: "RESET test DRAFT")
-    assert reset_draft(path, classified).kick_onsets == [0.515]
-
-
-def test_bulk_edits_use_half_open_intervals_deduplicate_and_undo() -> None:
-    suggested = proposal(
-        [candidate(0.5, "likely", refined=0.515), candidate(0.7, "unlikely"), candidate(1.0, "likely")], 1
-    )
-    editor = DraftEditor(new_draft(suggested), TemplateDefinition("test", "0" * 64), suggested)
-    editor.add(0.52)
-    # A manual annotation close to a suggestion blocks a second automatic event.
-    editor.remove(0.515)
-    editor.bulk("accept", 0, 1)
-    assert editor.draft.kick_onsets == [0.52, 1.0]
-    editor.bulk("clear", 0, 1)
-    assert editor.draft.kick_onsets == [1.0]
-    assert editor.undo()
-    assert editor.draft.kick_onsets == [0.52, 1.0]
-    editor.add(0.7)
-    # Explicit manual confirmation must survive U even if it was automatic before.
-    editor.draft.automatic_events["0.7"] = 0.7
-    editor.bulk("unlikely", 0, 1)
-    assert 0.7 in editor.draft.kick_onsets
-    editor.set_template(0.6, True)
-    editor.set_template(0.605, False, replace_timestamp=0.6)
-    assert editor.templates.negative_onsets == [0.605]
-    assert editor.templates.positive_onsets == []
-    assert editor.undo()
-    assert editor.templates.positive_onsets == [0.6]
-    assert editor.templates.negative_onsets == []
 
 
 def test_alternative_phase_is_half_a_beat_without_changing_events() -> None:

@@ -89,6 +89,21 @@ class Candidate(TypedDict):
     alignment_at_search_boundary: NotRequired[bool]
 
 
+class AutomaticCandidate(Candidate):
+    candidate_id: str
+    provenance: str
+    localized_timestamp: float
+    final_timestamp: float
+    localization_reliable: bool
+    timing_reason: str
+    low_frequency_increase: float
+    automatic_kick: bool
+    low_confidence: bool
+    cluster_id: int | None
+    unsupported_grids: list[str]
+    uncertainty_reasons: list[str]
+
+
 class GridSection(TypedDict):
     start_seconds: float
     end_seconds: float
@@ -97,7 +112,7 @@ class GridSection(TypedDict):
     drift_flagged: bool
 
 
-class Proposal(TypedDict):
+class Proposal[T: Candidate = Candidate](TypedDict):
     track_identifier: str
     audio_sha256: str | None
     annotation_algorithm_version: int
@@ -106,7 +121,7 @@ class Proposal(TypedDict):
     beat_grid_phase_seconds: float | None
     beat_positions: list[float]
     unsupported_beat_positions: list[float]
-    kick_candidates: list[Candidate]
+    kick_candidates: list[T]
     beat_grid_validation: list[GridSection]
     duration_seconds: float
     source_sample_rate: int
@@ -121,6 +136,11 @@ class Proposal(TypedDict):
     invalid_negative_templates: NotRequired[list[float]]
     positive_template_count: NotRequired[int]
     reference_alignment_checks: NotRequired[list[dict[str, object]]]
+    automatic_parameters: NotRequired[dict[str, object]]
+    clusters: NotRequired[list[dict[str, object]]]
+    automatic_reference_ids: NotRequired[list[str]]
+    selected_grid: NotRequired[str | None]
+    automatic_confidence: NotRequired[str]
 
 
 def analyze_audio(samples: AudioSamples, source_rate: int) -> AcousticAnalysis:

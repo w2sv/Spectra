@@ -1,34 +1,29 @@
-"""Matplotlib template selection, reversible drafts, diagnostics, and optional mpv."""
+"""Correction-first Matplotlib review with retained artists and cursor blitting."""
 
+import hashlib
 from pathlib import Path
-from textwrap import fill
-from typing import TypedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backend_bases import KeyEvent, MouseEvent, key_press_handler
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.lines import Line2D
 
-from benchmarks.annotation_analysis import PARAMETERS, AcousticAnalysis, Candidate, Proposal, associate_candidates
-from benchmarks.annotation_editing import (
-    AnnotationDraft,
-    DraftEditor,
-    UnsupportedBeatNavigator,
-    beat_grid_identity,
-    covered_by_annotation,
-    is_stale,
-    load_draft,
-    new_draft,
-    save_draft,
+from benchmarks.annotation_analysis import PARAMETERS, AcousticAnalysis, AutomaticCandidate, Proposal
+from benchmarks.annotation_automatic import OnsetLocalizer, classify_candidates, grid_distances
+from benchmarks.annotation_corrections import (
+    CorrectionEditor,
+    ReviewDraft,
+    centered_interval,
+    effective_kick,
+    effective_timestamp,
+    load_review,
+    navigate_candidate,
+    new_review,
+    proposal_checksum,
+    save_review,
 )
-from benchmarks.annotation_templates import (
-    TemplateDefinition,
-    candidate_onset,
-    load_templates,
-    refine_proposal,
-    save_templates,
-    template_checksum,
-)
+from benchmarks.annotation_diagnostics import diagnostic_sections
 from benchmarks.review_controls import ReviewControlPanel
 from benchmarks.review_playback import MpvPlayback
 
@@ -40,667 +35,717 @@ KEY_ACTIONS = {
     "right": "next_interval",
     "[": "previous_unsupported",
     "]": "next_unsupported",
-    "y": "kick_present",
-    "x": "kick_absent",
-    "a": "accept",
-    "u": "remove_unlikely",
-    "c": "clear",
+    ",": "previous_uncertain",
+    ".": "next_uncertain",
+    "<": "previous_corrected",
+    ">": "next_corrected",
+    "t": "toggle",
     "ctrl+z": "undo",
-    "control+z": "undo",
     "ctrl+s": "save",
-    "control+s": "save",
-    "k": "positive_reference",
-    "n": "negative_reference",
-    "delete": "remove_reference",
     "r": "reclassify",
     "g": "grid",
-    "h": "unlikely_visibility",
+    "h": "nonkick_visibility",
+    "escape": "clear_override",
 }
-SELECTED_BEAT_COLOR = "#ad166a"
+LABELS = {
+    "play": "Play",
+    "restart": "Restart interval",
+    "previous_interval": "Previous interval",
+    "next_interval": "Next interval",
+    "previous_uncertain": "Previous uncertain candidate",
+    "next_uncertain": "Next uncertain candidate",
+    "previous_unsupported": "Previous unsupported beat",
+    "next_unsupported": "Next unsupported beat",
+    "previous_corrected": "Previous correction",
+    "next_corrected": "Next correction",
+    "toggle": "Toggle selected event",
+    "undo": "Undo correction",
+    "save": "Save review",
+    "reclassify": "Reclassify using corrections",
+    "group_kick": "Similar events: kicks",
+    "group_nonkick": "Similar events: non-kicks",
+    "clear_override": "Remove selected correction",
+    "grid": "Beat grid: primary",
+    "nonkick_visibility": "Non-kicks: shown",
+    "advanced": "Advanced ▸",
+}
 STYLES = {
-    "likely": ("green", "o"),
-    "ambiguous": ("darkorange", "D"),
-    "unlikely": ("gray", "x"),
-    "unclassified": ("purple", "v"),
+    "automatic_kick": ("#16703c", "o", True, "Automatic kick"),
+    "automatic_nonkick": ("#777777", "v", False, "Automatic non-kick"),
+    "human_kick": ("#135dba", "s", True, "Human-corrected kick"),
+    "human_nonkick": ("#a12842", "X", False, "Human-corrected non-kick"),
+    "uncertain": ("#c88410", "D", False, "Uncertain classification"),
 }
+
+
+def waveform_envelope(
+    analysis: AcousticAnalysis, start: float, end: float, pixels: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Min/max buckets preserve short transients at display resolution."""
+    rate = PARAMETERS.sample_rate
+    first, last = max(0, int(start * rate)), min(len(analysis.mono), int(end * rate) + 1)
+    signal = analysis.mono[first:last]
+    bucket = max(1, int(np.ceil(len(signal) / max(1, pixels))))
+    if bucket == 1:
+        return np.arange(first, last) / rate, signal
+    count = len(signal) // bucket
+    if not count:
+        return np.array([]), np.array([])
+    blocks = signal[: count * bucket].reshape(count, bucket)
+    x = np.repeat((first + np.arange(count) * bucket) / rate, 2)
+    y = np.column_stack((blocks.min(axis=1), blocks.max(axis=1))).ravel()
+    if count * bucket < len(signal):
+        remainder = signal[count * bucket :]
+        x = np.append(x, [(first + count * bucket) / rate] * 2)
+        y = np.append(y, [remainder.min(), remainder.max()])
+    return x, y
 
 
 class AnnotationReview:
     def __init__(
         self,
         analysis: AcousticAnalysis,
-        proposal: Proposal,
-        draft: AnnotationDraft,
+        proposal: Proposal[AutomaticCandidate],
+        draft: ReviewDraft,
         draft_path: Path,
         start: float,
         duration: float,
         *,
-        templates: TemplateDefinition | None = None,
-        template_path: Path | None = None,
-        proposal_path: Path | None = None,
         audio_path: Path | None = None,
     ) -> None:
-        self.analysis = analysis
-        self.proposal = proposal
-        definition = (
-            templates
-            if templates is not None
-            else TemplateDefinition(proposal["track_identifier"], proposal["audio_sha256"] or "")
-        )
-        self.editor = DraftEditor(draft, definition, proposal)
+        self.analysis, self.proposal = analysis, proposal
+        self.editor = CorrectionEditor(proposal, draft)
         self.draft_path = draft_path
-        self.template_path = template_path
-        self.proposal_path = proposal_path
-        self.start = start
-        self.duration = duration
-        self.dirty = False
-        self.show_unlikely = True
-        self.alternative_grid = False
+        self.start, self.duration = start, duration
+        self.dirty, self.show_nonkicks, self.alternative_grid = False, True, False
+        self.selected: str | None = None
         self.cursor_time: float | None = None
-        self.status = ""
+        self.status = "Click an event to toggle kick / non-kick. Predictions are unreviewed."
+        self.pending_group: tuple[str, bool, tuple[str, ...]] | None = None
         self.player: MpvPlayback | None = None
         self.displayed_playback_position: float | None = None
-        self.playback_lines: list[Line2D] = []
-        self.unsupported_navigator = UnsupportedBeatNavigator()
-        self.raw_unsupported: list[float] = []
-        self.figure, axes = plt.subplots(3, 1, figsize=(16, 9), sharex=True)
-        self.axes = list(axes)
-        self.legend_axes = self.figure.add_axes((0.05, 0.05, 0.6, 0.2))
-        self.legend_axes.set_axis_off()
-        self.legend_axes.set_navigate(False)
-        self.title_text = self.figure.text(0, 1, "", fontsize=13, va="top")
-        self.warning_text = self.figure.text(0, 1, "", fontsize=11, va="top", color="#7e3042")
-        self.inspection = self.figure.text(
-            0, 0, "Hover near a candidate to inspect original/refined times.", fontsize=11, va="bottom"
+        self._background = None
+        self._static_background = None
+        self._updating_range = False
+        self._visible_range: tuple[float, float, int] | None = None
+        self._inspected_key: str | None = None
+        self.audio_update_count = 0
+        self.stale = draft.originating_proposal_sha256 != proposal_checksum(proposal)
+        self.log_spectrogram = 10 * np.log10(analysis.low_spectral_power.T + 1e-12)
+        self.grids = {
+            "primary": np.asarray(proposal["beat_positions"]),
+            "alternative": np.asarray(proposal.get("alternative_beat_positions", [])),
+        }
+        self.localizer: OnsetLocalizer | None = None
+        self.figure, raw_axes = plt.subplots(3, 1, figsize=(16, 9), sharex=True)
+        self.axes = list(raw_axes)
+        (self.waveform,) = self.axes[0].plot([], [], color=".25", linewidth=0.6)
+        self.spectrogram = self.axes[1].imshow(
+            np.zeros((len(analysis.frequencies), 2)),
+            origin="lower",
+            aspect="auto",
+            extent=(0, 0.01, 20, 500),
+            cmap="magma",
+            vmin=-90,
+            vmax=-15,
+            interpolation="nearest",
+        )
+        (self.bass_line,) = self.axes[2].plot([], [], color="#47689d", linewidth=1)
+        (self.broad_line,) = self.axes[2].plot([], [], color="#9c667c", linewidth=0.8)
+        self.score_points = self.axes[2].scatter([], [], s=13, color="#196c49", marker=".")
+        self.beat_lines = [
+            axis.vlines([], 0, 1, transform=axis.get_xaxis_transform(), color=".65", linestyles="--", linewidth=0.6)
+            for axis in self.axes
+        ]
+        self.overlays = {
+            name: [
+                axis.scatter(
+                    [],
+                    [],
+                    transform=axis.get_xaxis_transform(),
+                    marker=marker,
+                    s=52 if name != "uncertain" else 85,
+                    edgecolors=color,
+                    facecolors=color if filled else "none",
+                    linewidths=1.2,
+                    zorder=5,
+                )
+                for axis in self.axes
+            ]
+            for name, (color, marker, filled, _) in STYLES.items()
+        }
+        self.grid_markers = [
+            axis.scatter([], [], transform=axis.get_xaxis_transform(), marker="|", s=35, color=".15", zorder=5)
+            for axis in self.axes
+        ]
+        self.offgrid_markers = [
+            axis.scatter([], [], transform=axis.get_xaxis_transform(), marker="_", s=35, color=".15", zorder=5)
+            for axis in self.axes
+        ]
+        self.selected_lines = [axis.axvline(0, color="#b52a87", linewidth=1.8, visible=False) for axis in self.axes]
+        self.playback_lines = [
+            axis.axvline(0, color="#00a5c8", linewidth=1.5, visible=False, animated=self.figure.canvas.supports_blit)
+            for axis in self.axes
+        ]
+        for axis, label in zip(self.axes, ("PCM amplitude", "Frequency (Hz)", "Evidence / similarity"), strict=True):
+            axis.set_ylabel(label, fontsize=11)
+            axis.tick_params(labelsize=11)
+        self.axes[1].set_ylim(20, 500)
+        self.axes[2].set_xlabel("Recording time (seconds)", fontsize=11)
+        self.title_text = self.figure.text(0.065, 0.97, "", fontsize=13, va="top")
+        self.warning_text = self.figure.text(0.065, 0.935, "", fontsize=11, va="top", color="#8b2f45")
+        self.inspection = self.figure.text(0.065, 0.255, "", fontsize=11, va="top")
+        self.dynamic_artists = [
+            self.score_points,
+            self.title_text,
+            self.warning_text,
+            self.inspection,
+            *self.selected_lines,
+            *self.grid_markers,
+            *self.offgrid_markers,
+            *(artist for group in self.overlays.values() for artist in group),
+        ]
+        self.use_blitting = self.figure.canvas.supports_blit and isinstance(self.figure.canvas, FigureCanvasAgg)
+        for artist in self.dynamic_artists + self.playback_lines:
+            artist.set_animated(self.use_blitting)
+        self.legend = self.figure.legend(
+            handles=self.legend_handles(),
+            loc="lower left",
+            bbox_to_anchor=(0.045, 0.01),
+            ncol=3,
+            fontsize=11,
+            frameon=False,
+            columnspacing=1.3,
+            handlelength=1.8,
         )
         self.controls = ReviewControlPanel(self)
+        self.controls.progress.axes.set_animated(self.use_blitting)
+        self.dynamic_artists.append(self.controls.progress.axes)
+        self._ordered: list[AutomaticCandidate] = []
+        self._times = np.array([], dtype=np.float64)
+        self._kick_count, self._uncertain_count = 0, 0
+        self._clusters: dict[int | None, list[AutomaticCandidate]] = {}
+        self._queues: dict[str, tuple[list[str], np.ndarray]] = {}
+        self._grid_alignment: dict[str, dict[str, bool]] = {}
+        self.refresh_cache()
+        self.layout()
         manager = self.figure.canvas.manager
-        handler_id = manager.key_press_handler_id if manager is not None else None
-        if handler_id is not None:
-            self.figure.canvas.mpl_disconnect(handler_id)
+        if manager is not None and manager.key_press_handler_id is not None:
+            self.figure.canvas.mpl_disconnect(manager.key_press_handler_id)
         self.figure.canvas.mpl_connect("key_press_event", self.on_key)
         self.figure.canvas.mpl_connect("button_press_event", self.on_click)
-        self.figure.canvas.mpl_connect("button_release_event", self.on_release)
         self.figure.canvas.mpl_connect("motion_notify_event", self.on_motion)
-        self.figure.canvas.mpl_connect("resize_event", lambda _: self.layout())
+        self.figure.canvas.mpl_connect("resize_event", self.on_resize)
+        self.figure.canvas.mpl_connect("draw_event", self.on_draw)
         self.figure.canvas.mpl_connect("close_event", lambda _: self.close())
+        self.axes[0].callbacks.connect("xlim_changed", lambda _: self.range_changed())
         self.timer = self.figure.canvas.new_timer(interval=50)
         self.timer.add_callback(self.update_playback)
         if audio_path is not None:
             try:
                 self.player = MpvPlayback.start(audio_path)
                 if self.player is None:
-                    self.status = "Playback unavailable: sudo apt install mpv. Annotation remains available."
-                    print(self.status)
+                    self.status = "Playback unavailable: sudo apt install mpv. Review remains available."
                 else:
                     self.player.interval(start, min(start + duration, analysis.duration_seconds))
                     self.timer.start()
             except (OSError, RuntimeError) as error:
                 self.status = f"Playback unavailable: {error}"
-                self.close()
-        self.draw()
+        self.navigate(start, duration)
 
     @property
-    def draft(self) -> AnnotationDraft:
+    def draft(self) -> ReviewDraft:
         return self.editor.draft
-
-    def active_grid(self) -> tuple[list[float], list[float], list[Candidate]]:
-        beats = (
-            self.proposal.get("alternative_beat_positions", [])
-            if self.alternative_grid
-            else self.proposal["beat_positions"]
-        )
-        aligned, unsupported = associate_candidates(
-            self.proposal["kick_candidates"], np.asarray(beats, dtype=np.float64)
-        )
-        return beats, unsupported, aligned
-
-    def draw(self) -> None:
-        end = min(self.start + self.duration, self.analysis.duration_seconds)
-        for axis in self.axes:
-            axis.clear()
-        rate = PARAMETERS.sample_rate
-        first, last = max(0, round(self.start * rate)), min(len(self.analysis.mono), round(end * rate))
-        indices = np.arange(first, last, max(1, (last - first) // 30_000))
-        self.axes[0].plot(indices / rate, self.analysis.mono[indices], color="0.25", linewidth=0.5)
-        self.axes[0].set_ylabel("PCM amplitude")
-        mask = (self.analysis.timestamps >= self.start) & (self.analysis.timestamps <= end)
-        times = self.analysis.timestamps[mask]
-        if len(times) >= 2:
-            self.axes[1].pcolormesh(
-                times,
-                self.analysis.frequencies,
-                np.log(self.analysis.low_spectral_power[mask].T + 1e-12),
-                shading="auto",
-                cmap="magma",
-            )
-        self.axes[2].plot(times, self.analysis.bass[mask], label="Bass evidence", color="purple")
-        self.axes[2].plot(times, self.analysis.broadband[mask], label="Broadband evidence", color="teal", alpha=0.7)
-        self.axes[1].set_ylim(20, 500)
-        self.axes[1].set_ylabel("Frequency (Hz)")
-        self.axes[2].set_ylabel("Evidence / cosine score")
-        self.axes[2].set_xlabel("Original recording time (seconds)")
-        beats, unsupported, candidates = self.active_grid()
-        self.raw_unsupported = unsupported
-        self.unsupported_navigator.use_grid(beat_grid_identity(self.proposal, self.alternative_grid))
-        visible = [c for c in candidates if self.start <= candidate_onset(c) < end]
-        for axis in self.axes:
-            for beat in beats:
-                if self.start <= beat < end:
-                    axis.axvline(beat, color="gray", linestyle="--", linewidth=0.6, alpha=0.5)
-            for label, (color, marker) in STYLES.items():
-                if label == "unlikely" and not self.show_unlikely:
-                    continue
-                for aligned in (True, False):
-                    group = [
-                        c
-                        for c in visible
-                        if c.get("classification", "unclassified") == label and c["grid_aligned"] == aligned
-                    ]
-                    onsets = [candidate_onset(c) for c in group]
-                    axis.plot(
-                        onsets,
-                        [0.95 if aligned else 0.87] * len(onsets),
-                        linestyle="",
-                        marker=marker,
-                        color=color,
-                        markerfacecolor=color if aligned else "none",
-                        transform=axis.get_xaxis_transform(),
-                    )
-            missing = [b for b in unsupported if self.start <= b < end]
-            axis.plot(missing, [0.70] * len(missing), "x", color="red", transform=axis.get_xaxis_transform())
-            selected = self.unsupported_navigator.selected
-            if selected is not None and selected in unsupported and self.start <= selected <= end:
-                axis.axvline(selected, color=SELECTED_BEAT_COLOR, linewidth=1.7, zorder=5)
-                axis.plot(
-                    [selected],
-                    [0.70],
-                    marker="D",
-                    color=SELECTED_BEAT_COLOR,
-                    markerfacecolor="white",
-                    linestyle="",
-                    markersize=7,
-                    transform=axis.get_xaxis_transform(),
-                    zorder=6,
-                )
-            accepted = [time for time in self.draft.kick_onsets if self.start <= time < end]
-            axis.plot(
-                accepted, [0.79] * len(accepted), "+", color="blue", markersize=9, transform=axis.get_xaxis_transform()
-            )
-            for references, color, marker in (
-                (self.editor.templates.positive_onsets, "green", "*"),
-                (self.editor.templates.negative_onsets, "crimson", "s"),
-            ):
-                onsets = [time for time in references if self.start <= time < end]
-                axis.plot(
-                    onsets,
-                    [0.60] * len(onsets),
-                    marker=marker,
-                    color=color,
-                    linestyle="",
-                    markersize=8,
-                    transform=axis.get_xaxis_transform(),
-                )
-        for label, (color, marker) in STYLES.items():
-            scored = [
-                (c, score)
-                for c in visible
-                if (score := c.get("positive_similarity")) is not None
-                and c.get("classification") == label
-                and (label != "unlikely" or self.show_unlikely)
-            ]
-            if scored:
-                self.axes[2].scatter(
-                    [candidate_onset(c) for c, _ in scored],
-                    [score for _, score in scored],
-                    color=color,
-                    marker=marker,
-                    s=18,
-                    label=f"{label} cosine",
-                )
-        self.axes[0].set_xlim(self.start, end)
-        self.playback_lines = [axis.axvline(0, color="deepskyblue", linewidth=1.2, visible=False) for axis in self.axes]
-        self.displayed_playback_position = None
-        if self.cursor_time is not None:
-            self.inspect_candidate(self.cursor_time)
-        self.update_title()
-        self.layout()
-        self.figure.canvas.draw_idle()
 
     def legend_handles(self) -> list[Line2D]:
         handles = [
-            Line2D([], [], color="gray", linestyle="--", linewidth=0.6, alpha=0.5, label="Estimated beat"),
-            Line2D([], [], color="red", marker="x", linestyle="", label="Unsupported beat"),
-            Line2D(
-                [],
-                [],
-                color=SELECTED_BEAT_COLOR,
-                linewidth=1.7,
-                marker="D",
-                markerfacecolor="white",
-                markersize=7,
-                label="Selected unsupported beat",
-            ),
-            Line2D([], [], color="blue", marker="+", markersize=9, linestyle="", label="Accepted annotation"),
-            Line2D([], [], color="green", marker="*", markersize=8, linestyle="", label="Positive template"),
-            Line2D([], [], color="crimson", marker="s", markersize=8, linestyle="", label="Negative template"),
-            Line2D([], [], color="deepskyblue", linewidth=1.2, label="Playback position"),
-            Line2D([], [], color="purple", label="Bass onset evidence"),
-            Line2D([], [], color="teal", alpha=0.7, label="Broadband evidence"),
+            Line2D([], [], marker=m, color=c, linestyle="none", markerfacecolor=c if filled else "none", label=label)
+            for c, m, filled, label in STYLES.values()
         ]
-        classified = bool(self.editor.templates.positive_onsets or self.proposal.get("positive_template_count", 0))
-        marker = "o" if classified else "v"
-        alignment_color = STYLES["likely" if classified else "unclassified"][0]
-        handles += [
-            Line2D([], [], color=alignment_color, marker=marker, linestyle="", label="Grid-aligned candidate · filled"),
-            Line2D(
-                [],
-                [],
-                color=alignment_color,
-                marker=marker,
-                markerfacecolor="none",
-                linestyle="",
-                label="Off-grid candidate · hollow",
-            ),
-        ]
-        labels = STYLES if classified else {"unclassified": STYLES["unclassified"]}
-        for label, (color, shape) in labels.items():
-            handles.append(
-                Line2D(
-                    [],
-                    [],
-                    color=color,
-                    marker=shape,
-                    linestyle="",
-                    label={
-                        "likely": "Likely kick",
-                        "ambiguous": "Ambiguous candidate",
-                        "unlikely": "Unlikely candidate",
-                        "unclassified": "Unclassified candidate",
-                    }[label],
-                )
-            )
+        handles.extend(
+            [
+                Line2D([], [], color=".65", linestyle="--", label="Estimated beat"),
+                Line2D([], [], color="#b52a87", label="Selected candidate"),
+                Line2D([], [], marker="|", color=".15", linestyle="none", label="Grid aligned (independent)"),
+                Line2D([], [], marker="_", color=".15", linestyle="none", label="Off grid (independent)"),
+                Line2D([], [], color="#00a5c8", label="Playback position"),
+                Line2D([], [], color="#47689d", label="Bass-onset evidence"),
+                Line2D([], [], color="#9c667c", label="Broadband evidence"),
+            ]
+        )
         return handles
 
     def layout(self) -> None:
-        width, height = self.figure.get_size_inches() * self.figure.dpi
-        scale = self.figure.dpi / 100
-        left, right = 80 * scale, width - self.controls.width - 64 * scale
-        plot_width = right - left
-        columns = 3 if plot_width >= 780 * scale else 2
-        handles = self.legend_handles()
-        rows = (len(handles) + columns - 1) // columns
-        legend_height = (rows * 24 + 38) * scale
-        legend_bottom = 55 * scale
-        self.figure.subplots_adjust(
-            left=left / width,
-            right=right / width,
-            bottom=(legend_bottom + legend_height + 48 * scale) / height,
-            top=1 - 95 * scale / height,
-            hspace=0.25,
-        )
-        self.legend_axes.set_position(
-            (left / width, legend_bottom / height, plot_width / width, legend_height / height)
-        )
-        self.legend_axes.clear()
-        self.legend_axes.set_axis_off()
-        self.legend_axes.set_navigate(False)
-        self.legend_axes.legend(
-            handles=handles,
-            loc="upper left",
-            ncols=columns,
-            fontsize=11,
-            title="Class: shape / color · Grid alignment: filled upper / hollow lower",
-            title_fontsize=11,
-            frameon=False,
-            borderaxespad=0,
-            handlelength=1.8,
-            columnspacing=1.1,
-            labelspacing=0.6,
-        )
-        self.title_text.set_position((left / width, 1 - 17 * scale / height))
-        self.warning_text.set_position((left / width, 1 - 42 * scale / height))
-        self.inspection.set_position((left / width, 10 * scale / height))
-        self.update_title()
-        if self.cursor_time is not None:
-            self.inspect_candidate(self.cursor_time)
+        width, _ = self.figure.get_size_inches() * self.figure.dpi
+        right = (width - self.controls.width - 52) / width
+        self.figure.subplots_adjust(left=0.065, right=right, top=0.88, bottom=0.33, hspace=0.16)
         self.controls.layout()
+        self.invalidate_background()
 
-    def update_title(self) -> None:
-        start, end = self.axes[0].get_xlim()
-        warning = (
-            "STALE DRAFT: based on older suggestions; edits preserved. " if is_stale(self.draft, self.proposal) else ""
+    def on_resize(self, _: object) -> None:
+        self._visible_range = None
+        self.layout()
+        self.draw()
+
+    def invalidate_background(self) -> None:
+        self._background = None
+        self._static_background = None
+
+    def refresh_cache(self) -> None:
+        self._ordered = sorted(
+            self.editor.candidates.values(), key=lambda c: (effective_timestamp(c, self.draft), c["candidate_id"])
         )
-        if self.proposal.get("template_definition_sha256") != template_checksum(self.editor.templates):
-            warning += "References changed: R to reclassify. "
-        self.title_text.set_text(
-            f"{self.proposal['track_identifier']} · {self.draft.confirmed_bpm:g} BPM · {start:.3f}–{end:.3f}s · "
-            f"{'Alternative' if self.alternative_grid else 'Primary'} grid{' · unsaved draft' if self.dirty else ''}"
+        self._times = np.asarray([effective_timestamp(c, self.draft) for c in self._ordered])
+        self._kick_count = sum(effective_kick(c, self.draft) for c in self._ordered)
+        self._uncertain_count = sum(
+            bool(c["uncertainty_reasons"]) and c["candidate_id"] not in self.draft.overrides for c in self._ordered
         )
-        self.warning_text.set_text(fill(warning + self.status, self.text_width()))
-
-    def text_width(self) -> int:
-        width = self.figure.get_size_inches()[0] * self.figure.dpi
-        return max(40, int((width - self.controls.width - 144 * self.figure.dpi / 100) / (7 * self.figure.dpi / 100)))
-
-    def remaining_unsupported(self) -> list[float]:
-        return self.unsupported_navigator.remaining(self.raw_unsupported, self.draft)
-
-    def unsupported_progress(self) -> str:
-        start, end = self.current_interval()
-        decisions = self.draft.unsupported_beat_reviews.get(self.unsupported_navigator.grid_identity or "", {})
-        remaining = self.remaining_unsupported()
-        kicks = sum(decisions.get(str(beat)) == "kick" for beat in self.raw_unsupported)
-        gaps = sum(decisions.get(str(beat)) == "gap" for beat in self.raw_unsupported)
-        covered = sum(
-            str(beat) not in decisions and covered_by_annotation(beat, self.draft.kick_onsets)
-            for beat in self.raw_unsupported
+        self._clusters = {}
+        for candidate in self._ordered:
+            self._clusters.setdefault(candidate["cluster_id"], []).append(candidate)
+        for name, beats in self.grids.items():
+            distances, _ = grid_distances(self._times, beats.tolist())
+            self._grid_alignment[name] = {
+                c["candidate_id"]: abs(distance) <= 0.050 for c, distance in zip(self._ordered, distances, strict=True)
+            }
+        kicks = np.asarray(
+            sorted(effective_timestamp(c, self.draft) for c in self._ordered if effective_kick(c, self.draft))
         )
-        selected = self.unsupported_navigator.selected
-        selection = "Selected: none"
-        if selected is not None:
-            if selected in remaining:
-                selection = f"Selected: {selected:.3f}s · {remaining.index(selected) + 1}/{len(remaining)} remaining"
-            else:
-                selection = f"Selected: {selected:.3f}s · {decisions.get(str(selected), 'covered')}"
-        visible = sum(start <= beat < end for beat in self.raw_unsupported)
-        return (
-            f"Unsupported: {len(self.raw_unsupported)} total · {visible} in view\n"
-            f"Awaiting review: {len(remaining)}\nConfirmed kicks: {kicks} · gaps: {gaps}\n"
-            f"Covered by annotations: {covered}\n{selection}"
-        )
+        for kind in ("uncertain", "corrected", "unsupported_primary", "unsupported_alternative"):
+            remaining = []
+            for candidate in self._ordered:
+                key = candidate["candidate_id"]
+                corrected = key in self.draft.overrides
+                eligible = (
+                    corrected if kind == "corrected" else not corrected and bool(candidate["uncertainty_reasons"])
+                )
+                if kind.startswith("unsupported_"):
+                    time = effective_timestamp(candidate, self.draft)
+                    index = int(np.searchsorted(kicks, time))
+                    covered = any(abs(time - kicks[i]) <= 0.050 for i in (index - 1, index) if 0 <= i < len(kicks))
+                    eligible = (
+                        not corrected
+                        and not covered
+                        and kind.removeprefix("unsupported_") in candidate["unsupported_grids"]
+                    )
+                if eligible:
+                    remaining.append(candidate)
+            self._queues[kind] = (
+                [c["candidate_id"] for c in remaining],
+                np.asarray([effective_timestamp(c, self.draft) for c in remaining]),
+            )
 
-    def action_label(self, action: str) -> str:
-        if action == "play":
-            return "Play" if self.player is None or self.player.paused else "Pause"
-        if action == "grid":
-            return f"Beat grid: {'Alternative' if self.alternative_grid else 'Primary'}"
-        if action == "unlikely_visibility":
-            return f"Unlikely candidates: {'shown' if self.show_unlikely else 'hidden'}"
-        return self.controls.buttons[action].label.get_text()
-
-    def action_enabled(self, action: str) -> bool:
-        start, end = self.current_interval()
-        if action in ("play", "restart"):
-            return self.player is not None
-        if action == "previous_interval":
-            return start > 1e-10
-        if action == "next_interval":
-            return end < self.analysis.duration_seconds - 1e-10
-        if action in ("previous_unsupported", "next_unsupported"):
-            direction = 1 if action == "next_unsupported" else -1
-            return self.unsupported_navigator.destination(direction, self.remaining_unsupported(), start) is not None
-        if action in ("kick_present", "kick_absent"):
-            return self.unsupported_navigator.selected in self.remaining_unsupported()
-        if action == "undo":
-            return self.editor.can_undo
-        if action == "save":
-            return self.dirty or not self.draft_path.exists()
-        if action == "accept":
-            return any(
-                c.get("classification") == "likely" and start <= candidate_onset(c) < end
-                for c in self.proposal["kick_candidates"]
-            )
-        if action == "remove_unlikely":
-            return any(
-                c.get("classification") == "unlikely"
-                and (time := self.draft.automatic_events.get(str(c["timestamp"]))) is not None
-                and start <= time < end
-                and time not in self.draft.manually_confirmed_kick_onsets
-                for c in self.proposal["kick_candidates"]
-            )
-        if action == "clear":
-            return any(start <= time < end for time in self.draft.kick_onsets)
-        if action == "grid":
-            return bool(self.proposal["beat_positions"] and self.proposal.get("alternative_beat_positions"))
-        if action == "unlikely_visibility":
-            return bool(self.proposal.get("positive_template_count", 0) or self.editor.templates.positive_onsets)
-        if action == "reclassify":
-            return bool(
-                self.editor.templates.positive_onsets
-                or self.editor.templates.negative_onsets
-                or self.proposal.get("template_definition_sha256") != template_checksum(self.editor.templates)
-            )
-        if action in ("positive_reference", "negative_reference", "remove_reference", "add", "remove", "seek"):
-            timestamp = self.cursor_time
-            if timestamp is None or not 0 <= timestamp < self.analysis.duration_seconds:
-                return False
-            if action == "seek":
-                return self.player is not None
-            if action == "add":
-                return True
-            times = (
-                self.draft.kick_onsets
-                if action == "remove"
-                else self.editor.templates.positive_onsets + self.editor.templates.negative_onsets
-            )
-            if action in ("positive_reference", "negative_reference"):
-                times = times + [c["timestamp"] for c in self.proposal["kick_candidates"]]
-            return bool(times) and min(abs(time - timestamp) for time in times) <= 0.05
-        return action == "templates"
+    def visible_candidates(self, start: float, end: float) -> list[AutomaticCandidate]:
+        first, last = np.searchsorted(self._times, [start, end])
+        return self._ordered[int(first) : int(last)]
 
     def current_interval(self) -> tuple[float, float]:
         left, right = self.axes[0].get_xlim()
-        return max(0.0, left), min(right, self.analysis.duration_seconds)
+        return max(0.0, left), min(self.analysis.duration_seconds, right)
+
+    def update_audio(self) -> None:
+        start, end = self.current_interval()
+        pixels = max(1, int(self.axes[0].bbox.width))
+        key = (start, end, pixels)
+        if key == self._visible_range:
+            return
+        self._visible_range = key
+        self.audio_update_count += 1
+        x, y = waveform_envelope(self.analysis, start, end, pixels)
+        self.waveform.set_data(x, y)
+        limit = max(0.01, float(np.max(np.abs(y)))) if len(y) else 1
+        self.axes[0].set_ylim(-limit * 1.12, limit * 1.12)
+        first, last = np.searchsorted(self.analysis.timestamps, [start, end])
+        first, last = int(first), min(len(self.analysis.timestamps), max(int(last), int(first) + 1))
+        times = self.analysis.timestamps[first:last]
+        if len(times):
+            self.spectrogram.set_data(self.log_spectrogram[:, first:last])
+            self.spectrogram.set_extent((float(times[0]) - 0.0025, float(times[-1]) + 0.0025, 20, 500))
+        self.bass_line.set_data(times, self.analysis.bass[first:last])
+        self.broad_line.set_data(times, self.analysis.broadband[first:last])
+        evidence = max(
+            1.1,
+            float(np.max(self.analysis.bass[first:last], initial=0)),
+            float(np.max(self.analysis.broadband[first:last], initial=0)),
+        )
+        self.axes[2].set_ylim(0, evidence * 1.15)
+
+    def update_overlays(self) -> None:
+        start, end = self.current_interval()
+        visible = self.visible_candidates(start, end)
+        groups: dict[str, list[float]] = {key: [] for key in STYLES}
+        aligned, offgrid, scores = [], [], []
+        beats = self.grids["alternative" if self.alternative_grid else "primary"]
+        for candidate in visible:
+            kick = effective_kick(candidate, self.draft)
+            key = candidate["candidate_id"]
+            time = effective_timestamp(candidate, self.draft)
+            if not kick and not self.show_nonkicks and key != self.selected:
+                continue
+            group = ("human_" if key in self.draft.overrides else "automatic_") + ("kick" if kick else "nonkick")
+            groups[group].append(time)
+            if candidate["uncertainty_reasons"] and key not in self.draft.overrides:
+                groups["uncertain"].append(time)
+            on_grid = self._grid_alignment["alternative" if self.alternative_grid else "primary"][key]
+            (aligned if on_grid else offgrid).append(time)
+            score = candidate.get("positive_similarity")
+            if score is not None:
+                scores.append((time, score))
+        for name, times in groups.items():
+            positions = np.column_stack((times, np.full(len(times), 0.92))) if times else np.empty((0, 2))
+            for artist in self.overlays[name]:
+                artist.set_offsets(positions)
+        for collection, times in ((self.grid_markers, aligned), (self.offgrid_markers, offgrid)):
+            for artist in collection:
+                artist.set_offsets(np.column_stack((times, np.full(len(times), 0.82))) if times else np.empty((0, 2)))
+        self.score_points.set_offsets(np.asarray(scores).reshape(-1, 2))
+        first, last = np.searchsorted(beats, [start, end])
+        for artist in self.beat_lines:
+            artist.set_segments([[(t, 0), (t, 1)] for t in beats[first:last]])
+        for line in self.selected_lines:
+            line.set_visible(self.selected in self.editor.candidates)
+            if self.selected in self.editor.candidates:
+                line.set_xdata([effective_timestamp(self.editor.candidates[self.selected], self.draft)] * 2)
+
+    def update_text(self) -> None:
+        start, end = self.current_interval()
+        self.title_text.set_text(
+            f"{self.proposal['track_identifier']} · {start:.2f}–{end:.2f}s · BPM {self.proposal['bpm']}"
+            + (" · unsaved" if self.dirty else "")
+        )
+        warning = "STALE REVIEW: matched human corrections preserved. " if self.stale else ""
+        self.warning_text.set_text(warning + self.status)
+        if self.selected is not None:
+            self.inspect_candidate(self.selected, redraw=False)
+        self.controls.refresh()
+
+    def draw(self) -> None:
+        previous_range = self._visible_range
+        self.update_audio()
+        self.update_overlays()
+        self.update_text()
+        if self._visible_range != previous_range:
+            self.invalidate_background()
+        self.render_dynamic()
+
+    def range_changed(self) -> None:
+        if not self._updating_range:
+            self.draw()
 
     def navigate(self, start: float, duration: float) -> None:
-        self.duration = max(0.005, duration)
-        self.start = max(0.0, min(start, max(0.0, self.analysis.duration_seconds - self.duration)))
+        self.duration = min(max(0.005, duration), self.analysis.duration_seconds)
+        self.start = min(max(0.0, start), self.analysis.duration_seconds - self.duration)
+        self._updating_range = True
+        self.axes[0].set_xlim(self.start, self.start + self.duration)
+        self._updating_range = False
         if self.player is not None:
-            self.player.interval(self.start, min(self.start + self.duration, self.analysis.duration_seconds))
+            self.player.interval(self.start, self.start + self.duration)
         self.draw()
 
-    def persist_templates(self) -> None:
-        if self.template_path is not None:
-            save_templates(self.template_path, self.editor.templates, self.analysis.duration_seconds)
+    def nearest(self, timestamp: float) -> str | None:
+        index = int(np.searchsorted(self._times, timestamp))
+        choices = [i for i in (index - 1, index) if 0 <= i < len(self._times)]
+        if not choices:
+            return None
+        best = min(choices, key=lambda i: abs(self._times[i] - timestamp))
+        return self._ordered[best]["candidate_id"] if abs(self._times[best] - timestamp) <= 0.050 else None
+
+    def inspect_candidate(self, key: str | None, *, redraw: bool = True) -> None:
+        if key is None:
+            return
+        c = self.editor.candidates[key]
+        members = self._clusters.get(c["cluster_id"], []) if c["cluster_id"] is not None else []
+        cluster = (
+            f"Cluster {c['cluster_id']}: {len(members)} similar, {sum(effective_kick(m, self.draft) for m in members)} kicks, {sum(m['candidate_id'] in self.draft.overrides for m in members)} corrected"
+            if members
+            else "No recurring cluster"
+        )
+        label = "Kick" if effective_kick(c, self.draft) else "Non-kick"
+        text = f"Onset {effective_timestamp(c, self.draft):.4f}s · {label} · {c['timing_reason']}\n{cluster}"
+        if self.controls.templates_expanded:
+            text += f"\nNovelty {c['timestamp']:.4f}s · localized {c['localized_timestamp']:.4f}s · aligned {c.get('refined_timestamp')}"
+        if text != self.inspection.get_text():
+            self.inspection.set_text(text)
+            if redraw:
+                self.render_dynamic()
 
     def on_motion(self, event: MouseEvent) -> None:
-        if event.inaxes not in self.axes or event.xdata is None:
-            return
-        timestamp = float(event.xdata)
-        self.cursor_time = timestamp
-        self.inspect_candidate(timestamp)
-        self.figure.canvas.draw_idle()
+        if event.inaxes in self.axes and event.xdata is not None:
+            self.cursor_time = float(event.xdata)
+            key = self.nearest(self.cursor_time)
+            if key is not None and self._inspected_key != key:
+                self._inspected_key = key
+                self.inspect_candidate(key)
 
-    def inspect_candidate(self, timestamp: float) -> None:
-        candidates = self.proposal["kick_candidates"]
-        if candidates:
-            nearest = min(
-                candidates, key=lambda c: min(abs(c["timestamp"] - timestamp), abs(candidate_onset(c) - timestamp))
-            )
-            refined = nearest.get("refined_timestamp")
-            score = nearest.get("positive_similarity")
-            self.inspection.set_text(
-                fill(
-                    f"Cursor {timestamp:.4f}s · novelty {nearest['timestamp']:.4f}s · "
-                    f"refined {f'{refined:.4f}s' if refined is not None else 'unavailable'} · "
-                    f"{nearest.get('classification', 'unclassified')} · similarity {f'{score:.3f}' if score is not None else 'n/a'} · "
-                    f"search edge {nearest.get('alignment_at_search_boundary', False)}",
-                    self.text_width(),
-                )
-            )
+    def on_click(self, event: MouseEvent) -> None:
+        if event.inaxes not in self.axes or event.xdata is None or event.button != 1:
+            return
+        if self.figure.canvas.toolbar is not None and self.figure.canvas.toolbar.mode:
+            return
+        time = float(event.xdata)
+        if "alt" in (event.key or ""):
+            if self.player is not None:
+                self.player.seek(time)
+        elif "shift" in (event.key or ""):
+            self.insert_manual(time)
+        elif (key := self.nearest(time)) is not None:
+            self.selected = key
+            self.perform_action("toggle")
 
     def on_key(self, event: KeyEvent) -> None:
-        action = KEY_ACTIONS.get((event.key or "").lower())
-        if action is None:
-            key_press_handler(event, self.figure.canvas, self.figure.canvas.toolbar)
-        else:
+        if (action := KEY_ACTIONS.get((event.key or "").lower())) is not None:
             self.perform_action(action)
+        else:
+            key_press_handler(event, self.figure.canvas, self.figure.canvas.toolbar)
+
+    def action_label(self, action: str) -> str:
+        if action == "play":
+            return "Pause" if self.player is not None and not self.player.paused else "Play"
+        if action == "grid":
+            return f"Beat grid: {'alternative' if self.alternative_grid else 'primary'}"
+        if action == "nonkick_visibility":
+            return f"Non-kicks: {'shown' if self.show_nonkicks else 'hidden'}"
+        if (
+            self.pending_group is not None
+            and action in ("group_kick", "group_nonkick")
+            and self.pending_group[1] == (action == "group_kick")
+        ):
+            return f"Confirm {len(self.pending_group[2])} {'kicks' if self.pending_group[1] else 'non-kicks'}"
+        return LABELS[action]
+
+    def action_enabled(self, action: str) -> bool:
+        if action.startswith(("previous_", "next_")) and not action.endswith("interval"):
+            return self.navigation_target(action) is not None
+        if action in ("play", "restart"):
+            return self.player is not None
+        if action in ("toggle", "group_kick", "group_nonkick", "clear_override"):
+            if self.selected not in self.editor.candidates:
+                return False
+            if action == "clear_override":
+                return self.selected in self.draft.overrides
+            if action.startswith("group"):
+                return bool(self.editor.group_targets(self.selected))
+        if action == "undo":
+            return bool(self.editor.history)
+        if action == "grid":
+            return bool(self.grids["alternative"].size)
+        if action == "reclassify":
+            return bool(self.draft.overrides)
+        return True
+
+    def navigation_target(self, action: str) -> str | None:
+        direction, kind = action.split("_", 1)
+        if kind == "unsupported":
+            kind += "_alternative" if self.alternative_grid else "_primary"
+        keys, times = self._queues[kind]
+        selected = self.editor.candidates.get(self.selected) if self.selected is not None else None
+        position = effective_timestamp(selected, self.draft) if selected is not None else self.current_interval()[0]
+        index = int(
+            np.searchsorted(times, position, side="right" if selected is not None and direction == "next" else "left")
+        )
+        if direction == "previous":
+            index -= 1
+        return keys[index] if 0 <= index < len(keys) else None
+
+    def progress_text(self) -> str:
+        return (
+            f"{len(self._ordered)} candidates\n{self._kick_count} kicks · {len(self._ordered) - self._kick_count} non-kicks\n"
+            f"{len(self.draft.overrides)} human corrections\n{self._uncertain_count} uncertain, uncorrected\nCorrection count is not review coverage."
+        )
 
     def perform_action(self, action: str) -> None:
+        if not self.action_enabled(action):
+            if action.startswith(("previous_", "next_")) and not action.endswith("interval"):
+                self.status = (
+                    f"No {'further' if action.startswith('next') else 'earlier'} {action.split('_', 1)[1]} candidates."
+                )
+                self.update_text()
+                self.render_dynamic()
+            return
         try:
-            if not self.action_enabled(action):
-                self.status = {
-                    "next_unsupported": "No further unsupported beats await review.",
-                    "previous_unsupported": "No earlier unsupported beats await review.",
-                    "play": "Playback unavailable: sudo apt install mpv.",
-                    "kick_present": "Select an unsupported beat awaiting review first.",
-                    "kick_absent": "Select an unsupported beat awaiting review first.",
-                    "positive_reference": "Position the cursor within 50 ms of a candidate/reference.",
-                    "negative_reference": "Position the cursor within 50 ms of a candidate/reference.",
-                }.get(action, "Action unavailable in the current view.")
-                self.update_title()
-                self.controls.refresh()
-                self.figure.canvas.draw_idle()
+            if action == "play" and self.player is not None:
+                self.player.toggle()
+                return
+            if action == "restart" and self.player is not None:
+                self.player.interval(*self.current_interval())
                 return
             if action in ("previous_interval", "next_interval"):
-                start, end = self.current_interval()
-                self.navigate(start + (end - start) * (1 if action == "next_interval" else -1), end - start)
+                left, right = self.current_interval()
+                self.navigate(left + (right - left) * (1 if action.startswith("next") else -1), right - left)
                 return
-            if action in ("previous_unsupported", "next_unsupported"):
-                window = self.unsupported_navigator.jump(
-                    1 if action == "next_unsupported" else -1,
-                    self.raw_unsupported,
+            if action.startswith(("previous_", "next_")):
+                kind = action.split("_", 1)[1]
+                key = navigate_candidate(
+                    self._ordered,
                     self.draft,
+                    kind,
+                    1 if action.startswith("next") else -1,
+                    self.selected,
                     self.current_interval()[0],
-                    self.analysis.duration_seconds,
+                    "alternative" if self.alternative_grid else "primary",
                 )
-                if window is not None:
-                    self.status = "Inspect the selected beat; Y confirms a kick, X confirms a gap."
-                    self.navigate(*window)
-                return
-            if action in ("kick_present", "kick_absent"):
-                selected = self.unsupported_navigator.selected
-                if selected is not None:
-                    self.editor.review_unsupported_beat(
-                        self.unsupported_navigator.grid_identity or "", selected, action == "kick_present"
-                    )
-                    self.dirty = True
-                    self.status = (
-                        f"Kick confirmed at {selected:.3f}s; beat-time onset is provisional, adjust on the waveform."
-                        if action == "kick_present"
-                        else f"No kick at {selected:.3f}s; this grid beat is reviewed."
-                    )
-            elif action == "play":
-                if self.player is not None:
-                    self.player.toggle()
-            elif action == "restart":
-                if self.player is not None:
-                    self.player.seek(self.current_interval()[0])
-            elif action == "save":
-                save_draft(self.draft_path, self.draft, self.analysis.duration_seconds)
-                self.dirty = False
-                self.status = f"Saved draft: {self.draft_path.name}"
-            elif action == "undo":
-                if self.editor.undo():
-                    self.persist_templates()
-                    self.dirty = True
-                    self.status = "Undid the last edit."
-            elif action in ("accept", "remove_unlikely", "clear"):
-                self.editor.bulk(
-                    {"accept": "accept", "remove_unlikely": "unlikely", "clear": "clear"}[action],
-                    *self.current_interval(),
-                )
-                self.dirty = True
-            elif action in ("positive_reference", "negative_reference"):
-                if self.cursor_time is None:
-                    return
-                timestamp = self.cursor_time
-                references = self.editor.templates.positive_onsets + self.editor.templates.negative_onsets
-                selectable = [c["timestamp"] for c in self.proposal["kick_candidates"]] + references
-                if not selectable or min(abs(time - timestamp) for time in selectable) > 0.05:
-                    self.status = (
-                        "Select within 50 ms of a candidate/reference; zoom the waveform for precise placement."
-                    )
+                if key is None:
+                    self.status = f"No {'further' if action.startswith('next') else 'earlier'} {kind} candidates."
                 else:
-                    nearby = min(references, key=lambda time: abs(time - timestamp)) if references else None
-                    old = nearby if nearby is not None and abs(nearby - timestamp) <= 0.05 else None
-                    self.editor.set_template(timestamp, action == "positive_reference", old)
-                    self.persist_templates()
-                    self.status = f"Saved reference at {timestamp:.4f}s; R to classify."
-            elif action == "remove_reference":
-                if self.cursor_time is not None and self.editor.remove_template(self.cursor_time):
-                    self.persist_templates()
-            elif action == "reclassify":
-                if self.player is not None:
-                    self.player.pause()
-                self.persist_templates()
-                self.status = "Reclassifying acoustic candidates…"
-                self.update_title()
-                self.figure.canvas.draw()
-                self.proposal = refine_proposal(self.analysis, self.proposal, self.editor.templates)
-                self.editor.proposal = self.proposal
-                if self.proposal_path is not None:
-                    from benchmarks.annotate import proposal_summary, write_json
-
-                    write_json(self.proposal_path, self.proposal)
-                    write_json(
-                        self.proposal_path.with_name(f"{self.proposal['track_identifier']}-summary.json"),
-                        proposal_summary(self.proposal),
+                    self.selected = key
+                    self.navigate(
+                        *centered_interval(
+                            effective_timestamp(self.editor.candidates[key], self.draft), self.analysis.duration_seconds
+                        )
                     )
-                self.status = "Reclassified suggestions; editable draft preserved. A accepts visible likely kicks."
-                invalid = self.proposal.get("invalid_positive_templates", []) + self.proposal.get(
-                    "invalid_negative_templates", []
-                )
-                if invalid:
-                    self.status += f" Invalid reference signatures at {invalid}."
-            elif action == "grid":
-                self.alternative_grid = not self.alternative_grid
-                self.status = "Switched grid; unsupported-beat review decisions remain specific to each grid."
-            elif action == "unlikely_visibility":
-                self.show_unlikely = not self.show_unlikely
-            elif action == "templates":
+                    self.inspect_candidate(key)
+                    return
+            elif action == "toggle" and self.selected is not None:
+                self.editor.toggle(self.selected)
+                self.dirty = True
+            elif action == "clear_override" and self.selected is not None:
+                self.editor.clear_override(self.selected)
+                self.dirty = True
+            elif action == "undo":
+                self.editor.undo()
+                self.dirty = True
+            elif action == "save":
+                save_review(self.draft_path, self.draft, self.proposal)
+                self.dirty, self.stale = False, False
+                self.status = "Review saved. Full-recording confirmation still required to finalize."
+            elif action == "reclassify":
+                self.reclassify()
+            elif action in ("group_kick", "group_nonkick") and self.selected is not None:
+                targets = tuple(self.editor.group_targets(self.selected))
+                request = (self.selected, action == "group_kick", targets)
+                if self.pending_group == request:
+                    count = self.editor.group_correct(self.selected, action == "group_kick")
+                    self.pending_group = None
+                    self.dirty = True
+                    self.status = f"Corrected {count} similar events; existing explicit decisions preserved."
+                else:
+                    self.pending_group = request
+                    self.status = (
+                        f"Will change {len(targets)} uncorrected events. Click the same action again to confirm."
+                    )
+            elif action == "advanced":
                 self.controls.templates_expanded = not self.controls.templates_expanded
                 self.controls.layout()
-                return
-            elif action == "add":
-                if self.cursor_time is not None:
-                    self.editor.add(self.cursor_time)
-                    self.dirty = True
-            elif action == "remove":
-                if self.cursor_time is not None and self.editor.remove(self.cursor_time):
-                    self.dirty = True
-            elif action == "seek":
-                if self.player is not None and self.cursor_time is not None:
-                    self.player.seek(self.cursor_time)
-                return
-            self.start, end = self.current_interval()
-            self.duration = end - self.start
+                self.invalidate_background()
+            elif action == "grid":
+                self.alternative_grid = not self.alternative_grid
+                self.invalidate_background()
+            elif action == "nonkick_visibility":
+                self.show_nonkicks = not self.show_nonkicks
+            self.refresh_cache()
             self.draw()
         except (OSError, ValueError, RuntimeError) as error:
             self.status = str(error)
-            self.update_title()
+            self.update_text()
             self.figure.canvas.draw_idle()
 
-    def on_click(self, event: MouseEvent) -> None:
-        if event.button != 1 or event.inaxes not in self.axes or event.xdata is None:
-            return
-        timestamp = float(event.xdata)
-        if not 0 <= timestamp < self.analysis.duration_seconds:
-            return
-        self.cursor_time = timestamp
-        action = {"alt": "seek", "shift": "add", "control": "remove", "ctrl": "remove"}.get(event.key or "")
-        if action is not None:
-            self.perform_action(action)
+    def insert_manual(self, time: float) -> None:
+        if self.localizer is None:
+            self.localizer = OnsetLocalizer(self.analysis)
+        localized, reliable, reason, increase = self.localizer.localize(time)
+        key = "manual-" + hashlib.sha256(f"{self.proposal['audio_sha256']}:{time:.9f}".encode()).hexdigest()[:20]
+        candidate: AutomaticCandidate = {
+            "candidate_id": key,
+            "timestamp": time,
+            "novelty_timestamp": time,
+            "localized_timestamp": localized,
+            "final_timestamp": localized,
+            "localization_reliable": reliable,
+            "timing_reason": reason,
+            "low_frequency_increase": increase,
+            "provenance": "manual",
+            "bass_evidence": 0.0,
+            "prominence": 0.0,
+            "broadband_evidence": 0.0,
+            "nearest_beat_distance_seconds": None,
+            "grid_aligned": False,
+            "unsupported_grids": [],
+            "automatic_kick": False,
+            "low_confidence": True,
+            "cluster_id": None,
+            "uncertainty_reasons": [],
+            "classification": "unclassified",
+        }
+        if self.editor.insert(candidate):
+            self.selected, self.dirty = key, True
+            self.status = "Manually identified event; onset localized automatically."
+            self.refresh_cache()
+            self.draw()
+        else:
+            self.status = "Existing candidate within 30ms. Toggle it instead."
+            self.update_text()
+            self.figure.canvas.draw_idle()
 
-    def on_release(self, event: MouseEvent) -> None:
-        toolbar = self.figure.canvas.toolbar
-        if event.inaxes in self.axes and toolbar is not None and toolbar.mode:
-            start, end = self.axes[0].get_xlim()
-            self.navigate(start, end - start)
+    def reclassify(self) -> None:
+        references = set(self.proposal.get("automatic_reference_ids", []))
+        positives = [
+            c["localized_timestamp"]
+            for c in self.proposal["kick_candidates"]
+            if c["candidate_id"] in references
+            and (c["candidate_id"] not in self.draft.overrides or self.draft.overrides[c["candidate_id"]].kick)
+        ]
+        positives += [c.timestamp for c in self.draft.overrides.values() if c.kick]
+        negatives = [c.timestamp for c in self.draft.overrides.values() if not c.kick]
+        changed = self.editor.replace_predictions(
+            classify_candidates(self.analysis, self.editor.predictions, positives, negatives)
+        )
+        self.dirty = True
+        self.status = f"Changed {changed} automatic predictions. Human decisions and their timestamps preserved."
+
+    def on_draw(self, _: object) -> None:
+        if self.use_blitting and isinstance(self.figure.canvas, FigureCanvasAgg):
+            self.controls.changed_axes.clear()
+            self._static_background = self.figure.canvas.copy_from_bbox(self.figure.bbox)
+            # draw_event may run inside Qt's paintEvent: never recursively blit here.
+            self.render_dynamic(blit=False)
+
+    def render_dynamic(self, *, blit: bool = True) -> None:
+        canvas = self.figure.canvas
+        if self.use_blitting and isinstance(canvas, FigureCanvasAgg) and self._static_background is not None:
+            canvas.restore_region(self._static_background)
+            for axes in self.controls.changed_axes:
+                if axes.get_visible() and axes is not self.controls.progress.axes:
+                    self.figure.draw_artist(axes)
+            if self.controls.changed_axes:
+                self._static_background = canvas.copy_from_bbox(self.figure.bbox)
+                self.controls.changed_axes.clear()
+            for artist in self.dynamic_artists:
+                self.figure.draw_artist(artist)
+            self._background = canvas.copy_from_bbox(self.figure.bbox)
+            self.render_cursor(blit=blit)
+        else:
+            canvas.draw_idle()
+
+    def render_cursor(self, *, blit: bool = True) -> None:
+        canvas = self.figure.canvas
+        if canvas.supports_blit and isinstance(canvas, FigureCanvasAgg) and self._background is not None:
+            canvas.restore_region(self._background)
+            for axis, line in zip(self.axes, self.playback_lines, strict=True):
+                if line.get_visible():
+                    axis.draw_artist(line)
+            if blit:
+                canvas.blit(self.figure.bbox)
+        else:
+            canvas.draw_idle()
 
     def update_playback(self) -> None:
         if self.player is None:
             return
         try:
             position = self.player.poll()
-            controls_changed = self.controls.refresh()
-            if position == self.displayed_playback_position:
-                if controls_changed:
-                    self.figure.canvas.draw_idle()
+            if self.controls.refresh():
+                self.render_dynamic()
+            if position is None or position == self.displayed_playback_position:
                 return
             self.displayed_playback_position = position
             for line in self.playback_lines:
-                line.set_visible(position is not None)
-                if position is not None:
-                    line.set_xdata([position, position])
-            self.figure.canvas.draw_idle()
-        except (OSError, RuntimeError, ValueError) as error:
+                line.set_xdata([position] * 2)
+                line.set_visible(True)
+            self.render_cursor()
+        except (OSError, RuntimeError) as error:
             self.status = f"Playback stopped: {error}"
             self.close()
-            self.controls.refresh()
-            self.update_title()
-            self.figure.canvas.draw_idle()
+            self.update_text()
 
     def close(self) -> None:
         self.timer.stop()
@@ -710,150 +755,63 @@ class AnnotationReview:
 
 
 def show_review(
-    analysis: AcousticAnalysis, proposal: Proposal, draft_path: Path, start: float, duration: float, *, root: Path
+    analysis: AcousticAnalysis,
+    proposal: Proposal[AutomaticCandidate],
+    draft_path: Path,
+    start: float,
+    duration: float,
+    *,
+    root: Path,
 ) -> None:
-    identifier, checksum = proposal["track_identifier"], proposal["audio_sha256"]
-    if checksum is None:
-        raise ValueError("Review requires an audio checksum.")
-    template_path = root / "templates" / f"{identifier}.json"
-    templates = load_templates(template_path, identifier, checksum, analysis.duration_seconds)
-    draft = load_draft(draft_path, proposal)
-    if is_stale(draft, proposal):
-        print("STALE DRAFT: originating proposals differ; edits preserved. --reset-draft explicitly discards edits.")
-    review = AnnotationReview(
+    draft = load_review(draft_path, proposal)
+    view = AnnotationReview(
         analysis,
         proposal,
         draft,
         draft_path,
         start,
         duration,
-        templates=templates,
-        template_path=template_path,
-        proposal_path=root / "proposals" / f"{identifier}.json",
-        audio_path=root / "audio" / f"{identifier}.wav",
+        audio_path=root / "audio" / f"{proposal['track_identifier']}.wav",
     )
     try:
         if not draft_path.exists():
-            save_draft(draft_path, draft, analysis.duration_seconds)
+            save_review(draft_path, draft, proposal)
         plt.show()
     finally:
-        review.close()
-    if review.dirty:
-        print("Unsaved draft edits were not saved. Use Ctrl+S before closing to preserve changes.")
-
-
-class DiagnosticInterval(TypedDict):
-    start: float
-    end: float
-    beats: int
-    support: float
-    challenge: int
-    classification_counts: dict[str, int]
-    off_grid_likely: int
-    unsupported_beats: int
-
-
-class DiagnosticSelection(TypedDict):
-    regular: DiagnosticInterval | None
-    challenging: DiagnosticInterval | None
-    phase_discrepancy: DiagnosticInterval | None
-    criteria: dict[str, str | bool]
-    ranked_intervals: list[DiagnosticInterval]
-
-
-def diagnostic_sections(proposal: Proposal) -> DiagnosticSelection:
-    classified = proposal.get("positive_template_count", 0) > 0
-    intervals: list[DiagnosticInterval] = []
-    for raw_start in np.arange(0, proposal["duration_seconds"], 10.0):
-        start = float(raw_start)
-        end = min(start + 10, proposal["duration_seconds"])
-        beats = [beat for beat in proposal["beat_positions"] if start <= beat < end]
-        candidates = [c for c in proposal["kick_candidates"] if start <= candidate_onset(c) < end]
-        unsupported = sum(start <= beat < end for beat in proposal["unsupported_beat_positions"])
-        likely = [c for c in candidates if c.get("classification") == "likely"]
-        support_candidates = []
-        for candidate in proposal["kick_candidates"]:
-            if classified and candidate.get("classification") != "likely":
-                continue
-            copied = candidate.copy()
-            copied["timestamp"] = candidate_onset(candidate) if classified else candidate["timestamp"]
-            support_candidates.append(copied)
-        associated, _ = associate_candidates(support_candidates, np.asarray(beats, dtype=np.float64))
-        aligned = sum(c["grid_aligned"] for c in associated)
-        ambiguous = sum(c.get("classification") == "ambiguous" for c in candidates)
-        offgrid = (
-            sum(not c["grid_aligned"] for c in likely) if classified else sum(not c["grid_aligned"] for c in candidates)
-        )
-        intervals.append(
-            {
-                "start": float(start),
-                "end": end,
-                "beats": len(beats),
-                "support": aligned / len(beats) if beats else 0,
-                "challenge": ambiguous + offgrid + unsupported,
-                "classification_counts": {
-                    label: sum(c.get("classification", "unclassified") == label for c in candidates) for label in STYLES
-                },
-                "off_grid_likely": sum(not c["grid_aligned"] for c in likely),
-                "unsupported_beats": unsupported,
-            }
-        )
-    eligible = [interval for interval in intervals if interval["beats"] >= 8]
-    regular = max(eligible, key=lambda item: (item["support"], -item["start"])) if eligible else None
-    remaining = [
-        item
-        for item in intervals
-        if regular is None or item["start"] >= regular["end"] or item["end"] <= regular["start"]
-    ]
-    challenging = max(remaining, key=lambda item: (item["challenge"], -item["start"])) if remaining else None
-    phase_ranked: list[tuple[float, DiagnosticInterval]] = []
-    for interval in intervals:
-        section = next(
-            (
-                section
-                for section in proposal["beat_grid_validation"]
-                if section["start_seconds"] <= interval["start"] < section["end_seconds"]
-            ),
-            None,
-        )
-        if section is not None:
-            phase_ranked.append((abs(section["phase_difference_seconds"]), interval))
-    largest_phase = max(phase_ranked, key=lambda item: (item[0], -item[1]["start"]))[1] if phase_ranked else None
-    phase = (
-        largest_phase
-        if largest_phase is not None
-        and all(other is None or largest_phase["start"] != other["start"] for other in (regular, challenging))
-        else None
-    )
-    return {
-        "regular": regular,
-        "challenging": challenging,
-        "phase_discrepancy": phase,
-        "criteria": {
-            "regular": "highest likely-kick beat support; >=8 beats; earliest tie",
-            "challenging": "ambiguous + off-grid likely + unsupported; nonoverlapping regular; earliest tie",
-            "phase_discrepancy": "largest absolute 30s local discrepancy, earliest distinct 10s interval",
-            "fallback_without_templates": not classified,
-        },
-        "ranked_intervals": intervals,
-    }
+        view.close()
+    if view.dirty:
+        print("Unsaved corrections remain; use Ctrl+S before closing.")
 
 
 def save_diagnostics(
-    analysis: AcousticAnalysis, proposal: Proposal, output: Path, templates: TemplateDefinition | None = None
-) -> DiagnosticSelection:
-    selected = diagnostic_sections(proposal)
+    analysis: AcousticAnalysis, proposal: Proposal[AutomaticCandidate], output: Path
+) -> dict[str, object]:
+    selected = diagnostic_sections({**proposal, "kick_candidates": list(proposal["kick_candidates"])})
     output.mkdir(parents=True, exist_ok=True)
     for label in ("regular", "challenging", "phase_discrepancy"):
         interval = selected[label]
-        if interval is None:
-            print(f"{proposal['track_identifier']}: no distinct qualifying {label} diagnostic interval")
-            continue
-        draft = new_draft(proposal)
-        review = AnnotationReview(
-            analysis, proposal, draft, output / "unused-draft.json", interval["start"], 10, templates=templates
-        )
-        review.figure.savefig(output / f"{proposal['track_identifier']}-{label}.png", dpi=130)
-        review.close()
-        plt.close(review.figure)
-    return selected
+        if interval is not None:
+            review = AnnotationReview(
+                analysis, proposal, new_review(proposal), output / "unused.json", interval["start"], 10
+            )
+            review.figure.savefig(output / f"{proposal['track_identifier']}-{label}.png", dpi=110)
+            review.close()
+            plt.close(review.figure)
+    clusters = sorted(proposal.get("clusters", []), key=lambda c: -int(str(c["member_count"])))[:6]
+    if clusters:
+        from benchmarks.annotation_templates import event_feature
+
+        by_id = {c["candidate_id"]: c for c in proposal["kick_candidates"]}
+        figure, axes = plt.subplots(len(clusters), 1, figsize=(10, 2 * len(clusters)), squeeze=False)
+        for axis, cluster in zip(axes[:, 0], clusters, strict=True):
+            candidate = by_id[str(cluster["medoid_candidate_id"])]
+            feature = event_feature(analysis, candidate["localized_timestamp"])
+            if feature is not None:
+                axis.imshow(feature.reshape(-1, 12).T, aspect="auto", origin="lower", extent=(-20, 160, 0, 12))
+            axis.set_title(
+                f"Cluster {cluster['cluster_id']} · {cluster['member_count']} events · reference {candidate['localized_timestamp']:.3f}s"
+            )
+        figure.tight_layout()
+        figure.savefig(output / f"{proposal['track_identifier']}-competing-signatures.png")
+        plt.close(figure)
+    return dict(selected)

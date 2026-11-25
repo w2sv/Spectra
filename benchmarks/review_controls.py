@@ -30,9 +30,8 @@ class ReviewControlPanel:
         self.figure = review.figure
         self.rows: list[ControlRow] = []
         self.buttons: dict[str, Button] = {}
-        self.templates_expanded = bool(
-            review.editor.templates.positive_onsets or review.editor.templates.negative_onsets
-        )
+        self.changed_axes: list[Axes] = []
+        self.templates_expanded = False
         self.title = self.figure.text(0, 0, "Review controls", fontsize=13, weight="bold", va="top")
         self.scroll_hint = self.figure.text(0, 0, "Scroll ↓", fontsize=11, va="top", ha="right", color="0.4")
         self.scroll_axes = self.figure.add_axes((0.98, 0.1, 0.01, 0.8))
@@ -47,35 +46,34 @@ class ReviewControlPanel:
         self.action("play", "Play", "Space")
         self.action("restart", "Restart interval", "Home")
         self.hint("Seek to position", "Alt + Click")
-        self.heading("Navigation")
         self.action("previous_interval", "Previous interval", "←")
         self.action("next_interval", "Next interval", "→")
-        self.heading("Unsupported beat review")
+        self.heading("Review")
+        self.action("previous_uncertain", "Previous uncertain candidate", ",")
+        self.action("next_uncertain", "Next uncertain candidate", ".")
         self.action("previous_unsupported", "Previous unsupported beat", "[")
         self.action("next_unsupported", "Next unsupported beat", "]")
-        self.action("kick_present", "Kick present", "Y")
-        self.action("kick_absent", "No kick present", "X")
-        self.progress = self.row("", "", 108)
+        self.hint("Toggle event classification", "Click")
+        self.action("toggle", "Toggle selected event", "T")
+        self.action("undo", "Undo correction", "Ctrl + Z")
+        self.action("save", "Save review", "Ctrl + S")
+        self.heading("Classification")
+        self.action("reclassify", "Reclassify using corrections", "R")
+        self.action("group_kick", "Similar events: kicks", "")
+        self.action("group_nonkick", "Similar events: non-kicks", "", destructive=True)
+        self.heading("Progress")
+        self.progress = self.row("", "", 105)
         self.progress.label.set_position((0.02, 0.98))
         self.progress.label.set_verticalalignment("top")
-        self.heading("Annotation editing")
-        self.hint("Add kick", "Shift + Click")
-        self.hint("Remove kick", "Ctrl + Click", destructive=True)
-        self.action("accept", "Accept likely kicks", "A")
-        self.action("remove_unlikely", "Remove unlikely kicks", "U", destructive=True)
-        self.action("clear", "Clear interval", "C", destructive=True)
-        self.action("undo", "Undo", "Ctrl + Z")
-        self.action("save", "Save draft", "Ctrl + S")
-        template_heading = self.action("templates", "Templates ▸ (optional)", "", height=34)
+        template_heading = self.action("advanced", "Advanced ▸", "", height=34)
         template_heading.label.set_fontweight("bold")
         template_heading.label.set_fontsize(12)
-        self.hint("Mark kick reference", "K", template=True)
-        self.hint("Mark non-kick reference", "N", template=True)
-        self.hint("Remove reference", "Delete", template=True, destructive=True)
-        self.action("reclassify", "Reclassify candidates", "R", template=True)
-        self.heading("Display options")
-        self.action("grid", "Beat grid: Primary", "G")
-        self.action("unlikely_visibility", "Unlikely candidates: shown", "H")
+        self.hint("Insert missing event", "Shift + Click", template=True)
+        self.action("clear_override", "Remove selected correction", "Esc", template=True, destructive=True)
+        self.action("previous_corrected", "Previous correction", "<", template=True)
+        self.action("next_corrected", "Next correction", ">", template=True)
+        self.action("grid", "Beat grid: primary", "G", template=True)
+        self.action("nonkick_visibility", "Non-kicks: shown", "H", template=True)
 
     @property
     def width(self) -> float:
@@ -166,7 +164,6 @@ class ReviewControlPanel:
             row.axes.set_visible(y <= top + 0.1 and y - row_height >= bottom - 0.1)
             y -= row_height + 3 * scale
         self.refresh()
-        self.figure.canvas.draw_idle()
 
     def refresh(self) -> bool:
         changed = False
@@ -176,11 +173,13 @@ class ReviewControlPanel:
             label = self.review.action_label(row.action)
             enabled = self.review.action_enabled(row.action) and row.axes.get_visible()
             color = "#fff1f2" if row.destructive else "#f3f6fa"
-            if row.action == "templates":
-                label = f"Templates {'▾' if self.templates_expanded else '▸'} (optional)"
+            if row.action == "advanced":
+                label = f"Advanced {'▾' if self.templates_expanded else '▸'}"
                 color = "#e8edf4"
             if row.label.get_text() != label or row.button.active != enabled:
                 changed = True
+                if row.axes not in self.changed_axes:
+                    self.changed_axes.append(row.axes)
             row.label.set_text(label)
             row.button.set_active(enabled)
             row.button.color = color if enabled else "#f4f4f4"
@@ -190,9 +189,11 @@ class ReviewControlPanel:
             row.shortcut.set_color("#475569" if enabled else "#89919b")
             for spine in row.axes.spines.values():
                 spine.set_color("#e1b3bb" if row.destructive and enabled else "#d6dde5")
-        progress = self.review.unsupported_progress()
+        progress = self.review.progress_text()
         if self.progress.label.get_text() != progress:
             changed = True
+            if self.progress.axes not in self.changed_axes:
+                self.changed_axes.append(self.progress.axes)
         self.progress.label.set_text(progress)
         return changed
 
@@ -201,3 +202,5 @@ class ReviewControlPanel:
             return
         value = max(0.0, min(1.0, self.slider.val + event.step * 80 * self.figure.dpi / (100 * self._max_scroll)))
         self.slider.set_val(value)
+        self.review.invalidate_background()
+        self.figure.canvas.draw_idle()

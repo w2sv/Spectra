@@ -24,3 +24,6 @@ benchmarks/results/*
 !benchmarks/results/annotation_pilot.json
 !benchmarks/results/annotation_refinement_baseline.json
 !benchmarks/results/annotation_refinement_pilot.json
+!benchmarks/results/annotation_automatic_baseline.json
+!benchmarks/results/annotation_automatic_pilot.json
+!benchmarks/results/annotation_review_performance.json

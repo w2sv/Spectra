@@ -1,4 +1,269 @@
-# Kick detection benchmark
+# Automatic kick annotation and production benchmarking
+
+Analyze one of the four local development recordings, then correct the predictions:
+
+```bash
+uv run python -m benchmarks.annotate --track universal --regenerate
+uv run python -m benchmarks.annotate --track universal --plot
+```
+
+The complete recording supplies recurring sound references automatically. No template
+selection or manual onset placement is needed before review. Listen with Space and
+click incorrect candidate markers to toggle kick/non-kick. Clicking again reverses
+the decision without moving the onset. Orange outlines flag uncertainty; they do
+not prove an error. Predictions and saved reviews are **not reviewed ground truth**.
+
+Use the right-side buttons for navigation, undo, saving, and optional corrections
+of similar events. Group corrections display their affected count and require a
+second click to apply. They preserve earlier explicit decisions. Reclassification
+using corrections is an explicit action, not a calculation on every click. It
+preserves corrected event identities, timestamps and labels and can be undone.
+You need not individually confirm every correct algorithmic prediction, but must
+review the entire recording before finalizing it.
+
+Optional synchronized playback uses the installed `mpv` executable. On Ubuntu:
+`sudo apt install mpv`. Generation, benchmarking, and review without playback do
+not require it. Playback starts paused, uses private JSON IPC without a player
+window, follows reported positions every 50 ms, and stops at the interval end.
+Navigation seeks to the displayed start and pauses. Closing releases the player
+and socket. Playback timing never changes annotations.
+
+| Shortcut | Review action |
+| --- | --- |
+| Click a candidate / T | Toggle clicked / selected classification, retaining its onset |
+| Space / Home | Play-pause / restart the displayed interval |
+| Alt + Click | Seek playback |
+| Left / Right | Previous / next displayed interval |
+| , / . | Previous / next uncertain candidate |
+| [ / ] | Previous / next unsupported-beat candidate |
+| Ctrl + Z / Ctrl + S | Undo / save review |
+| R | Reclassify uncorrected events using human corrections |
+| < / > | Previous / next human correction (Advanced) |
+| Escape | Remove the selected human override (Advanced) |
+| G / H | Switch grid overlay / show-hide non-kicks (Advanced) |
+| Shift + Click | Insert a completely missing event and localize its onset (Advanced) |
+
+All buttons use the same handlers as the keyboard. Selected events are highlighted
+on all three plots. Candidate navigation centers a two-second interval, shifts
+it inward at recording boundaries, and never wraps. Consecutive unsupported
+beats advance relative to the selected event, even within the same view.
+Unsupported beats are ordinary candidates: toggle their labels rather than using
+the former separate Y/X kick/gap mechanism. Corrected candidates and beats within
+50 ms of an effective kick are excluded from the unsupported review queue.
+
+Waveform, low-frequency spectrogram, and evidence plots share recording time.
+Solid green circles are automatic kicks; hollow gray triangles are automatic
+non-kicks. Solid blue squares and hollow red X markers distinguish human
+corrections. Orange hollow diamonds independently indicate uncertainty. Small
+vertical/horizontal marks independently indicate grid alignment/off-grid events.
+The legend is below the data. The default view is ten seconds; `--start 60
+--duration 10` selects another interval. Ordinary toolbar zoom/pan works.
+The control panel scrolls at shorter heights; Advanced operations start collapsed.
+Progress gives candidate/kick/non-kick counts, human corrections and uncorrected
+uncertain candidates. A correction count is not a percentage of verified ground truth.
+
+Reviews are ignored local files under `datasets/techno/drafts/`. They contain
+candidate identities, explicit binary overrides with frozen onset timestamps,
+group provenance, manual additions and any explicitly recomputed predictions.
+There is no independently mutable accepted-timestamp list. Effective kicks are
+derived from predictions plus overrides. Saved reclassification survives reopening.
+Undo covers individual/group corrections, insertion, override removal, and
+reclassification (100 actions in memory).
+
+Proposal hashes exclude informational processing times. Regeneration preserves
+exactly matched identities and source anchors; changed timing estimates do not
+move corrected events. A stale-review warning requires inspecting new predictions
+and saving before finalization. Unmatched human decisions abort replacement and
+identify the unmatched IDs; no nearest-event guesses are made. Old draft formats
+are preserved and require explicit `--migrate-draft` or `--reset-draft`. Migration
+requires unambiguous matches and writes a legacy backup; reset requires typing
+`RESET <identifier> DRAFT` and also keeps a backup. An old accepted list's omissions
+are never inferred to be explicit rejections. Reviewed manifests are never changed
+by generation, reclassification, migration, or draft initialization.
+
+The original unreviewed Universal draft was backed up locally as
+`universal.unreviewed-v2.json`, following confirmation that no manual annotation
+had been done. Its new draft contains automatic predictions without fabricated
+human corrections.
+
+## Automatic annotation version 3
+
+Version 3 reuses the unchanged version-1 acoustic stage and version-2 feature and
+cosine-alignment methods. It is independent of production DSP and detection.
+[Detailed earlier methods and baselines](annotation-methodology.md) remain intact.
+
+1. Retain every original novelty peak. For unsupported beats in both primary and
+   half-beat grids, find the strongest local novelty maximum within ±50 ms, even
+   below the original prominence threshold. Otherwise retain the beat as a
+   grid-only candidate. Supplementary events within 30 ms of an existing event
+   are not duplicated; original acoustic candidates are never merged. Stable IDs
+   hash audio identity, provenance and original 48 kHz sample position.
+2. Independently localize acoustic events in −30 to +50 ms neighborhoods. A
+   second-order zero-phase Butterworth filter supplies 20–300 Hz energy; original
+   mono audio supplies broadband energy. Trailing 5 ms mean-square windows have
+   1 ms hops and timestamps at their ends, avoiding centered-window backdating.
+   Background is median/MAD over the 75 ms preceding the search interval. Follow
+   the dominant joint energy rise backward to a crossing above both background
+   +3 MAD and 10% of the local rise, sustained for at least 3 ms, in both channels.
+   The raw-energy gate prevents filter pre-ringing alone from establishing onset.
+   The numerical floor is 1e-12. Unreliable crossings retain their original time;
+   grid-only positions remain estimated and cannot automatically become kicks.
+3. At localized onsets, extract the existing 37×12 normalized features: centered
+   2048-point Hann STFT, 48 kHz, 240-sample hops, −20 to +160 ms context, median
+   −100 to −25 ms background, fractional band powers, square-root compression,
+   subtraction/clamping and one L2 normalization. Invalid zero features are excluded.
+4. Use SciPy average-linkage hierarchical clustering with cosine distance cut
+   **0.15**, an experimental fixed parameter. Store cluster size, evidence, median
+   nonnegative low-frequency increase, within-cluster similarity, recording-quarter
+   distribution, medoid and primary/alternative grid support. Select the medoid
+   and up to two members separated by at least one-sixth of the recording (and
+   180 ms). Eligible clusters have ≥8 members and ≥70% alignment to a grid.
+   Score each grid as `alignment_fraction * log1p(unique_supported_beats) *
+   median_low_frequency_power_increase`. The best cluster supplies references.
+   Further eligible clusters on that grid need medoid similarity ≥0.70 to an
+   already selected cluster. At most nine references are used. No automatic
+   negative references are discovered. Competing clusters and grids remain reported.
+5. Compare every candidate with positive references at offsets −30…+30 ms, every
+   5 ms. Similarity ≥0.85 predicts kick; ≥0.70 is ambiguous/non-kick; lower scores
+   predict non-kick. The final onset is localized time plus the best match offset;
+   search-boundary matches are flagged. Without references, only grid-aligned
+   acoustic candidates predict kicks, with low confidence. Without a grid or
+   references, reliable automatic classification is explicitly unavailable.
+6. Human-confirmed kicks can supply additional positive references and explicit
+   rejections can supply negatives on R. A positive-minus-negative margin of
+   0.10 is retained. Rejected automatic references are excluded from positives.
+   No algorithmic prediction is treated as human confirmation. Similarity is
+   not a probability, and recurring bass sounds can win automatic cluster selection.
+
+Parameters live in immutable `AutomaticParameters` and `TemplateParameters`,
+independently of production configuration. No tuning was applied after recording
+the automatic baseline. Proposals retain original, independently localized,
+template-refined and final times; reliability and provenance; cluster identities;
+similarity scores, predictions and uncertainty reasons. Uncertainty cues include
+threshold proximity, conflicting references, unsupported positions, off-grid
+predictions and unreliable localization. These are review cues, not error labels.
+Both grid hypotheses and 30-second acoustic phase comparisons remain available;
+neither BPM nor the primary grid is silently changed.
+
+```bash
+uv run python -m benchmarks.annotate --automatic-synthetic \
+  --json benchmarks/results/annotation_automatic_baseline.json
+uv run python -m benchmarks.annotate --track universal --diagnostics
+```
+
+Diagnostic ten-second sections rank likely beat support (≥8 beats) for a regular
+section, and ambiguous + off-grid likely + unsupported activity for a disjoint
+challenging section, with earliest ties. Without references they fall back to
+acoustic/grid statistics. A distinct maximum-phase-discrepancy section is added
+where possible. Plots of recurring cluster medoids expose competing signatures.
+Selections and counts are heuristic; “regular” does not mean verified kicks.
+Outputs stay ignored under `proposals/diagnostics_v3/`.
+
+### Untuned automatic validation
+
+[`annotation_automatic_baseline.json`](results/annotation_automatic_baseline.json)
+uses all 15 unchanged fixtures and **no ground-truth reference templates**. Ground
+truth enters evaluation only. The population retains 169/169 kicks at ±50 ms,
+requiring zero manual insertions at that window. Initial classification gives
+45 TP, 0 FP, 124 FN: precision 1.000, recall 0.266, F1 0.421, 0 FP/min, and
+124 binary label corrections under the recorded one-to-one population assignment.
+This assignment is not claimed to minimize editing effort in overlapping cases.
+
+The three fixtures with supplied tempo metadata achieve 45/45 initial detections.
+The other 12 have no tempo metadata; no eligible rhythmic cluster or reliable
+gridless classifier is available, so their kicks remain unclassified/non-kick.
+No known tempo was inferred from their ground-truth timestamps. This is a major
+recall limitation, not evidence of strong general-purpose kick specificity.
+Negative fixtures give zero initial predicted kicks, largely because references
+are unavailable; that does not prove discrimination of offbeat bass.
+
+On all matched population events at ±50 ms, novelty median signed error is
+−15.0 ms; independent localization gives +3.27 ms median signed/absolute error
+and 27.0 ms P95 absolute error. On the 45 automatically predicted kicks, localized
+median is +3.0 ms and P95 3.83 ms; template refinement gives +3.0 ms and P95
+3.93 ms, offering no clear extra timing improvement. Localization is threshold-
+based and not sample accurate. Rumble, sub-bass and extended decay still demand
+review, particularly when novelty or background energy masks an attack.
+
+The JSON includes all three tolerance windows, timing stages, candidate-population
+false negatives, cluster/reference counts, and per-fixture corrections versus
+manual insertions. V1 candidate timestamps are asserted identical to the original
+baseline. V2 comparisons additionally use its same non-reference event population;
+those supplied-reference results must not be presented as fully automatic results.
+Synthetic validation is a sanity check, not real-music accuracy evidence.
+
+### Four-recording automatic pilot and review performance
+
+[`annotation_automatic_pilot.json`](results/annotation_automatic_pilot.json) records
+all four full development recordings, selected references, competing clusters/grid
+evidence, uncertainty, supplemental candidates, reliability and processing times.
+No held-out recording was processed and no annotation was finalized. Universal
+is ready for the two-command workflow above. Human review is still required
+before real-world precision or recall can be measured.
+
+| Track | Clusters / references | Selected grid | Kicks / non-kicks | Uncertain | Supplementary | Unreliable onsets | Analysis time |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| power_train | 221 / 5 | primary | 666 / 1648 | 1709 | 342 | 1346 | 12.27 s |
+| universal | 337 / 5 | primary | 656 / 1334 | 1148 | 219 | 529 | 11.72 s |
+| a_grim_premonition | 613 / 7 | alternative | 672 / 1536 | 2138 | 411 | 1247 | 13.99 s |
+| no_trust | 260 / 2 | primary | 778 / 1341 | 1322 | 167 | 1101 | 17.96 s |
+
+Many candidates still have uncertain timing or classification. The alternative
+hypothesis won for A Grim Premonition; this is an acoustic hypothesis, not a
+verified change of kick-grid phase. Catalog BPM and recurring bass interference
+remain possible sources of mistakes.
+
+[`annotation_review_performance.json`](results/annotation_review_performance.json)
+compares headless Agg on Universal 60–70 s at 1920×1080, interleaving old and new
+operations in the same process to reduce differences in system load. Median
+navigation fell from 1,821 to 420 ms; editing from 3,411 to 247 ms; edit/undo from
+1,623 to 104 ms; cursor rendering from 488 to 3.2 ms; construction from 3,778
+to 1,618 ms. The earlier standalone profile is retained as informational data. The older
+edit operation is add/remove; the new one is binary toggling, so it is a workflow
+comparison rather than identical operations. Repeated-hover fast-path timing
+excludes first inspection. These measurements are machine/load dependent and
+**not desktop responsiveness measurements**.
+
+Profiling identified full axis reconstruction, repeated associations and layout,
+and unconditional redraws as bottlenecks. The new view retains static audio artists,
+caches logarithmic spectra, uses visible time slices and min/max waveform buckets,
+and indexes sorted candidates for inspection. Edits blit dynamic overlays and
+changed controls; cursor updates restore a cached background and draw only cursor
+lines. Limits, layout, grid changes and resizing invalidate the relevant cache;
+unsupported backends use `draw_idle`. Clustering and feature extraction never run
+on hover or redraw. Actual Qt/mpv checks verified advancing reported time, interval-
+end pause, navigation seek/pause, unchanged event times and process/socket cleanup.
+Headless layouts were visually inspected at 1920×1080 and 1366×768 at 100 DPI.
+The desktop uses high-DPI scaling. At 200% scaling, forcing a 1366×768 physical-
+pixel window leaves insufficient space and the legend overlaps the controls;
+use a larger window (at least 1366×768 logical pixels). The default window is
+larger. Compact high-DPI layout remains a limitation; these rendering measurements
+also do not measure audio-output latency.
+
+
+## Finalizing ground truth
+
+```bash
+uv run python -m benchmarks.annotate --track universal --finalize
+```
+
+Finalization loads the saved draft, verifies the actual audio checksum and
+catalog rate/duration, checks finite, sorted, unique timestamps strictly inside
+the recording duration, and requires a positive confirmed BPM. It then asks
+you to type `REVIEWED universal ENTIRE RECORDING`, explicitly attesting that
+the entire recording was reviewed, including sections with no proposals, and
+every retained timestamp is a genuine kick. No displayed-section counter or
+accepted-candidate count can satisfy this requirement. Declining leaves the
+tracked manifest unchanged.
+
+The reviewed record stores track identifier, checksum, annotation algorithm
+version, explicit confirmed kick timestamps, confirmed BPM, and `reviewed`
+status. There is no compact regular-sequence representation or partial-track
+scoring. Initially `annotations.json` is an empty list: this milestone does
+not fabricate ground truth or claim real-world precision/recall.
+
+
+# Production kick detection benchmark
 
 This offline harness runs the production `SpectrumAnalyzer` and
 `KickOnsetDetector` against known kick onsets. It imports no capture backend,
@@ -314,499 +579,3 @@ Audio checksums are verified before processing. Without explicit
 `--partition evaluation`, held-out recordings cannot run, even when selected
 by identifier. The benchmark still uses the original causal production path;
 annotation resampling and evidence never participate in detector evaluation.
-
-## Acoustic annotation stage (version 1, retained)
-
-`annotation_analysis.py` contains offline numerical analysis; `annotate.py`
-handles proposals, validation, and finalization; `annotation_review.py` owns
-Matplotlib interaction. None uses `SpectrumAnalyzer`, `KickOnsetDetector`,
-`KickDetectionConfig`, production events, or production thresholds.
-
-1. Load the complete WAV through the shared loader, arithmetic-mean stereo
-   into mono, and resample to 48 kHz with `scipy.signal.resample_poly` if needed.
-   This conversion may be noncausal and delay-compensated. No amplitude
-   normalization is applied.
-2. Compute centered 2,048-sample periodic Hann spectra every 240 samples (5 ms).
-   Frame zero is centered on recording sample zero, with zero padding at the
-   boundaries; timestamp `k` is `k*240/48000`, in the original time origin.
-   Temporary FFT storage is bounded; the whole recording supplies evidence.
-3. Compute one-sided mean-square bin powers, using fractional bin-cell
-   overlaps for 20–60, 60–150, 150–300, and 300–3000 Hz band integration.
-4. Calculate `log(power + 1e-12)` and positive successive differences. The
-   difference is assigned to the later frame center; initial novelty is zero.
-   Divide each band by its 95th percentile among **positive** differences,
-   returning zeros if that denominator is zero. Values are not clipped to one.
-5. Mean the three bass bands; retain 300–3000 Hz as separate broadband
-   evidence. Gaussian-smooth both with sigma one frame (5 ms). The analysis
-   object also preserves band powers, per-band novelty, and unsmoothed evidence.
-
-With the catalog BPM (or `--bpm` override), search phase over `[0, 60/BPM)` at
-5 ms resolution. Score each candidate by the mean maximum bass evidence within
-±20 ms of every estimated beat across the **complete recording**. Ties select
-the earliest phase. `--phase` overrides this search and must lie within one
-beat interval. Unknown catalog BPM requires `--bpm`; no tempo is estimated.
-
-Independently repeat phase search in consecutive 30 s sections (including the
-short final section). Report `(local-global+interval/2) % interval - interval/2`;
-flag magnitudes strictly greater than 30 ms. Evidence is restricted to each
-section. The grid is never automatically warped or corrected. Ambiguous bass
-rhythms, breakdowns, and near-silence can shift the preferred phase even with
-accurate tempo; flags are review cues, not proof of tempo drift.
-
-`scipy.signal.find_peaks` finds bass-evidence maxima with 80 ms minimum
-separation and 0.25 minimum prominence. For each chronological beat, associate
-the strongest available candidate within ±50 ms, using each candidate at most
-once and retaining its acoustic timestamp. Unmatched beats are unsupported;
-unmatched peaks remain off-grid candidates. Every candidate records timestamp,
-bass evidence, prominence, broadband evidence, signed distance to the nearest
-estimated beat, and alignment. Evidence is heuristic, not probability. Beat
-alignment cannot distinguish a bass note from a kick.
-
-## Track-specific template stage (version 2)
-
-The original novelty envelopes, peak generation, and global/local grid searches
-remain the high-recall first stage. `annotation_templates.py` classifies those
-same candidates afterward, independently of production DSP and kick detection.
-No candidates are discarded from proposal files.
-
-Define representative sounds by listening and selecting acoustic **onsets** in
-the waveform. Start with 3–5 positive kick references and optionally 0–5 recurring
-negative sounds (bass notes, rumble, or synthesizer transients). These are
-recommendations: classification works with one valid positive reference and
-has no hard reference-count limit. No real-world references are automatically
-selected. The checked-in `datasets/techno/templates/<identifier>.json` definitions
-initially contain empty positive/negative onset lists, track identity, and audio
-SHA-256. Definitions are validated against duration and checksum. Only these
-definitions are tracked; extracted audio and feature arrays are not.
-
-For every reference/candidate anchor, use the existing centered Hann STFT with
-48 kHz rate, 2,048 FFT samples, 240-sample hops and 5 ms frames. Fractionally
-integrate mean-square power into these bands (Hz):
-
-`20–40, 40–60, 60–90, 90–130, 130–180, 180–250, 250–350, 350–500,
-500–750, 750–1000, 1000–2000, 2000–3000`.
-
-Extract the inclusive −20 to +160 ms context: **37 frames × 12 bands**. Estimate
-each band's background from median power over the 16 frames from −100 to
-−25 ms. Unavailable frames, including unavailable background context, have zero
-power. Square-root-compress context power, subtract the square root of median
-background power, and clamp negative differences to zero. Flatten into 444
-values and L2-normalize **once across the entire vector**, preserving relative
-band levels and temporal shape while reducing overall-amplitude dependence.
-There is no independent per-band normalization. A zero norm is invalid and
-never receives an arbitrary similarity or a likely-kick label.
-
-Anchors use their nearest 5 ms frame (at most 2.5 ms quantization). At each
-candidate, compare 13 anchors at −30 to +30 ms in 5 ms steps. Cosine similarity
-finds the best positive reference and shift; negative similarity is independently
-maximized over negative references/shifts. Exact ties prefer the smallest
-absolute shift, then the negative shift. Initial fixed thresholds are:
-
-| Classification | Rule |
-| --- | --- |
-| Likely | Positive ≥ 0.85 and no negative references, or positive ≥ 0.85 and positive ≥ negative + 0.10 |
-| Ambiguous | Positive ≥ 0.70 but likely criteria fail |
-| Unlikely | Positive < 0.70, or the candidate signature is invalid with valid positive references |
-| Unclassified | No valid positive reference signatures exist |
-
-An invalid supplied negative reference does not silently waive the margin
-requirement. Reports identify invalid references. These thresholds and context
-parameters live in the typed immutable `TemplateParameters`, separate from
-`KickDetectionConfig`; the numerical API accepts alternative parameter objects.
-The same thresholds apply on and off the grid. Similarities are not calibrated
-probabilities, and a repeated non-kick sound can resemble a selected kick.
-
-Each candidate retains `timestamp`/`novelty_timestamp`, refined onset (if valid),
-positive/negative scores, the best positive reference's onset as identity,
-alignment offset, classification, existing acoustic/grid evidence, and an
-`alignment_at_search_boundary` flag. Refined onset = novelty timestamp + best
-positive-match offset. Out-of-recording anchors are excluded. A match at ±30 ms
-requires timing scrutiny. No unconditional +15 ms shift is applied. Human
-references must be actual acoustic onsets: marking an early novelty peak as a
-reference would transfer that error. Refinement is not sample-accurate onset
-localization. `reference_alignment_checks` compare nearby refined candidates
-with user references after classification; these are **reference-fit checks**,
-not independent real-world accuracy measurements.
-
-The original grid remains primary. A second grid has phase
-`(global_phase + beat_interval/2) % beat_interval`. Each 30 s section retains its
-original acoustic phase/discrepancy and reports, for both grids, associated
-candidate count, mean positive-template similarity (undefined before references),
-and likely-kick count. Association still uses ±50 ms and preserves candidate
-identity. This helps distinguish competing bass/kick rhythms from actual drift;
-neither phase nor tempo is switched automatically. G changes only the review
-overlay and never accepted timestamps.
-
-## Proposal generation and interactive review
-
-```bash
-uv run python -m benchmarks.annotate --track universal --regenerate
-uv run python -m benchmarks.annotate --track universal --plot --start 60 --duration 10
-uv run python -m benchmarks.annotate --track universal --bpm 147 --phase 0.125 --regenerate
-# Save automatic diagnostic images without opening a window:
-uv run python -m benchmarks.annotate --track universal --diagnostics
-```
-
-Proposals are written to `datasets/techno/proposals/<identifier>.json`, with
-audio checksum, algorithm version and parameters, BPM and phase, expanded beat
-positions, unsupported beats, candidates, and section-validation results.
-Existing proposals are reused; replacing them (including applying overrides)
-requires `--regenerate`. Regeneration never alters drafts or reviewed records.
-The current proposal algorithm is version 2: the unchanged version-1 acoustic
-stage is followed by track-specific template comparison. New reports include
-both versions, template parameters and the canonical template-definition hash.
-
-The figure shows waveform, 20–500 Hz log-power spectrogram, and bass/broadband
-evidence on a shared original-recording time axis, plus candidate cosine scores.
-Likely kicks use circles, ambiguous candidates diamonds, unlikely candidates
-crosses, and unclassified candidates triangles. Filled/high markers are
-grid-aligned; hollow/low markers are off-grid. Accepted draft events use blue
-plus signs, positive templates green stars, and negative templates red squares.
-Gray dashed lines show estimated beats; red crosses mark unsupported beats.
-The selected unsupported beat has a magenta vertical line and hollow diamond
-across all three plots. A separate legend below the plots uses the actual
-markers, fills, colors, and line styles; it never covers waveform or spectral
-data. Candidate class and grid alignment are explained independently. Before
-positive references exist, the likely/ambiguous/unlikely legend entries are
-hidden and candidates are identified as unclassified.
-State is encoded by shape and position as well as color. Hovering shows original
-novelty and refined timestamps, classification, similarity, and the search-edge
-warning. The title shows track, BPM, current range, active grid, stale-draft
-warnings, and unsaved state. The default interval is 10 s.
-
-The right-side control panel groups playback, interval navigation, unsupported
-beat review, annotation editing, optional templates, and display options.
-Buttons and keyboard shortcuts use the same action handlers. Unavailable
-buttons are disabled, play/grid/visibility controls reflect their current state,
-and destructive actions use a red tint. Mouse-position actions remain labeled
-hints instead of buttons. Every action occupies one row with its shortcut
-aligned on the right. Controls and legend text are at least 11 points.
-
-Click the Templates heading to expand/collapse its optional controls. At shorter
-window heights, scroll over the panel or use its scrollbar to reach the lower
-groups; the plot area retains its width. The layout has been rendered and
-visually inspected at 1920×1080 and 1366×768, with and without references and
-with the template section expanded. The dense shortcut footer is removed.
-
-| Interaction | Action |
-| --- | --- |
-| Toolbar zoom/pan | Inspect any section normally |
-| Right / Left | Advance / go back by the displayed interval; seek and pause |
-| ] / [ | Next / previous unsupported beat; center a two-second interval, seek and pause |
-| Y | Confirm a kick at the selected unsupported beat; add a provisional beat-time onset |
-| X | Confirm that the selected unsupported beat is a genuine gap; add no annotation |
-| Shift + left click | Add a manual kick at the selected timestamp |
-| Ctrl + left click | Remove the nearest accepted draft event within 50 ms |
-| K / N | Save a positive / negative reference at the cursor |
-| Delete | Remove the nearest reference within 50 ms |
-| R | Recompute suggestions; preserve the editable draft |
-| A | Accept visible likely kicks |
-| U | Remove visible automatic events associated with unlikely candidates |
-| C | Clear all accepted draft events in the visible interval |
-| G | Toggle primary / half-beat alternative grid; timestamps stay unchanged |
-| H | Toggle unlikely-candidate visibility |
-| Ctrl + Z | Undo the last edit, including bulk operations and template changes |
-| Ctrl + S | Save the draft; does not invoke Matplotlib's image-save dialog |
-| Space | Play / pause mpv |
-| Home | Seek to the displayed interval's start |
-| Alt + left click | Seek to the selected timestamp |
-
-K/N require the cursor within 50 ms of a candidate or existing reference, but
-save the **cursor's precise onset**, not the novelty timestamp. Zoom the
-waveform and listen before choosing the onset. K/N near an existing reference
-replace/adjust it; Delete removes it. Template changes are saved independently
-and immediately, including when undone; R is required to apply them to
-classifications. These interactions are listed alongside the clickable controls.
-
-Bulk operations use half-open `[start, end)` intervals. A rejects duplicate
-candidate identities and skips suggestions within 30 ms of an existing event.
-U acts only on recorded automatic provenance and preserves manual additions.
-Legacy drafts without automatic provenance are treated conservatively. C also
-removes manual events in the visible interval. Undo retains the last 100 editing
-actions in memory; navigation, grid switches, and playback do not change events.
-Unsaved draft edits are not automatically saved on close.
-
-Before positive templates exist, new drafts contain **grid-aligned candidates
-only**. Other candidates remain visible as unaccepted suggestions. Once positive
-templates exist, new drafts contain only likely kicks at refined timestamps;
-ambiguous and unlikely candidates remain available. An invalid positive template
-never causes fallback acceptance of every grid event. Draft membership is never
-human verification.
-
-Drafts record an originating proposal checksum excluding informational runtime.
-Existing drafts are never reseeded when reopening or reclassifying. A changed
-proposal (or an older draft without provenance) produces an explicit **STALE
-DRAFT** warning. Saving preserves that originating checksum rather than silently
-claiming the draft was initialized from new suggestions. To intentionally discard
-edits and recreate from current proposals:
-
-```bash
-uv run python -m benchmarks.annotate --track universal --reset-draft
-```
-
-Replacing an existing draft requires typing `RESET universal DRAFT`. Proposals,
-drafts, and reviewed annotations are separate; resetting never changes reviewed
-records. Drafts remain ignored under `datasets/techno/drafts/`.
-`confirmed_bpm` can be edited in draft JSON before finalization.
-
-Playback uses optional **mpv**, started paused with no video or separate window,
-no user configuration, and a private temporary Unix IPC socket. It uses mpv's
-[documented JSON IPC](https://mpv.io/manual/stable/#json-ipc), observing `time-pos`
-and `pause`, and issuing absolute exact seeks. A 50 ms GUI timer uses reported
-positions for the cursor on all three plots. Navigation seeks and pauses; polling
-pauses/seeks at the interval end (subject to normal IPC/audio buffering latency).
-Playback never adjusts annotation timestamps. Closing the figure releases the
-process and temporary socket. Install it on Ubuntu with `sudo apt install mpv`.
-If unavailable, the review window shows that instruction and all non-playback
-annotation features remain available. Noninteractive generation and production
-benchmarking do not depend on mpv.
-
-### Unsupported beat review
-
-The review queue starts from the unsupported positions of the **active** acoustic
-beat grid, using the same ±50 ms association tolerance. It excludes beats already
-covered by an accepted draft event and beats with a saved kick/gap review
-decision for that grid. It is recalculated after editing, undo, reclassification,
-and grid changes; template classification itself is unchanged.
-
-The first forward jump starts at the displayed interval's beginning; the first
-backward jump looks before it. Thereafter, [ and ] advance strictly relative to
-the selected beat, even when consecutive beats share the same two-second view.
-At recording boundaries the view shifts inward, preserving two seconds whenever
-the recording is that long. Playback seeks to the displayed start and pauses.
-Navigation does not wrap; a concise status message explains when no earlier or
-later unreviewed beat exists. Switching grids clears the selection anchor.
-
-Y records that a kick exists and adds the beat timestamp as a **provisional**
-onset. Adjust it using the waveform if needed: a beat-grid timestamp does not
-establish millisecond-accurate acoustic localization. X records a genuine gap
-without adding a kick. Both actions are undoable. A decided beat stays selected
-for context, while the next jump skips it and continues from its timestamp.
-
-Ctrl+S saves these decisions together with the editable draft. Decisions are
-keyed by a fingerprint of primary/alternative role, BPM, phase, and complete
-beat positions. Reopening skips saved decisions for the same grid; changing
-grids does not transfer them. Existing drafts without this field load with no
-review decisions. Ordinary deletion/clearing of annotation timestamps does not
-silently erase review decisions; undo restores decisions and provisional onsets
-together. No reviewed annotation manifest is modified by these actions.
-
-Progress stays next to the unsupported-beat controls. Total and in-view counts
-describe the active grid's acoustically unsupported positions. Awaiting review
-excludes decided and annotation-covered beats. Separate confirmed-kick,
-confirmed-gap, and covered-by-annotation counts explain the difference from
-the total. An awaiting selection shows its timestamp and one-based position
-in the remaining sequence; a decided selection shows its recorded decision.
-
-Completing this queue does **not** establish that the entire recording has
-been reviewed. Full-recording review and the existing explicit finalization
-confirmation remain mandatory.
-
-## Finalizing ground truth
-
-```bash
-uv run python -m benchmarks.annotate --track universal --finalize
-```
-
-Finalization loads the saved draft, verifies the actual audio checksum and
-catalog rate/duration, checks finite, sorted, unique timestamps strictly inside
-the recording duration, and requires a positive confirmed BPM. It then asks
-you to type `REVIEWED universal ENTIRE RECORDING`, explicitly attesting that
-the entire recording was reviewed, including sections with no proposals, and
-every retained timestamp is a genuine kick. No displayed-section counter or
-accepted-candidate count can satisfy this requirement. Declining leaves the
-tracked manifest unchanged.
-
-The reviewed record stores track identifier, checksum, annotation algorithm
-version, explicit confirmed kick timestamps, confirmed BPM, and `reviewed`
-status. There is no compact regular-sequence representation or partial-track
-scoring. Initially `annotations.json` is an empty list: this milestone does
-not fabricate ground truth or claim real-world precision/recall.
-
-## Original synthetic annotation validation (version 1)
-
-```bash
-uv run python -m benchmarks.annotate --synthetic \
-  --json benchmarks/results/annotation_synthetic_baseline.json
-```
-
-The recorded [annotation sanity check](results/annotation_synthetic_baseline.json)
-evaluates all 15 unchanged synthetic fixtures independently of production
-detection. Beat association uses tempo metadata only for `four_on_floor`,
-`slow`, and `fast` (45 annotated kicks); all other fixtures evaluate acoustic
-peaks without a grid. Reports separately retain grid-aligned and all-candidate
-metrics at all three tolerance windows. Undefined grid metrics remain `null`
-for fixtures without tempo metadata.
-
-At ±50 ms, all candidates yield **169 TP, 78 FP, 0 FN**, precision **0.684**,
-recall **1.000**, F1 **0.8125**. Grid-aligned proposals on the three tempo
-fixtures yield **45 TP, 1 FP, 0 FN**, F1 **0.989**. Negative fixtures produce
-one false candidate on sustained bass and fourteen on offbeat bass. Sub-bass
-adds fourteen extra candidates and rumble adds forty-three.
-
-Matched all-candidate median signed error is **−15 ms**, median absolute error
-**15 ms**, P95 absolute error **15 ms**. Centered windows see the upcoming
-transient up to half a window (21.3 ms) before their center reaches the physical
-insertion. Positive log-power novelty is strongest on that early rise, so its
-peak need not coincide with the maximum windowed power at the physical onset.
-Impulse alignment and resampling tests confirm the frame timeline is correct.
-No fixture-specific calibration or global timestamp correction is applied.
-This evidence-timing bias and false positives must be considered during human
-review; synthetic success does not establish accuracy on real music.
-
-## Original four-recording pilot (version 1)
-
-The original four downloads were prepared unchanged. All are **44,100 Hz**.
-The [pilot report](results/annotation_pilot.json) records these unreviewed results:
-
-| Recording | Duration (s) | Catalog BPM | Phase (s) | Beats | Aligned | Off-grid | Unsupported | Analysis time (s) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `power_train` | 348.444 | 135 | 0.025 | 784 | 760 | 1212 | 24 | 3.43 |
-| `universal` | 317.000 | 147 | 0.000 | 777 | 708 | 1063 | 69 | 3.77 |
-| `a_grim_premonition` | 377.027 | 148 | 0.010 | 930 | 834 | 963 | 96 | 3.78 |
-| `no_trust` | 378.800 | 150 | 0.010 | 947 | 835 | 1117 | 112 | 4.84 |
-
-Analysis times include integrity verification, loading, resampling, evidence,
-and proposal generation; they exclude plotting and are informational.
-Local phase flags (original-recording seconds):
-
-- `power_train`: 150–180 (+210 ms).
-- `universal`: 60–90 (−203.2 ms).
-- `a_grim_premonition`: 120–150 (+175 ms).
-- `no_trust`: 0–30 (−35 ms), 60–90 (+180 ms), 90–120 (+185 ms),
-  120–150 (+185 ms), 150–180 (+185 ms), 180–210 (+175 ms),
-  210–240 (−195 ms), 270–300 (+190 ms), 330–360 (−35 ms),
-  360–378.8 (+185 ms).
-
-Diagnostics scan consecutive 10 s intervals independently for two explicit
-criteria: a regular supported-grid interval has at least eight estimated beats
-and at least 90% supported by associated candidates; a challenging interval has
-at least five off-grid candidates or at least three unsupported beats. These
-are proposal-based heuristics, not verified descriptions of genuine kick
-content. The first interval satisfying each criterion is 0–10 s for every
-pilot track, so each track's regular and challenging images show the same
-interval. This also demonstrates that strong beat support can coexist with
-substantial off-grid activity. If no interval qualifies, the tool reports it.
-Eight local images are under `datasets/techno/proposals/diagnostics/`, named
-`<identifier>-regular.png` and `<identifier>-challenging.png`.
-
-All four proposal files are ready for interactive correction. No recording
-was finalized, no real-world accuracy is claimed, and no held-out evaluation
-recording was analyzed. Human review and the subsequent real-world production
-baseline belong to the next milestone.
-
-## Reference-excluded refinement validation (version 2)
-
-```bash
-uv run python -m benchmarks.annotate --refined-synthetic \
-  --json benchmarks/results/annotation_refinement_baseline.json
-```
-
-The recorded [refinement baseline](results/annotation_refinement_baseline.json)
-uses the unchanged 15 synthetic signals and fixed thresholds. Synthetic ground
-truth supplies first/middle/last unique kick references. All 37 reference kicks
-and their one-to-one matched acoustic candidates are excluded from scoring,
-leaving **132 non-reference kicks**. Matching references to candidates uses the
-largest existing tolerance (100 ms), once before classification; every stage
-then evaluates the same candidate identities and non-reference ground truth.
-Extra/duplicate candidates remain errors. The one-kick fixture has no remaining
-positive event, so it cannot establish classification recall. Negative fixtures
-use positive signatures from the clean fixture, a cross-fixture stress test.
-
-Acoustic timestamps are asserted identical to the original annotation baseline
-before exclusions. Thus the acoustic row below is the original method on the
-same non-reference population, not its earlier full-population score. Audio
-duration remains the full 120 s in pooled FP/min; timing errors use matched
-pairs. Grid metrics apply only to the three tempo-tagged fixtures (36 remaining
-kicks across 24 s). All other rows use all fixtures. Combined likely/ambiguous
-events use refined timestamps. Results at ±25, ±50, and ±100 ms are retained.
-
-At the primary ±50 ms tolerance, with **positive references only**:
-
-| Stage | TP / FP / FN | Precision | Recall | F1 | FP/min | Median signed / absolute (ms) | P95 absolute (ms) |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Original acoustic | 132 / 78 / 0 | 0.629 | 1.000 | 0.772 | 39.0 | −13.21 / 13.21 | 15.00 |
-| Grid-aligned (tempo fixtures only) | 36 / 1 / 0 | 0.973 | 1.000 | 0.986 | 2.5 | −12.10 / 12.10 | 15.00 |
-| Likely, original times | 129 / 1 / 3 | 0.992 | 0.977 | 0.985 | 0.5 | −14.29 / 14.29 | 15.00 |
-| Likely, refined times | 129 / 1 / 3 | 0.992 | 0.977 | 0.985 | 0.5 | 0.00 / 0.00 | 2.06 |
-| Likely + ambiguous, refined | 132 / 1 / 0 | 0.992 | 1.000 | 0.996 | 0.5 | 0.00 / 0.00 | 2.10 |
-
-The likely/combined precision, recall, and F1 are the same at all three supplied
-tolerances in this run. Timing alignment substantially reduces the centered-
-novelty bias without a global correction, but it does not guarantee the same
-accuracy on human-selected references or real recordings.
-
-The negative-reference case uses the independently known first offbeat bass
-onset (0.75 s) from `offbeat_bass`, excluding that candidate in its source
-fixture. Transferring this negative signature to other fixtures is intentionally
-a stress test, not the intended track-specific workflow. Its acoustic population
-has 77 FP instead of 78. Likely/refined results become **118 TP, 1 FP, 14 FN**,
-precision **0.992**, recall **0.894**, F1 **0.940**, FP/min **0.5**, median
-signed/absolute error **0 ms**, P95 absolute error **2.08 ms**. All eleven
-remaining low-pitch kicks move to ambiguous because of the negative margin.
-Likely + ambiguous retains **132 TP, 1 FP, 0 FN**.
-
-Observed limitations:
-
-- Offbeat-bass false positives fall from 14 to zero with positive-only
-  classification (13 non-reference candidates in the negative-reference case).
-- Sustained-bass and sustained-sub-bass extra candidates are rejected in these
-  fixtures, but the test does not prove instrument specificity on real audio.
-- Rumble leaves one likely false positive and makes three genuine kicks
-  ambiguous; likely-only recall falls to 8/11 on its non-reference population.
-- A negative bass signature can also resemble genuine low-pitched kicks,
-  causing substantial recall loss. Thresholds were not tuned to remedy this.
-- References are synthesized repeats from the same recording; real sounds,
-  changing mix context, human onset errors, and different sections can be less
-  consistent. Cross-fixture negatives are especially limited evidence.
-
-## Template-selection pilot (version 2)
-
-The four development recordings have refreshed **unclassified** version-2
-proposals and empty checked-in template definitions. All **7,492** original
-acoustic candidates, including **4,355 off-grid** candidates, retain identical
-acoustic timestamps/evidence and global grids. No real reference identities
-were invented. Original production and annotation baselines, the version-1
-pilot report, existing editable drafts, and reviewed annotations are unchanged.
-The [new pilot summary](results/annotation_refinement_pilot.json) includes
-classification counts, both-grid section comparisons (scores undefined until
-references exist), and ranked diagnostics.
-
-Diagnostics rank consecutive 10 s intervals, breaking ties by earliest start.
-With templates, regular ranks by the fraction of beats supported by likely
-candidates and requires ≥8 beats. Challenging ranks by ambiguous candidates +
-off-grid likely candidates + unsupported acoustic beats, and cannot overlap
-regular. Before references, acoustic grid support and off-grid counts provide
-fallback rankings. An additional image shows the largest absolute 30 s local
-phase discrepancy when its earliest 10 s interval differs from the selected
-regular/challenging sections. Classification counts and exact criteria are
-included with the interval ranking. These are heuristic suggestions for review,
-not verified descriptions of kick content.
-
-| Track | Regular | Challenging | Largest phase discrepancy |
-| --- | --- | --- | --- |
-| `power_train` | 0–10 s | 160–170 s | 150–160 s |
-| `universal` | 0–10 s | 60–70 s | Already the challenging interval |
-| `a_grim_premonition` | 30–40 s | 220–230 s | 120–130 s |
-| `no_trust` | 0–10 s | 290–300 s | 210–220 s |
-
-Eleven local plots are under `datasets/techno/proposals/diagnostics_v2/`.
-The older diagnostics remain in their original directory.
-
-Start the intended interactive workflow:
-
-```bash
-uv run python -m benchmarks.annotate --track universal --regenerate
-uv run python -m benchmarks.annotate --track universal --plot --start 60 --duration 10
-```
-
-Listen, choose 3–5 precise positive references with K (and recurring negatives
-with N if useful), press R, then inspect other sections using navigation, G,
-and H. A/U/C and Ctrl+Z reduce editing effort; Ctrl+S saves the draft. Existing
-drafts remain intact; use the explicit confirmed reset only if a fresh likely-
-kick initialization is desired. A full recording review is **not** required
-before assessing template usefulness, but remains mandatory before finalizing
-ground truth. No held-out recordings were processed or real-world classification
-accuracy claimed. mpv was unavailable during implementation: IPC interactions
-are tested without audio output, while actual desktop playback needs checking
-after installation.
