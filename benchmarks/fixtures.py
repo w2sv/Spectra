@@ -41,7 +41,7 @@ def stereo_samples(samples: AudioSamples) -> AudioSamples:
     return samples
 
 
-def load_wav(path: Path) -> tuple[int, AudioSamples]:
+def load_wav(path: Path, *, preserve_channels: bool = False) -> tuple[int, AudioSamples]:
     """Load complete WAV audio without gain changes, trimming, or resampling."""
     rate, data = wavfile.read(path)
     if data.dtype == np.uint8:
@@ -54,6 +54,12 @@ def load_wav(path: Path) -> tuple[int, AudioSamples]:
         raise ValueError(f"Unsupported WAV encoding: {data.dtype}")
     if rate <= 0:
         raise ValueError("Fixture sample rate must be positive.")
+    if preserve_channels:
+        # Playback retains the source channels; analysis fixtures still use stereo.
+        channels = samples.reshape(-1, 1) if samples.ndim == 1 else samples
+        if channels.ndim != 2 or channels.shape[-1] < 1 or not len(channels) or not np.all(np.isfinite(channels)):
+            raise ValueError("Expected nonempty, finite PCM audio with frames along axis zero.")
+        return rate, np.ascontiguousarray(channels)
     return rate, stereo_samples(samples)
 
 

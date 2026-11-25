@@ -7,11 +7,11 @@ from pathlib import Path
 import numpy as np
 from mir_eval.util import match_events
 
-from benchmarks.annotation_analysis import PARAMETERS, AutomaticCandidate, analyze_audio, generate_proposal
-from benchmarks.annotation_automatic import AUTOMATIC_ALGORITHM_VERSION, AUTOMATIC_PARAMETERS, automatic_proposal
+from benchmarks.annotation.analysis import PARAMETERS, AutomaticCandidate, analyze_audio, generate_proposal
+from benchmarks.annotation.automatic import AUTOMATIC_ALGORITHM_VERSION, AUTOMATIC_PARAMETERS, automatic_proposal
+from benchmarks.annotation.validation.refinement import exclude_references
 from benchmarks.fixtures import synthetic_fixtures
 from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
-from benchmarks.refinement_validation import exclude_references
 
 
 def validate_automatic() -> dict[str, object]:
@@ -28,7 +28,7 @@ def validate_automatic() -> dict[str, object]:
         stage: {str(round(t * 1000)): [] for t in TOLERANCES} for stage in stages
     }
     partitions: dict[str, list[Evaluation]] = {"with_tempo": [], "gridless": []}
-    root = Path(__file__).parent / "results"
+    root = Path(__file__).resolve().parents[2] / "results"
     previous_one = json.loads((root / "annotation_synthetic_baseline.json").read_text())
     previous_two = json.loads((root / "annotation_refinement_baseline.json").read_text())
     v1 = {fixture["identifier"]: fixture for fixture in previous_one["fixtures"]}

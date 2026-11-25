@@ -43,8 +43,14 @@ benchmark = [
     "mir-eval>=0.8.2",
 ]
 dev = [
-    {include-group = "benchmark"},
+    {include-group = "review"},
     "pyright>=1.1.414",
     "pytest>=9.2.0",
     "ruff>=0.17.6",
+]
+review = [
+    {include-group = "benchmark"},
+    "pyqtgraph>=0.14.0",
+    "pyside6>=6.12.0",
+    "sounddevice>=0.5.6",
 ]

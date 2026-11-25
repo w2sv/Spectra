@@ -15,7 +15,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.signal import butter, find_peaks, sosfiltfilt
 from scipy.spatial.distance import pdist
 
-from benchmarks.annotation_analysis import (
+from benchmarks.annotation.analysis import (
     PARAMETERS,
     AcousticAnalysis,
     AutomaticCandidate,
@@ -23,7 +23,7 @@ from benchmarks.annotation_analysis import (
     Proposal,
     beat_positions,
 )
-from benchmarks.annotation_templates import (
+from benchmarks.annotation.templates import (
     TEMPLATE_PARAMETERS,
     alternative_phase,
     classification,

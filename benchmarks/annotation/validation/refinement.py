@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from mir_eval.util import match_events
 
-from benchmarks.annotation_analysis import (
+from benchmarks.annotation.analysis import (
     ALGORITHM_VERSION,
     PARAMETERS,
     TEMPLATE_BANDS,
@@ -16,7 +16,7 @@ from benchmarks.annotation_analysis import (
     analyze_audio,
     generate_proposal,
 )
-from benchmarks.annotation_templates import (
+from benchmarks.annotation.templates import (
     REFINED_ALGORITHM_VERSION,
     TEMPLATE_PARAMETERS,
     candidate_onset,
@@ -67,7 +67,9 @@ def validate_refinement() -> dict[str, object]:
     negative_source = analyses["offbeat_bass"]
     negative_reference = 0.75  # Generator's independently known first offbeat note onset.
     original = json.loads(
-        (Path(__file__).parent / "results" / "annotation_synthetic_baseline.json").read_text(encoding="utf-8")
+        (Path(__file__).resolve().parents[2] / "results" / "annotation_synthetic_baseline.json").read_text(
+            encoding="utf-8"
+        )
     )
     baseline = {fixture["identifier"]: fixture for fixture in original["fixtures"]}
     cases = {}

@@ -8,8 +8,9 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.annotation_analysis import AutomaticCandidate, Proposal
-from benchmarks.annotation_automatic import AUTOMATIC_ALGORITHM_VERSION
+from benchmarks.annotation.analysis import AutomaticCandidate, Proposal
+from benchmarks.annotation.automatic import AUTOMATIC_ALGORITHM_VERSION
+from benchmarks.annotation.templates import TEMPLATE_PARAMETERS
 from benchmarks.tracks import validate_timestamps
 
 
@@ -246,6 +247,45 @@ def centered_interval(timestamp: float, recording_duration: float, width: float 
     return min(max(timestamp - duration / 2, 0), recording_duration - duration), duration
 
 
+def uncertain_classification(candidate: AutomaticCandidate, draft: ReviewDraft) -> bool:
+    """Review categories use existing metadata without changing predictions."""
+    if candidate["candidate_id"] in draft.overrides:
+        return False
+    reasons = candidate["uncertainty_reasons"]
+    positive = candidate.get("positive_similarity")
+    negative = candidate.get("negative_similarity")
+    parameters = TEMPLATE_PARAMETERS
+    return (
+        candidate.get("classification", "unclassified") in ("ambiguous", "unclassified")
+        or "classification uncertainty" in reasons
+        or "conflicting references" in reasons
+        or positive is not None
+        and (
+            min(abs(positive - parameters.weak_similarity), abs(positive - parameters.strong_similarity)) <= 0.03
+            or negative is not None
+            and positive - negative < parameters.negative_margin
+        )
+    )
+
+
+def nearby_hidden_candidates(editor: CorrectionEditor, timestamp: float, displayed: set[str]) -> list[str]:
+    """Do not recover a grid-only expectation as though it were acoustic evidence.
+
+    Return ambiguity to the caller for explicit clarification. The 50 ms window
+    only narrows the search; the existing localizer supplies the actual onset.
+    """
+    return [
+        candidate["candidate_id"]
+        for candidate in sorted(
+            editor.candidates.values(), key=lambda c: abs(effective_timestamp(c, editor.draft) - timestamp)
+        )
+        if candidate["candidate_id"] not in displayed
+        and not effective_kick(candidate, editor.draft)
+        and candidate["provenance"] != "beat_grid_only"
+        and abs(effective_timestamp(candidate, editor.draft) - timestamp) <= 0.050
+    ]
+
+
 def navigate_candidate(
     candidates: list[AutomaticCandidate],
     draft: ReviewDraft,
@@ -268,7 +308,7 @@ def navigate_candidate(
             return grid in candidate.get("unsupported_grids", []) and not np.any(
                 np.abs(covered - effective_timestamp(candidate, draft)) <= 0.050
             )
-        return bool(candidate.get("uncertainty_reasons"))
+        return uncertain_classification(candidate, draft)
 
     anchor = next((i for i, c in enumerate(ordered) if c["candidate_id"] == selected), None)
     sequence = (

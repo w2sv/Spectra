@@ -7,15 +7,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from benchmarks.annotation_analysis import (
+from benchmarks.annotation.analysis import (
     AcousticAnalysis,
     AutomaticCandidate,
     Proposal,
     analyze_audio,
     generate_proposal,
 )
-from benchmarks.annotation_automatic import OnsetLocalizer, automatic_proposal, feature_matrix
-from benchmarks.annotation_corrections import (
+from benchmarks.annotation.automatic import OnsetLocalizer, automatic_proposal, feature_matrix
+from benchmarks.annotation.corrections import (
     CorrectionEditor,
     centered_interval,
     effective_kick,
@@ -28,7 +28,7 @@ from benchmarks.annotation_corrections import (
     proposal_checksum,
     save_review,
 )
-from benchmarks.annotation_templates import event_feature
+from benchmarks.annotation.templates import event_feature
 from benchmarks.fixtures import AudioFixture, synthetic_fixtures
 
 type Clean = tuple[AudioFixture, AcousticAnalysis, Proposal, Proposal[AutomaticCandidate]]
@@ -180,51 +180,6 @@ def test_unified_unsupported_navigation_preserves_close_events_and_grid_decision
     assert navigate_candidate(candidates, editor.draft, "unsupported", 1, None, 0, "alternative") == "alt"
 
 
-def test_review_shared_handlers_and_render_cache(clean: Clean, tmp_path: Path) -> None:
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
-
-    from benchmarks.annotation_review import AnnotationReview
-
-    proposal = copy.deepcopy(clean[3])
-    view = AnnotationReview(clean[1], proposal, new_review(proposal), tmp_path / "draft.json", 0, 2)
-    try:
-        view.figure.canvas.draw()
-        background = view._background
-        count = view.audio_update_count
-        first = view._ordered[0]
-        time = first["final_timestamp"]
-        x, y = view.axes[0].transData.transform((time, 0))
-        view.on_click(MouseEvent("button_press_event", view.figure.canvas, x, y, button=MouseButton.LEFT))
-        assert view.selected == first["candidate_id"]
-        assert len(view.draft.overrides) == 1
-        assert view.audio_update_count == count and view._background is not background
-        view.on_key(KeyEvent("key_press_event", view.figure.canvas, "ctrl+z"))
-        assert not view.draft.overrides and view.audio_update_count == count
-        view.perform_action("next_interval")
-        assert view.audio_update_count == count + 1
-        view.axes[0].set_xlim(3, 3.5)
-        assert view.audio_update_count == count + 2
-        view.perform_action("save")
-        assert load_review(tmp_path / "draft.json", proposal).overrides == {}
-        view.selected = next(c["candidate_id"] for c in view._ordered if c["cluster_id"] is not None)
-        view.perform_action("group_nonkick")
-        assert not view.draft.overrides and "Will change" in view.status
-        view.perform_action("group_nonkick")
-        assert view.draft.overrides
-        view.perform_action("undo")
-        assert not view.draft.overrides
-        background = view._static_background
-        view.perform_action("grid")
-        assert view.alternative_grid and view._static_background is not background
-    finally:
-        view.close()
-        plt.close(view.figure)
-
-
 def test_legacy_migration_is_explicit_and_keeps_original_bytes(clean: Clean, tmp_path: Path) -> None:
     proposal = copy.deepcopy(clean[3])
     candidate = proposal["kick_candidates"][0]
@@ -266,7 +221,7 @@ def test_finalization_exports_effective_predictions_only_after_review(
 ) -> None:
     from scipy.io import wavfile
 
-    from benchmarks.annotate import finalize_annotation
+    from benchmarks.annotation.cli import finalize_annotation
     from benchmarks.fixtures import file_checksum
     from benchmarks.tracks import Track
 

@@ -8,8 +8,7 @@ import numpy as np
 import pytest
 from scipy.io import wavfile
 
-from benchmarks.annotate import finalize_annotation
-from benchmarks.annotation_analysis import (
+from benchmarks.annotation.analysis import (
     Candidate,
     analyze_audio,
     associate_candidates,
@@ -17,6 +16,7 @@ from benchmarks.annotation_analysis import (
     estimate_phase,
     validate_grid,
 )
+from benchmarks.annotation.cli import finalize_annotation
 from benchmarks.fixtures import AudioFixture, file_checksum, verify_checksum
 from benchmarks.kick_detection import grouped_aggregates
 from benchmarks.metrics import evaluate

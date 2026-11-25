@@ -3,20 +3,17 @@
 import argparse
 import json
 import math
-from dataclasses import asdict
 from pathlib import Path
 from time import perf_counter
 
-from benchmarks.annotation_analysis import (
-    ALGORITHM_VERSION,
-    PARAMETERS,
+from benchmarks.annotation.analysis import (
     AutomaticCandidate,
     Proposal,
     analyze_audio,
     generate_proposal,
 )
-from benchmarks.annotation_automatic import AUTOMATIC_ALGORITHM_VERSION, automatic_proposal
-from benchmarks.annotation_corrections import (
+from benchmarks.annotation.automatic import AUTOMATIC_ALGORITHM_VERSION, automatic_proposal
+from benchmarks.annotation.corrections import (
     effective_onsets,
     load_review,
     migrate_legacy,
@@ -25,8 +22,8 @@ from benchmarks.annotation_corrections import (
     reconcile_draft,
     save_review,
 )
-from benchmarks.fixtures import synthetic_fixtures, verify_checksum
-from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
+from benchmarks.annotation.validation.acoustic import validate_synthetics
+from benchmarks.fixtures import verify_checksum
 from benchmarks.tracks import TECHNO, Track, read_catalog, validate_timestamps, verified_audio
 
 
@@ -154,16 +151,13 @@ def annotate_track(
             analysis = analyze_audio(samples, rate)
             del samples
         if diagnostics:
-            import matplotlib
-
-            matplotlib.use("Agg")
-            from benchmarks.annotation_review import save_diagnostics
+            from benchmarks.annotation.diagnostics import save_diagnostics
 
             summary["diagnostic_intervals"] = save_diagnostics(
                 analysis, proposal, root / "proposals" / "diagnostics_v3"
             )
         if plot:
-            from benchmarks.annotation_review import show_review
+            from benchmarks.annotation.review.window import show_review
 
             show_review(analysis, proposal, root / "drafts" / f"{track.identifier}.json", start, duration, root=root)
     write_json(root / "proposals" / f"{track.identifier}-summary.json", summary)
@@ -225,53 +219,6 @@ def finalize_annotation(track: Track, root: Path = TECHNO) -> None:
     print(f"Finalized fully reviewed recording: {track.identifier}")
 
 
-def validate_synthetics() -> dict[str, object]:
-    fixtures = []
-    pooled_all: dict[str, list[Evaluation]] = {str(round(t * 1000)): [] for t in TOLERANCES}
-    pooled_grid: dict[str, list[Evaluation]] = {key: [] for key in pooled_all}
-    for fixture in synthetic_fixtures():
-        analysis = analyze_audio(fixture.load_audio(), fixture.sample_rate)
-        tempo = fixture.generation_parameters["tempo_bpm"]
-        bpm = float(tempo) if isinstance(tempo, (int, float)) else None
-        proposal = generate_proposal(analysis, fixture.identifier, None, fixture.sample_rate, bpm)
-        all_events = [candidate["timestamp"] for candidate in proposal["kick_candidates"]]
-        grid_events = [candidate["timestamp"] for candidate in proposal["kick_candidates"] if candidate["grid_aligned"]]
-        all_metrics, grid_metrics = {}, {}
-        for tolerance in TOLERANCES:
-            key = str(round(tolerance * 1000))
-            all_result = evaluate(fixture.kick_onsets, all_events, analysis.duration_seconds, tolerance)
-            all_metrics[key] = all_result.metrics()
-            pooled_all[key].append(all_result)
-            if bpm is not None:
-                grid_result = evaluate(fixture.kick_onsets, grid_events, analysis.duration_seconds, tolerance)
-                grid_metrics[key] = grid_result.metrics()
-                pooled_grid[key].append(grid_result)
-        fixtures.append(
-            {
-                "identifier": fixture.identifier,
-                "category": fixture.category,
-                "bpm": bpm,
-                "ground_truth_kick_onsets": fixture.kick_onsets,
-                "all_candidate_timestamps": all_events,
-                "grid_aligned_timestamps": grid_events if bpm is not None else None,
-                "all_candidates_metrics_by_tolerance_ms": all_metrics,
-                "grid_aligned_metrics_by_tolerance_ms": grid_metrics if bpm is not None else None,
-            }
-        )
-    return {
-        "annotation_algorithm_version": ALGORITHM_VERSION,
-        "analysis_parameters": asdict(PARAMETERS),
-        "note": "Independent annotation sanity check; grid metrics only include fixtures with tempo metadata.",
-        "fixtures": fixtures,
-        "aggregate_all_candidates_by_tolerance_ms": {
-            key: aggregate(values).metrics() for key, values in pooled_all.items()
-        },
-        "aggregate_grid_aligned_by_tolerance_ms": {
-            key: aggregate(values).metrics() for key, values in pooled_grid.items()
-        },
-    }
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
@@ -328,11 +275,11 @@ def main() -> None:
             ):
                 raise ValueError("Synthetic validation uses fixture tempos and does not edit real annotations.")
             if arguments.automatic_synthetic:
-                from benchmarks.automatic_validation import validate_automatic
+                from benchmarks.annotation.validation.automatic import validate_automatic
 
                 report = validate_automatic()
             elif arguments.refined_synthetic:
-                from benchmarks.refinement_validation import validate_refinement
+                from benchmarks.annotation.validation.refinement import validate_refinement
 
                 report = validate_refinement()
             else:

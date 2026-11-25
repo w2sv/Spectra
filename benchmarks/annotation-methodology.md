@@ -4,9 +4,9 @@ The current ordinary workflow is automatic generation followed by binary correct
 
 ## Acoustic annotation stage (version 1, retained)
 
-`annotation_analysis.py` contains offline numerical analysis; `annotate.py`
-handles proposals, validation, and finalization; `annotation_review.py` owns
-Matplotlib interaction. None uses `SpectrumAnalyzer`, `KickOnsetDetector`,
+`annotation/analysis.py` contains offline numerical analysis; `annotation/cli.py`
+handles proposals and finalization; `annotation/review/` owns the optional
+Qt interface, and `annotation/diagnostics.py` generates static Matplotlib plots. None uses `SpectrumAnalyzer`, `KickOnsetDetector`,
 `KickDetectionConfig`, production events, or production thresholds.
 
 1. Load the complete WAV through the shared loader, arithmetic-mean stereo
@@ -52,7 +52,7 @@ alignment cannot distinguish a bass note from a kick.
 ## Track-specific template stage (version 2)
 
 The original novelty envelopes, peak generation, and global/local grid searches
-remain the high-recall first stage. `annotation_templates.py` classifies those
+remain the high-recall first stage. `annotation/templates.py` classifies those
 same candidates afterward, independently of production DSP and kick detection.
 No candidates are discarded from proposal files.
 
@@ -126,7 +126,7 @@ overlay and never accepted timestamps.
 ## Original synthetic annotation validation (version 1)
 
 ```bash
-uv run python -m benchmarks.annotate --synthetic \
+uv run python -m benchmarks.annotation --synthetic \
   --json benchmarks/results/annotation_synthetic_baseline.json
 ```
 
@@ -198,7 +198,7 @@ baseline belong to the next milestone.
 ## Reference-excluded refinement validation (version 2)
 
 ```bash
-uv run python -m benchmarks.annotate --refined-synthetic \
+uv run python -m benchmarks.annotation --refined-synthetic \
   --json benchmarks/results/annotation_refinement_baseline.json
 ```
 
@@ -293,20 +293,254 @@ not verified descriptions of kick content.
 Eleven local plots are under `datasets/techno/proposals/diagnostics_v2/`.
 The older diagnostics remain in their original directory.
 
-Start the intended interactive workflow:
+The former manual-template interface has been retired. The numerical methods,
+reference files, and recorded baselines above remain reproducible. Use the
+[current review workflow](README.md) for automatic proposals and binary corrections.
+
+
+## Automatic annotation version 3
+
+Version 3 reuses the unchanged version-1 acoustic stage and version-2 feature and
+cosine-alignment methods. It is independent of production DSP and detection.
+[Detailed earlier methods and baselines](annotation-methodology.md) remain intact.
+
+1. Retain every original novelty peak. For unsupported beats in both primary and
+   half-beat grids, find the strongest local novelty maximum within ±50 ms, even
+   below the original prominence threshold. Otherwise retain the beat as a
+   grid-only candidate. Supplementary events within 30 ms of an existing event
+   are not duplicated; original acoustic candidates are never merged. Stable IDs
+   hash audio identity, provenance and original 48 kHz sample position.
+2. Independently localize acoustic events in −30 to +50 ms neighborhoods. A
+   second-order zero-phase Butterworth filter supplies 20–300 Hz energy; original
+   mono audio supplies broadband energy. Trailing 5 ms mean-square windows have
+   1 ms hops and timestamps at their ends, avoiding centered-window backdating.
+   Background is median/MAD over the 75 ms preceding the search interval. Follow
+   the dominant joint energy rise backward to a crossing above both background
+   +3 MAD and 10% of the local rise, sustained for at least 3 ms, in both channels.
+   The raw-energy gate prevents filter pre-ringing alone from establishing onset.
+   The numerical floor is 1e-12. Unreliable crossings retain their original time;
+   grid-only positions remain estimated and cannot automatically become kicks.
+3. At localized onsets, extract the existing 37×12 normalized features: centered
+   2048-point Hann STFT, 48 kHz, 240-sample hops, −20 to +160 ms context, median
+   −100 to −25 ms background, fractional band powers, square-root compression,
+   subtraction/clamping and one L2 normalization. Invalid zero features are excluded.
+4. Use SciPy average-linkage hierarchical clustering with cosine distance cut
+   **0.15**, an experimental fixed parameter. Store cluster size, evidence, median
+   nonnegative low-frequency increase, within-cluster similarity, recording-quarter
+   distribution, medoid and primary/alternative grid support. Select the medoid
+   and up to two members separated by at least one-sixth of the recording (and
+   180 ms). Eligible clusters have ≥8 members and ≥70% alignment to a grid.
+   Score each grid as `alignment_fraction * log1p(unique_supported_beats) *
+   median_low_frequency_power_increase`. The best cluster supplies references.
+   Further eligible clusters on that grid need medoid similarity ≥0.70 to an
+   already selected cluster. At most nine references are used. No automatic
+   negative references are discovered. Competing clusters and grids remain reported.
+5. Compare every candidate with positive references at offsets −30…+30 ms, every
+   5 ms. Similarity ≥0.85 predicts kick; ≥0.70 is ambiguous/non-kick; lower scores
+   predict non-kick. The final onset is localized time plus the best match offset;
+   search-boundary matches are flagged. Without references, only grid-aligned
+   acoustic candidates predict kicks, with low confidence. Without a grid or
+   references, reliable automatic classification is explicitly unavailable.
+6. Human-confirmed kicks can supply additional positive references and explicit
+   rejections can supply negatives on R. A positive-minus-negative margin of
+   0.10 is retained. Rejected automatic references are excluded from positives.
+   No algorithmic prediction is treated as human confirmation. Similarity is
+   not a probability, and recurring bass sounds can win automatic cluster selection.
+
+Parameters live in immutable `AutomaticParameters` and `TemplateParameters`,
+independently of production configuration. No tuning was applied after recording
+the automatic baseline. Proposals retain original, independently localized,
+template-refined and final times; reliability and provenance; cluster identities;
+similarity scores, predictions and uncertainty reasons. Uncertainty cues include
+threshold proximity, conflicting references, unsupported positions, off-grid
+predictions and unreliable localization. These are review cues, not error labels.
+Both grid hypotheses and 30-second acoustic phase comparisons remain available;
+neither BPM nor the primary grid is silently changed.
 
 ```bash
-uv run python -m benchmarks.annotate --track universal --regenerate
-uv run python -m benchmarks.annotate --track universal --plot --start 60 --duration 10
+uv run python -m benchmarks.annotation --automatic-synthetic \
+  --json benchmarks/results/annotation_automatic_baseline.json
+uv run python -m benchmarks.annotation --track universal --diagnostics
 ```
 
-Listen, choose 3–5 precise positive references with K (and recurring negatives
-with N if useful), press R, then inspect other sections using navigation, G,
-and H. A/U/C and Ctrl+Z reduce editing effort; Ctrl+S saves the draft. Existing
-drafts remain intact; use the explicit confirmed reset only if a fresh likely-
-kick initialization is desired. A full recording review is **not** required
-before assessing template usefulness, but remains mandatory before finalizing
-ground truth. No held-out recordings were processed or real-world classification
-accuracy claimed. mpv was unavailable during implementation: IPC interactions
-are tested without audio output, while actual desktop playback needs checking
-after installation.
+Diagnostic ten-second sections rank likely beat support (≥8 beats) for a regular
+section, and ambiguous + off-grid likely + unsupported activity for a disjoint
+challenging section, with earliest ties. Without references they fall back to
+acoustic/grid statistics. A distinct maximum-phase-discrepancy section is added
+where possible. Plots of recurring cluster medoids expose competing signatures.
+Selections and counts are heuristic; “regular” does not mean verified kicks.
+Outputs stay ignored under `proposals/diagnostics_v3/`.
+
+### Untuned automatic validation
+
+[`annotation_automatic_baseline.json`](results/annotation_automatic_baseline.json)
+uses all 15 unchanged fixtures and **no ground-truth reference templates**. Ground
+truth enters evaluation only. The population retains 169/169 kicks at ±50 ms,
+requiring zero manual insertions at that window. Initial classification gives
+45 TP, 0 FP, 124 FN: precision 1.000, recall 0.266, F1 0.421, 0 FP/min, and
+124 binary label corrections under the recorded one-to-one population assignment.
+This assignment is not claimed to minimize editing effort in overlapping cases.
+
+The three fixtures with supplied tempo metadata achieve 45/45 initial detections.
+The other 12 have no tempo metadata; no eligible rhythmic cluster or reliable
+gridless classifier is available, so their kicks remain unclassified/non-kick.
+No known tempo was inferred from their ground-truth timestamps. This is a major
+recall limitation, not evidence of strong general-purpose kick specificity.
+Negative fixtures give zero initial predicted kicks, largely because references
+are unavailable; that does not prove discrimination of offbeat bass.
+
+On all matched population events at ±50 ms, novelty median signed error is
+−15.0 ms; independent localization gives +3.27 ms median signed/absolute error
+and 27.0 ms P95 absolute error. On the 45 automatically predicted kicks, localized
+median is +3.0 ms and P95 3.83 ms; template refinement gives +3.0 ms and P95
+3.93 ms, offering no clear extra timing improvement. Localization is threshold-
+based and not sample accurate. Rumble, sub-bass and extended decay still demand
+review, particularly when novelty or background energy masks an attack.
+
+The JSON includes all three tolerance windows, timing stages, candidate-population
+false negatives, cluster/reference counts, and per-fixture corrections versus
+manual insertions. V1 candidate timestamps are asserted identical to the original
+baseline. V2 comparisons additionally use its same non-reference event population;
+those supplied-reference results must not be presented as fully automatic results.
+Synthetic validation is a sanity check, not real-music accuracy evidence.
+
+### Four-recording automatic pilot and review performance
+
+[`annotation_automatic_pilot.json`](results/annotation_automatic_pilot.json) records
+all four full development recordings, selected references, competing clusters/grid
+evidence, uncertainty, supplemental candidates, reliability and processing times.
+No held-out recording was processed and no annotation was finalized. Universal
+is ready for the two-command workflow above. Human review is still required
+before real-world precision or recall can be measured.
+
+| Track | Clusters / references | Selected grid | Kicks / non-kicks | Uncertain | Supplementary | Unreliable onsets | Analysis time |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| power_train | 221 / 5 | primary | 666 / 1648 | 1709 | 342 | 1346 | 12.27 s |
+| universal | 337 / 5 | primary | 656 / 1334 | 1148 | 219 | 529 | 11.72 s |
+| a_grim_premonition | 613 / 7 | alternative | 672 / 1536 | 2138 | 411 | 1247 | 13.99 s |
+| no_trust | 260 / 2 | primary | 778 / 1341 | 1322 | 167 | 1101 | 17.96 s |
+
+Many candidates still have uncertain timing or classification. The alternative
+hypothesis won for A Grim Premonition; this is an acoustic hypothesis, not a
+verified change of kick-grid phase. Catalog BPM and recurring bass interference
+remain possible sources of mistakes.
+
+The retired Matplotlib renderer's headless measurements are retained in
+[`annotation_review_performance.json`](results/annotation_review_performance.json)
+as historical evidence. They do not measure current Qt rendering or physical
+playback latency. Dated Qt migration and navigation checks are described below.
+
+## Qt migration verification (2026-11-25)
+
+The annotation algorithm, template implementation and automatic classifier are
+unchanged apart from imports. All three synthetic validation reports reproduce
+their existing baseline JSON exactly. A production synthetic run matches a run
+from the original checkout after removing only environment, source-hash, Git
+and processing-time metadata. Original proposal, review, annotation-manifest and
+baseline file hashes are unchanged. Universal's existing draft has no explicit
+human corrections; nonempty correction persistence is verified on isolated test
+drafts, including undo and full-recording finalization.
+
+Playback-clock tests use synthetic transients, future DAC buffers, pause/resume,
+seek generations, resampling, EOF, underrun recovery and device failure. Actual
+PortAudio checks on this desktop verified a stable frozen position after pause,
+repeated resume/seek, native PCM playback and stream shutdown. Abort took about
+13 ms in the initial device check; it does not wait for queued output to drain.
+
+Six synthetic transients were also captured from the output's PipeWire monitor,
+using explicit midpoint measurements to relate the input and output stream
+clocks to monotonic time. Monitor arrival minus estimated DAC presentation ranged
+from -5.3 to +0.8 ms. Clock-correspondence read brackets were below 0.04 ms. This
+is **software-loopback timing**, not a physical cable, speaker or headphone
+measurement. PortAudio's DAC/ADC estimates and the monitor path introduce their
+own uncertainty. Sample-accurate physical presentation is not established. Direct
+listening feedback reported the cursor fairly well aligned; physical accuracy
+remains unmeasured. No cursor correction was applied.
+
+Desktop layouts were inspected at 1920x1080 and 1366x768 on the 100% display, and
+at 1200x680 logical pixels on the current 200% display (1280x720 logical screen).
+The native control-panel scrollbar keeps Advanced reachable at short heights.
+The waveform and evidence plots retain their space without overlapping controls.
+
+Initial profiling found that PlotItem overrides per-curve downsampling options
+when adding curves. Setting peak downsampling and clipping after addition, and
+sharing scatter pens/brushes, removed that bottleneck. Qt's built-in item cache
+keeps curves available between cursor updates; there are no application-managed
+background images or Matplotlib blitting. A subsequent listening review identified
+playhead flicker from independently moving the data-coordinate line and viewport.
+At that stage the playhead was moved into each ViewBox's screen coordinates:
+following moved only the graph, with blank space at recording boundaries. A desktop scrolling
+check recorded zero playhead pixel movement.
+
+A temporary matched-size headless comparison on Universal gave these medians:
+
+| Operation | Retired Matplotlib Agg | Qt offscreen |
+| --- | ---: | ---: |
+| Viewport update including drawing | 184 ms | 24 ms |
+| Candidate correction including drawing | 232 ms | 18 ms |
+| Cursor update including drawing | 1.7 ms | 1.1 ms |
+| Window construction including first draw | 3.5 s | 7.6 s |
+
+Construction results include different backends and initialization costs; they
+are not desktop FPS. Actual Qt desktop construction in separate runs was about
+1.8-2.0 s. Headless measurements do not establish desktop responsiveness.
+
+With Universal playing and following at 1366x768, an eight-second actual Qt event
+loop check observed a median follow interval of 33.0 ms (P95 34.5 ms). Playback
+position/UI ticks had median interval 26.4 ms and P95 36.0 ms, with 389 ticks in
+approximately eight seconds. The 16 ms cursor timer targets 60 Hz; these results
+do **not** demonstrate sustained 60 FPS or measure compositor presentation. Since
+the following playhead is fixed, graph scrolling determines visible movement.
+The initial backend low-latency configuration underruns on this desktop. After
+three reported underruns, the single 100 ms buffer retry prevented further
+underruns during this check. A larger audio buffer does not shift the playhead,
+which remains based on DAC presentation estimates.
+
+Verification uses ordinary pytest/Qt facilities and temporary profiling scripts;
+no permanent GUI benchmark framework or baseline artifacts were introduced.
+
+## Qt timeline navigation (2026-11-26)
+
+The Follow playback checkbox is the navigation-mode authority. Following places
+playback at 40% of the visible width; ranges clamp to the recording without empty
+time before zero or after its duration. At a constrained boundary, or when showing
+the full recording, the screen-coordinate cursor follows its actual timestamp.
+Both plots retain device-pixel snapping. Viewport and cursor updates use one
+playback snapshot, while the lighter playback polling/UI timer remains separate
+from scrolling. Unchanged ranges are not reapplied. The visual cursor offset
+affects only rendering.
+
+Dragging either linked plot enters free navigation without seeking, editing or
+changing playback state. In that mode, playback and seeks leave the viewport
+fixed, and the wheel zooms around the mouse timestamp. In follow mode, wheel
+zoom stays anchored at playback, including while paused. F and enabling the
+checkbox share the same return-to-playback handler. Arrow keys skip five seconds,
+Shift-arrows skip one, and Backspace skips ten seconds backward, using the
+player's authoritative clock and preserving zoom. Candidate-review navigation
+retains its two-second inspection range, pause and seek, entering free navigation.
+Clicks and the seek slider respect the selected mode; slider seeks commit on
+release. Corrections and right-click inspection do not navigate or alter playback.
+
+The beat grid is visible by default, beneath the waveform, using the proposal's
+selected hypothesis (falling back to primary if an alternative is unavailable).
+The unsupported-beat queue uses that same hypothesis. Other optional overlays
+remain hidden. No analysis, proposal-format, classification or playback-clock
+algorithm changed.
+
+Audio-free Qt regression tests cover recording limits, cursor alignment and
+stability, skips and shortcuts, click/drag distinctions, mode-dependent zoom,
+candidate navigation, grid selection, and correction/undo/persistence behavior.
+An actual Wayland desktop check used Universal's 317-second recording with the
+native PCM player. Ten-second ranges were 0–10 at 0 and 2 s, 96–106 at 100 s,
+and 307–317 at 315 s and EOF; both cursor lines aligned. Full-recording viewing,
+zoom during playback and pause, Shift-dragging, independent playback while
+exploring, free-mode skipping, and F restoration passed. A two-second interior
+following sample after zoom had zero cursor pixel movement. Repeated paused
+boundary ticks emitted no range changes. Application screenshots at 1366×768
+were inspected for boundary clamping, grid layering and cursor alignment.
+Proposal, draft and annotation-manifest hashes were unchanged.
+
+These desktop checks exercised the existing automatic buffering retry (three to
+five reported underruns per run); they did not measure sustained FPS or physical audio latency.
+The migration measurements above remain historical observations, not results
+of this navigation change.

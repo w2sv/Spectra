@@ -1,9 +1,6 @@
-"""Numerical signatures, provenance, editing, completeness, and audio-free IPC."""
+"""Numerical signatures, provenance, diagnostics, and benchmark completeness."""
 
 import json
-import socket
-import sys
-import tempfile
 from dataclasses import replace
 from pathlib import Path
 from typing import Literal
@@ -12,8 +9,8 @@ import numpy as np
 import pytest
 from scipy.io import wavfile
 
-from benchmarks.annotation_analysis import Candidate, Proposal, analyze_audio
-from benchmarks.annotation_templates import (
+from benchmarks.annotation.analysis import Candidate, Proposal, analyze_audio
+from benchmarks.annotation.templates import (
     TemplateDefinition,
     alternative_phase,
     classification,
@@ -24,7 +21,6 @@ from benchmarks.annotation_templates import (
 )
 from benchmarks.fixtures import file_checksum, synthetic_fixture
 from benchmarks.kick_detection import main as benchmark_main
-from benchmarks.review_playback import MpvPlayback
 from benchmarks.tracks import Track, collection_status, reviewed_fixtures
 
 
@@ -148,7 +144,7 @@ def test_alternative_phase_is_half_a_beat_without_changing_events() -> None:
 
 
 def test_diagnostic_ranking_selects_distinct_intervals_and_uses_likely_support() -> None:
-    from benchmarks.annotation_review import diagnostic_sections
+    from benchmarks.annotation.diagnostics import diagnostic_sections
 
     candidates = [candidate(i * 0.5, "likely") for i in range(4)]
     candidates += [candidate(10 + i * 0.5, "likely") for i in range(18)]
@@ -229,90 +225,3 @@ def test_complete_and_partial_catalog_reports(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setattr("sys.argv", [*command, "--fixture", "available"])
     benchmark_main()
     assert json.loads(output.read_text())["result_scope"] == "complete"
-
-
-def test_playback_ipc_without_audio_output() -> None:
-    client, server = socket.socketpair()
-    server.setblocking(False)
-    temporary = tempfile.TemporaryDirectory(prefix="spectra-ipc-test-")
-    directory = Path(temporary.name)
-    player = MpvPlayback(client, directory=temporary)
-
-    def commands() -> list[dict[str, object]]:
-        data = bytearray()
-        while True:
-            try:
-                data.extend(server.recv(65_536))
-            except BlockingIOError:
-                break
-        return [json.loads(line) for line in data.splitlines()]
-
-    def send(value: object) -> None:
-        server.sendall((json.dumps(value) + "\n").encode())
-
-    try:
-        assert [message["command"] for message in commands()] == [
-            ["observe_property", 1, "time-pos"],
-            ["observe_property", 2, "pause"],
-        ]
-        player.interval(1.0, 2.0)
-        initial = commands()
-        seek_id = initial[-1]["request_id"]
-        send({"request_id": seek_id, "error": "success"})
-        send({"event": "property-change", "name": "time-pos", "data": 1.25})
-        assert player.poll() == 1.25
-        player.toggle()
-        assert commands()[-1]["command"] == ["set_property", "pause", False]
-        send({"event": "property-change", "name": "time-pos", "data": 2.02})
-        player.poll()
-        stopped = commands()
-        assert stopped[0]["command"] == ["set_property", "pause", True]
-        assert stopped[-1]["command"] == ["seek", 2.0, "absolute+exact"]
-        player.interval(3.0, 4.0)
-        commands()
-        send({"event": "property-change", "name": "time-pos", "data": 1.8})
-        assert player.poll() is None  # stale pre-seek observation is ignored
-        send({"event": "file-loaded"})
-        player.poll()
-        assert commands()[-1]["command"] == ["seek", 3.0, "absolute+exact"]
-    finally:
-        player.close()
-        player.close()
-        server.close()
-    assert not directory.exists()
-    assert client.fileno() == -1
-
-
-def test_owned_player_startup_and_cleanup_without_audio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    executable = tmp_path / "fake-mpv"
-    arguments = tmp_path / "arguments.json"
-    executable.write_text(
-        f"#!{sys.executable}\n"
-        "import json, socket, sys\n"
-        f"open({str(arguments)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
-        "path = next(arg.split('=', 1)[1] for arg in sys.argv if arg.startswith('--input-ipc-server='))\n"
-        "server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)\n"
-        "server.bind(path)\nserver.listen(1)\n"
-        "client, _ = server.accept()\n"
-        "with client.makefile('r') as reader:\n"
-        "    for line in reader:\n"
-        "        message = json.loads(line)\n"
-        "        if message['command'][0] == 'quit':\n"
-        "            break\n"
-        "client.close()\nserver.close()\n",
-        encoding="utf-8",
-    )
-    executable.chmod(0o700)
-    monkeypatch.setattr("benchmarks.review_playback.shutil.which", lambda _: str(executable))
-    player = MpvPlayback.start(tmp_path / "unused.wav")
-    assert player is not None and player.directory is not None and player.process is not None
-    directory = Path(player.directory.name)
-    process = player.process
-    try:
-        flags = json.loads(arguments.read_text())
-        assert "--pause=yes" in flags and "--no-video" in flags and "--force-window=no" in flags
-        assert (directory / "ipc.sock").exists()
-    finally:
-        player.close()
-    assert process.poll() is not None
-    assert not directory.exists()

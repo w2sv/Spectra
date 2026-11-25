@@ -1,0 +1,236 @@
+"""In-memory PCM playback, with position measured in the PortAudio clock domain.
+
+The GUI owns transitions. The PortAudio callback owns sample submission and
+publishes bounded, immutable timing records. Abort (not draining stop) precedes
+every transition; no old callback can publish into a new generation.
+"""
+
+import math
+from collections import deque
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+import numpy as np
+from scipy.signal import resample_poly
+
+from benchmarks.fixtures import load_wav
+from spectra.audio import AudioSamples
+
+if TYPE_CHECKING:
+    import sounddevice as sd
+
+
+class CallbackTime(Protocol):
+    """PortAudio's callback timing structure, in stream-clock seconds."""
+
+    outputBufferDacTime: float
+
+
+@dataclass(frozen=True)
+class BufferTiming:
+    generation: int
+    first_sample: int
+    samples: int
+    dac_time: float
+
+
+class PlaybackClock:
+    def __init__(self, rate: int, sample_count: int, duration: float) -> None:
+        self.rate = rate
+        self.sample_count = sample_count
+        self.duration = duration
+        self.generation = 0
+        self.frozen_sample = 0
+        self.playing = False
+        self.timings: deque[BufferTiming] = deque(maxlen=256)
+
+    def position(self, stream_time: float) -> float:
+        sample = float(self.frozen_sample)
+        if self.playing:
+            # Future buffers must not replace the buffer currently being heard.
+            # A snapshot avoids deque iteration racing callback append operations.
+            for timing in reversed(tuple(self.timings)):
+                if timing.generation == self.generation and timing.dac_time <= stream_time:
+                    sample = timing.first_sample + min(
+                        timing.samples, max(0.0, (stream_time - timing.dac_time) * self.rate)
+                    )
+                    break
+        return min(self.duration, max(0.0, sample / self.rate))
+
+    def reset(self, position: float, *, playing: bool) -> None:
+        self.generation += 1
+        self.frozen_sample = min(self.sample_count, max(0, round(position * self.rate)))
+        self.timings.clear()
+        self.playing = playing
+
+
+class PCMPlayback:
+    def __init__(self, samples: AudioSamples, sample_rate: int) -> None:
+        import sounddevice as sd
+
+        self.audio = sd
+        if sample_rate <= 0 or samples.ndim != 2 or not len(samples) or samples.shape[1] < 1:
+            raise ValueError("Playback requires nonempty PCM shaped (frames, channels) and a positive rate.")
+        if samples.dtype != np.float32 or not np.all(np.isfinite(samples)):
+            raise ValueError("Playback requires finite float32 PCM.")
+        self.duration = len(samples) / sample_rate
+        self.source_rate = sample_rate
+        self.rate = sample_rate
+        self.samples = samples
+        self.stream: sd.OutputStream | None = None
+        self.submitted_sample = 0
+        self.underruns = 0
+        self.reliable_buffering = False
+        self.callback_error: Exception | None = None
+        self.closed = False
+        self.eof = False
+        channels = samples.shape[1]
+        try:
+            sd.check_output_settings(channels=channels, dtype="float32", samplerate=self.rate)
+        except sd.PortAudioError:
+            device = sd.query_devices(kind="output")
+            supported_rate = round(device["default_samplerate"])
+            sd.check_output_settings(channels=channels, dtype="float32", samplerate=supported_rate)
+            divisor = math.gcd(sample_rate, supported_rate)
+            self.samples = np.ascontiguousarray(
+                resample_poly(samples, supported_rate // divisor, sample_rate // divisor, axis=0), dtype=np.float32
+            )
+            self.rate = supported_rate
+        self.clock = PlaybackClock(self.rate, len(self.samples), self.duration)
+        self.stream = self._open_stream("low")
+
+    def _open_stream(self, latency: str | float) -> sd.OutputStream:
+        return self.audio.OutputStream(
+            samplerate=self.rate,
+            channels=self.samples.shape[1],
+            dtype="float32",
+            blocksize=0,
+            latency=latency,
+            clip_off=True,
+            dither_off=True,
+            callback=self._callback,
+        )
+
+    @classmethod
+    def from_wav(cls, path: Path) -> PCMPlayback:
+        rate, samples = load_wav(path, preserve_channels=True)
+        return cls(samples, rate)
+
+    @property
+    def paused(self) -> bool:
+        return not self.clock.playing
+
+    @property
+    def position(self) -> float:
+        if self.stream is None or self.paused:
+            return self.clock.position(0)
+        return self.clock.position(self.stream.time)
+
+    def _callback(self, output: AudioSamples, frames: int, timing: CallbackTime, status: sd.CallbackFlags) -> None:
+        generation = self.clock.generation
+        first = self.submitted_sample
+        count = min(frames, len(self.samples) - first)
+        try:
+            output[:count] = self.samples[first : first + count]
+            output[count:] = 0
+            self.submitted_sample = first + count
+            self.clock.timings.append(BufferTiming(generation, first, count, timing.outputBufferDacTime))
+            if status.output_underflow:
+                self.underruns += 1
+            if self.submitted_sample >= len(self.samples):
+                self.eof = True
+                # Only natural completion drains the final buffer. Pause/seek abort.
+                raise self.audio.CallbackStop
+        except self.audio.CallbackStop:
+            raise
+        except Exception as error:
+            output.fill(0)
+            self.callback_error = error
+            raise self.audio.CallbackAbort from error
+
+    def play(self) -> None:
+        if self.closed or self.stream is None:
+            raise RuntimeError("Playback stream is closed.")
+        if not self.paused:
+            return
+        position = self.position
+        if position >= self.duration:
+            position = 0.0
+        self.stream.abort()
+        self.clock.reset(position, playing=True)
+        self.submitted_sample = self.clock.frozen_sample
+        self.eof = False
+        self.callback_error = None
+        try:
+            self.stream.start()
+        except Exception:
+            self.clock.reset(position, playing=False)
+            raise
+
+    def pause(self) -> None:
+        if self.paused or self.stream is None:
+            return
+        # Abort discards queued audio without waiting for it to drain. Reading
+        # the same clock after abort estimates the final audible sample.
+        position = self.position
+        try:
+            self.stream.abort()
+            position = self.clock.position(self.stream.time)
+        finally:
+            self.clock.reset(position, playing=False)
+
+    def seek(self, position: float) -> None:
+        if not math.isfinite(position):
+            raise ValueError("Seek requires a finite recording timestamp.")
+        playing = not self.paused
+        self.pause()
+        self.clock.reset(min(self.duration, max(0.0, position)), playing=False)
+        # Seeking to EOF stays at EOF. Space subsequently restarts at zero.
+        if playing and position < self.duration:
+            self.play()
+
+    def toggle(self) -> None:
+        if self.paused:
+            self.play()
+        else:
+            self.pause()
+
+    def poll(self) -> float:
+        position = self.position
+        if self.callback_error is not None:
+            error = self.callback_error
+            self.pause()
+            raise RuntimeError(f"Audio callback failed: {error}") from error
+        if not self.paused and self.stream is not None:
+            if self.eof and position >= self.duration - 0.5 / self.rate:
+                self.pause()
+                self.clock.reset(self.duration, playing=False)
+                return self.duration
+            if not self.stream.active:
+                self.pause()
+                if not self.eof:
+                    raise RuntimeError("Audio device stopped unexpectedly. Review edits are retained.")
+            elif self.underruns >= 3 and not self.reliable_buffering:
+                # Some backends request only a few milliseconds at 'low'. A
+                # Python callback also needs the GIL during native Qt painting.
+                # Retry once with reliable buffering; the DAC clock accounts
+                # for the larger queue, so this needs no cursor compensation.
+                self.pause()
+                self.stream.close()
+                self.stream = None
+                self.reliable_buffering = True
+                self.stream = self._open_stream(0.1)
+                self.play()
+                position = self.position
+        return position
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        try:
+            self.pause()
+        finally:
+            self.closed = True
+            if self.stream is not None:
+                self.stream.close()

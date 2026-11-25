@@ -1,266 +1,164 @@
-# Automatic kick annotation and production benchmarking
-
-Analyze one of the four local development recordings, then correct the predictions:
+# Review kick annotations
 
 ```bash
-uv run python -m benchmarks.annotate --track universal --regenerate
-uv run python -m benchmarks.annotate --track universal --plot
+uv run python -m benchmarks.annotation --track universal --plot
 ```
 
-The complete recording supplies recurring sound references automatically. No template
-selection or manual onset placement is needed before review. Listen with Space and
-click incorrect candidate markers to toggle kick/non-kick. Clicking again reverses
-the decision without moving the onset. Orange outlines flag uncertainty; they do
-not prove an error. Predictions and saved reviews are **not reviewed ground truth**.
+Open the existing proposals and saved review. Generation is automatic only when
+proposals do not yet exist; `--regenerate` explicitly replaces predictions and is
+unnecessary for navigation changes. Predictions are **not reviewed ground truth**.
 
-Use the right-side buttons for navigation, undo, saving, and optional corrections
-of similar events. Group corrections display their affected count and require a
-second click to apply. They preserve earlier explicit decisions. Reclassification
-using corrections is an explicit action, not a calculation on every click. It
-preserves corrected event identities, timestamps and labels and can be undone.
-You need not individually confirm every correct algorithmic prediction, but must
-review the entire recording before finalizing it.
+On Linux, install PortAudio for sounddevice playback:
 
-Optional synchronized playback uses the installed `mpv` executable. On Ubuntu:
-`sudo apt install mpv`. Generation, benchmarking, and review without playback do
-not require it. Playback starts paused, uses private JSON IPC without a player
-window, follows reported positions every 50 ms, and stops at the interval end.
-Navigation seeks to the displayed start and pauses. Closing releases the player
-and socket. Playback timing never changes annotations.
+```bash
+sudo apt install libportaudio2
+uv sync --group review
+```
 
-| Shortcut | Review action |
+PySide6 uses the desktop's Qt appearance and requires a working Wayland or X11
+session. Minimal X11 installations may additionally need `libxcb-cursor0` and
+`libxkbcommon-x11-0`. The `review` dependency group includes `benchmark`; `dev`
+includes `review`. sounddevice is exclusive to review. Qt and PyQtGraph were
+already Spectra GUI runtime dependencies; no production dependency was added.
+Noninteractive annotation and benchmarking never import Qt, PyQtGraph or sounddevice.
+Matplotlib is used only for saved static diagnostics.
+
+## Listening and correcting
+
+- **Click: seek playback**, including clicks on candidate markers. Seeking keeps
+  the playing/paused state and never changes a classification.
+- **Shift + Click: correct or add kick.** Clicking a displayed marker toggles its
+  kick label without moving its onset. Elsewhere, review searches within 50 ms
+  for a matching hidden acoustic candidate before automatically localizing a new
+  manually identified kick. Ambiguous matches are highlighted for clarification:
+  inspect and Shift-click the highlighted marker to correct it. Existing duplicate
+  protection also runs after localization. All corrections are undoable.
+- Right-click a marker to select and inspect it without changing labels.
+- **Follow playback (F)** is the default navigation mode. The viewport follows
+  playback with the cursor at 40% of the plot width wherever recording boundaries
+  permit. Wheel zoom anchors at playback, both while playing and paused.
+- Drag either plot horizontally to pan and enter free navigation. Playback keeps
+  running; drags never seek or edit. In free navigation, wheel zoom anchors at the
+  mouse pointer, and playback and seeks leave the viewport unchanged. The cursor
+  is hidden outside the visible range. Press **F** or enable the checkbox to
+  return to playback immediately, preserving zoom and play/pause state. Disabling
+  the checkbox leaves playback and the viewport unchanged.
+
+Space always toggles playback, and starts again at zero after the recording ends.
+Audio continues across viewport boundaries. Following scrolls the graph beneath
+the cursor while playing and remains stationary while paused. The viewport stays
+within the recording: at either boundary, the cursor moves away from its anchor
+while the visible duration is preserved. A full-recording viewport stays fixed.
+`--start 60 --duration 10` sets the initial playback position and viewport width;
+the default width is ten seconds. Seeks preserve zoom and immediately reposition
+the viewport only in follow mode. The recording-wide slider previews a destination
+while dragging and seeks on release, with the same mode-dependent behavior. Ordinary times are
+integer seconds; subsecond zoom and Advanced inspection retain finer display.
+
+The two plots show waveform and bass-onset/broadband evidence. A single marker
+lane above the waveform normally shows green automatic kicks, blue human kicks,
+and subdued red human rejections. Non-kicks remain available but hidden. Direct
+review navigation temporarily reveals only the selected hidden event. The pink
+selection and cyan playback indicators span both plots. The spectrogram remains
+available in static diagnostics only.
+
+| Shortcut | Action |
 | --- | --- |
-| Click a candidate / T | Toggle clicked / selected classification, retaining its onset |
-| Space / Home | Play-pause / restart the displayed interval |
-| Alt + Click | Seek playback |
-| Left / Right | Previous / next displayed interval |
-| , / . | Previous / next uncertain candidate |
-| [ / ] | Previous / next unsupported-beat candidate |
-| Ctrl + Z / Ctrl + S | Undo / save review |
-| R | Reclassify uncorrected events using human corrections |
-| < / > | Previous / next human correction (Advanced) |
-| Escape | Remove the selected human override (Advanced) |
-| G / H | Switch grid overlay / show-hide non-kicks (Advanced) |
-| Shift + Click | Insert a completely missing event and localize its onset (Advanced) |
+| Space | Play / pause; restart from zero at actual recording end |
+| Backspace | Seek backward 10 seconds |
+| Left / Right | Seek backward / forward 5 seconds |
+| Shift + Left / Right | Seek backward / forward 1 second |
+| F | Return to playback and enable following |
+| , / . | Previous / next uncertain classification |
+| [ / ] | Previous / next unsupported beat |
+| < / > | Previous / next human correction |
+| Ctrl+Z / Ctrl+S | Undo / save review |
 
-All buttons use the same handlers as the keyboard. Selected events are highlighted
-on all three plots. Candidate navigation centers a two-second interval, shifts
-it inward at recording boundaries, and never wraps. Consecutive unsupported
-beats advance relative to the selected event, even within the same view.
-Unsupported beats are ordinary candidates: toggle their labels rather than using
-the former separate Y/X kick/gap mechanism. Corrected candidates and beats within
-50 ms of an effective kick are excluded from the unsupported review queue.
+Playback skips use the player's current clock, independent of zoom, clamp to the
+recording boundaries, and retain play/pause state. Seeking to the recording end
+leaves playback paused. Playback controls are disabled if audio is unavailable.
+Shortcuts work with plot, button or slider focus; text entry keeps its usual keys.
 
-Waveform, low-frequency spectrogram, and evidence plots share recording time.
-Solid green circles are automatic kicks; hollow gray triangles are automatic
-non-kicks. Solid blue squares and hollow red X markers distinguish human
-corrections. Orange hollow diamonds independently indicate uncertainty. Small
-vertical/horizontal marks independently indicate grid alignment/off-grid events.
-The legend is below the data. The default view is ten seconds; `--start 60
---duration 10` selects another interval. Ordinary toolbar zoom/pan works.
-The control panel scrolls at shorter heights; Advanced operations start collapsed.
-Progress gives candidate/kick/non-kick counts, human corrections and uncorrected
-uncertain candidates. A correction count is not a percentage of verified ground truth.
+Candidate navigation centers a two-second viewport, enters free navigation,
+pauses and seeks to its beginning. Repeated navigation advances from the selected event even when events
+share a viewport. Explicit human decisions leave both ordinary review queues.
+Unsupported positions within 50 ms of an effective kick are excluded as before.
+Classification uncertainty includes ambiguous/unclassified template decisions,
+threshold proximity and conflicting references. Onset uncertainty, off-grid
+predictions and unsupported provenance alone do not enter that queue.
 
-Reviews are ignored local files under `datasets/techno/drafts/`. They contain
-candidate identities, explicit binary overrides with frozen onset timestamps,
-group provenance, manual additions and any explicitly recomputed predictions.
-There is no independently mutable accepted-timestamp list. Effective kicks are
-derived from predictions plus overrides. Saved reclassification survives reopening.
-Undo covers individual/group corrections, insertion, override removal, and
-reclassification (100 actions in memory).
+**Advanced** contains non-kicks, classification uncertainty, grid/hypothesis,
+similarity and timing overlays, correction navigation, override removal, and a
+signed visual cursor offset in milliseconds. The estimated beat grid starts
+visible as thin dashed gray lines behind the waveform, using the proposal's
+selected primary or available alternative hypothesis. The unsupported-beat queue
+uses the same hypothesis. Advanced can hide the grid or switch hypotheses;
+neither changes annotations. All other optional overlays start hidden. A positive
+offset moves only the drawn cursor forward; it never changes audio, seeking,
+onsets, saved reviews or benchmark results. Leave it at zero unless residual
+device-specific timing warrants calibration.
 
-Proposal hashes exclude informational processing times. Regeneration preserves
-exactly matched identities and source anchors; changed timing estimates do not
-move corrected events. A stale-review warning requires inspecting new predictions
-and saving before finalization. Unmatched human decisions abort replacement and
-identify the unmatched IDs; no nearest-event guesses are made. Old draft formats
-are preserved and require explicit `--migrate-draft` or `--reset-draft`. Migration
-requires unambiguous matches and writes a legacy backup; reset requires typing
-`RESET <identifier> DRAFT` and also keeps a backup. An old accepted list's omissions
-are never inferred to be explicit rejections. Reviewed manifests are never changed
-by generation, reclassification, migration, or draft initialization.
+Similar-event actions display their affected count and require a second click.
+They preserve explicit decisions. Reclassification is an explicit background
+operation using a snapshot; results are discarded if corrections change while
+it runs. It preserves earlier human decisions and remains undoable.
 
-The original unreviewed Universal draft was backed up locally as
-`universal.unreviewed-v2.json`, following confirmation that no manual annotation
-had been done. Its new draft contains automatic predictions without fabricated
-human corrections.
+## Saving and finalizing
 
-## Automatic annotation version 3
+Ctrl+S saves a draft under `datasets/techno/drafts/`. Closing with unsaved edits
+prompts to save, discard or cancel. Opening/closing a review does not write it.
+Effective annotations are derived from predictions and explicit decisions; the UI
+has no independent mutable kick list. Drafts retain identities, frozen corrected
+onsets, manual events, group provenance and saved reclassification. Undo retains
+100 actions in memory. Correction counts do **not** represent verified coverage.
 
-Version 3 reuses the unchanged version-1 acoustic stage and version-2 feature and
-cosine-alignment methods. It is independent of production DSP and detection.
-[Detailed earlier methods and baselines](annotation-methodology.md) remain intact.
-
-1. Retain every original novelty peak. For unsupported beats in both primary and
-   half-beat grids, find the strongest local novelty maximum within ±50 ms, even
-   below the original prominence threshold. Otherwise retain the beat as a
-   grid-only candidate. Supplementary events within 30 ms of an existing event
-   are not duplicated; original acoustic candidates are never merged. Stable IDs
-   hash audio identity, provenance and original 48 kHz sample position.
-2. Independently localize acoustic events in −30 to +50 ms neighborhoods. A
-   second-order zero-phase Butterworth filter supplies 20–300 Hz energy; original
-   mono audio supplies broadband energy. Trailing 5 ms mean-square windows have
-   1 ms hops and timestamps at their ends, avoiding centered-window backdating.
-   Background is median/MAD over the 75 ms preceding the search interval. Follow
-   the dominant joint energy rise backward to a crossing above both background
-   +3 MAD and 10% of the local rise, sustained for at least 3 ms, in both channels.
-   The raw-energy gate prevents filter pre-ringing alone from establishing onset.
-   The numerical floor is 1e-12. Unreliable crossings retain their original time;
-   grid-only positions remain estimated and cannot automatically become kicks.
-3. At localized onsets, extract the existing 37×12 normalized features: centered
-   2048-point Hann STFT, 48 kHz, 240-sample hops, −20 to +160 ms context, median
-   −100 to −25 ms background, fractional band powers, square-root compression,
-   subtraction/clamping and one L2 normalization. Invalid zero features are excluded.
-4. Use SciPy average-linkage hierarchical clustering with cosine distance cut
-   **0.15**, an experimental fixed parameter. Store cluster size, evidence, median
-   nonnegative low-frequency increase, within-cluster similarity, recording-quarter
-   distribution, medoid and primary/alternative grid support. Select the medoid
-   and up to two members separated by at least one-sixth of the recording (and
-   180 ms). Eligible clusters have ≥8 members and ≥70% alignment to a grid.
-   Score each grid as `alignment_fraction * log1p(unique_supported_beats) *
-   median_low_frequency_power_increase`. The best cluster supplies references.
-   Further eligible clusters on that grid need medoid similarity ≥0.70 to an
-   already selected cluster. At most nine references are used. No automatic
-   negative references are discovered. Competing clusters and grids remain reported.
-5. Compare every candidate with positive references at offsets −30…+30 ms, every
-   5 ms. Similarity ≥0.85 predicts kick; ≥0.70 is ambiguous/non-kick; lower scores
-   predict non-kick. The final onset is localized time plus the best match offset;
-   search-boundary matches are flagged. Without references, only grid-aligned
-   acoustic candidates predict kicks, with low confidence. Without a grid or
-   references, reliable automatic classification is explicitly unavailable.
-6. Human-confirmed kicks can supply additional positive references and explicit
-   rejections can supply negatives on R. A positive-minus-negative margin of
-   0.10 is retained. Rejected automatic references are excluded from positives.
-   No algorithmic prediction is treated as human confirmation. Similarity is
-   not a probability, and recurring bass sounds can win automatic cluster selection.
-
-Parameters live in immutable `AutomaticParameters` and `TemplateParameters`,
-independently of production configuration. No tuning was applied after recording
-the automatic baseline. Proposals retain original, independently localized,
-template-refined and final times; reliability and provenance; cluster identities;
-similarity scores, predictions and uncertainty reasons. Uncertainty cues include
-threshold proximity, conflicting references, unsupported positions, off-grid
-predictions and unreliable localization. These are review cues, not error labels.
-Both grid hypotheses and 30-second acoustic phase comparisons remain available;
-neither BPM nor the primary grid is silently changed.
+Proposal identity excludes informational processing timings. Regeneration carries
+only exactly matched identities and source anchors forward. Stale reviews require
+inspection and saving before finalization. Unmatched decisions abort rather than
+being guessed. Legacy drafts require explicit `--migrate-draft` or `--reset-draft`,
+with backups and existing confirmation requirements. These commands never modify
+reviewed annotation manifests.
 
 ```bash
-uv run python -m benchmarks.annotate --automatic-synthetic \
-  --json benchmarks/results/annotation_automatic_baseline.json
-uv run python -m benchmarks.annotate --track universal --diagnostics
+uv run python -m benchmarks.annotation --track universal --finalize
 ```
 
-Diagnostic ten-second sections rank likely beat support (≥8 beats) for a regular
-section, and ambiguous + off-grid likely + unsupported activity for a disjoint
-challenging section, with earliest ties. Without references they fall back to
-acoustic/grid statistics. A distinct maximum-phase-discrepancy section is added
-where possible. Plots of recurring cluster medoids expose competing signatures.
-Selections and counts are heuristic; “regular” does not mean verified kicks.
-Outputs stay ignored under `proposals/diagnostics_v3/`.
+Finalization consumes the saved review, checks the audio checksum, rate, duration,
+BPM and precise sorted onsets, and still requires typing
+`REVIEWED universal ENTIRE RECORDING`. Review the entire recording, including
+sections with no proposals, before confirming. Saving alone does not finalize.
 
-### Untuned automatic validation
+## Package and noninteractive tools
 
-[`annotation_automatic_baseline.json`](results/annotation_automatic_baseline.json)
-uses all 15 unchanged fixtures and **no ground-truth reference templates**. Ground
-truth enters evaluation only. The population retains 169/169 kicks at ±50 ms,
-requiring zero manual insertions at that window. Initial classification gives
-45 TP, 0 FP, 124 FN: precision 1.000, recall 0.266, F1 0.421, 0 FP/min, and
-124 binary label corrections under the recorded one-to-one population assignment.
-This assignment is not claimed to minimize editing effort in overlapping cases.
-
-The three fixtures with supplied tempo metadata achieve 45/45 initial detections.
-The other 12 have no tempo metadata; no eligible rhythmic cluster or reliable
-gridless classifier is available, so their kicks remain unclassified/non-kick.
-No known tempo was inferred from their ground-truth timestamps. This is a major
-recall limitation, not evidence of strong general-purpose kick specificity.
-Negative fixtures give zero initial predicted kicks, largely because references
-are unavailable; that does not prove discrimination of offbeat bass.
-
-On all matched population events at ±50 ms, novelty median signed error is
-−15.0 ms; independent localization gives +3.27 ms median signed/absolute error
-and 27.0 ms P95 absolute error. On the 45 automatically predicted kicks, localized
-median is +3.0 ms and P95 3.83 ms; template refinement gives +3.0 ms and P95
-3.93 ms, offering no clear extra timing improvement. Localization is threshold-
-based and not sample accurate. Rumble, sub-bass and extended decay still demand
-review, particularly when novelty or background energy masks an attack.
-
-The JSON includes all three tolerance windows, timing stages, candidate-population
-false negatives, cluster/reference counts, and per-fixture corrections versus
-manual insertions. V1 candidate timestamps are asserted identical to the original
-baseline. V2 comparisons additionally use its same non-reference event population;
-those supplied-reference results must not be presented as fully automatic results.
-Synthetic validation is a sanity check, not real-music accuracy evidence.
-
-### Four-recording automatic pilot and review performance
-
-[`annotation_automatic_pilot.json`](results/annotation_automatic_pilot.json) records
-all four full development recordings, selected references, competing clusters/grid
-evidence, uncertainty, supplemental candidates, reliability and processing times.
-No held-out recording was processed and no annotation was finalized. Universal
-is ready for the two-command workflow above. Human review is still required
-before real-world precision or recall can be measured.
-
-| Track | Clusters / references | Selected grid | Kicks / non-kicks | Uncertain | Supplementary | Unreliable onsets | Analysis time |
-| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |
-| power_train | 221 / 5 | primary | 666 / 1648 | 1709 | 342 | 1346 | 12.27 s |
-| universal | 337 / 5 | primary | 656 / 1334 | 1148 | 219 | 529 | 11.72 s |
-| a_grim_premonition | 613 / 7 | alternative | 672 / 1536 | 2138 | 411 | 1247 | 13.99 s |
-| no_trust | 260 / 2 | primary | 778 / 1341 | 1322 | 167 | 1101 | 17.96 s |
-
-Many candidates still have uncertain timing or classification. The alternative
-hypothesis won for A Grim Premonition; this is an acoustic hypothesis, not a
-verified change of kick-grid phase. Catalog BPM and recurring bass interference
-remain possible sources of mistakes.
-
-[`annotation_review_performance.json`](results/annotation_review_performance.json)
-compares headless Agg on Universal 60–70 s at 1920×1080, interleaving old and new
-operations in the same process to reduce differences in system load. Median
-navigation fell from 1,821 to 420 ms; editing from 3,411 to 247 ms; edit/undo from
-1,623 to 104 ms; cursor rendering from 488 to 3.2 ms; construction from 3,778
-to 1,618 ms. The earlier standalone profile is retained as informational data. The older
-edit operation is add/remove; the new one is binary toggling, so it is a workflow
-comparison rather than identical operations. Repeated-hover fast-path timing
-excludes first inspection. These measurements are machine/load dependent and
-**not desktop responsiveness measurements**.
-
-Profiling identified full axis reconstruction, repeated associations and layout,
-and unconditional redraws as bottlenecks. The new view retains static audio artists,
-caches logarithmic spectra, uses visible time slices and min/max waveform buckets,
-and indexes sorted candidates for inspection. Edits blit dynamic overlays and
-changed controls; cursor updates restore a cached background and draw only cursor
-lines. Limits, layout, grid changes and resizing invalidate the relevant cache;
-unsupported backends use `draw_idle`. Clustering and feature extraction never run
-on hover or redraw. Actual Qt/mpv checks verified advancing reported time, interval-
-end pause, navigation seek/pause, unchanged event times and process/socket cleanup.
-Headless layouts were visually inspected at 1920×1080 and 1366×768 at 100 DPI.
-The desktop uses high-DPI scaling. At 200% scaling, forcing a 1366×768 physical-
-pixel window leaves insufficient space and the legend overlaps the controls;
-use a larger window (at least 1366×768 logical pixels). The default window is
-larger. Compact high-DPI layout remains a limitation; these rendering measurements
-also do not measure audio-output latency.
-
-
-## Finalizing ground truth
+`annotation/analysis.py`, `templates.py`, and `automatic.py` retain the independent
+numerical algorithms. `corrections.py` owns review data and undo. `diagnostics.py`
+generates static plots. `validation/` retains the acoustic, refinement and automatic
+synthetic experiments. `review/window.py`, `timeline.py`, and `playback.py` own Qt
+interaction, native PyQtGraph rendering, and PCM/DAC-clock playback respectively.
+`cli.py` implements the `python -m benchmarks.annotation` entry point. The separate
+production benchmark remains `python -m benchmarks.kick_detection`.
 
 ```bash
-uv run python -m benchmarks.annotate --track universal --finalize
+uv run --group benchmark python -m benchmarks.annotation --synthetic
+uv run --group benchmark python -m benchmarks.annotation --refined-synthetic
+uv run --group benchmark python -m benchmarks.annotation --automatic-synthetic
+uv run --group benchmark python -m benchmarks.annotation --track universal --diagnostics
 ```
 
-Finalization loads the saved draft, verifies the actual audio checksum and
-catalog rate/duration, checks finite, sorted, unique timestamps strictly inside
-the recording duration, and requires a positive confirmed BPM. It then asks
-you to type `REVIEWED universal ENTIRE RECORDING`, explicitly attesting that
-the entire recording was reviewed, including sections with no proposals, and
-every retained timestamp is a genuine kick. No displayed-section counter or
-accepted-candidate count can satisfy this requirement. Declining leaves the
-tracked manifest unchanged.
+Playback retains the original WAV's channel layout and amplitude in float32 PCM,
+loading it once. Native-rate output is tried first; an unsupported rate is resampled
+once to the device default while retaining original recording time. Output initially
+requests backend-selected low-latency buffers. Repeated underruns trigger one retry
+with 100 ms buffering; cursor synchronization still uses DAC timestamps. Device
+errors leave editing and saving available. Pause/seek abort queued output rather
+than waiting for a draining stop; obsolete timing generations cannot move a paused
+cursor. Natural completion drains the final output buffer.
 
-The reviewed record stores track identifier, checksum, annotation algorithm
-version, explicit confirmed kick timestamps, confirmed BPM, and `reviewed`
-status. There is no compact regular-sequence representation or partial-track
-scoring. Initially `annotations.json` is an empty list: this milestone does
-not fabricate ground truth or claim real-world precision/recall.
+The cursor uses PortAudio's `outputBufferDacTime` and current stream clock, not
+submitted sample count or GUI timer elapsed time. DAC times are **estimates**, not
+a guarantee of sample-accurate physical speaker output. See
+[methodology and verification](annotation-methodology.md) for numerical baselines,
+experiments and the distinction between software-loopback and physical accuracy.
 
 
 # Production kick detection benchmark
@@ -272,7 +170,7 @@ fast as possible, with fresh analyzer and detector state for each fixture.
 Production parameters and defaults live independently in the frozen
 `spectra.analysis.KickDetectionConfig` dataclass.
 
-The `dev` dependency group includes the separate `benchmark` group through
+The `dev` dependency group includes `review`, which includes `benchmark`, through
 uv's `include-group` mechanism. Ordinary `uv run pytest` and `uv run pyright`
 therefore work without an extra group flag. `--group benchmark` remains valid.
 
