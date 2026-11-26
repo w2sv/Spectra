@@ -53,30 +53,36 @@ Changing BPM or phase for an existing proposal requires `--regenerate`.
 
 ### Controls
 
-| Input                 | Action                            |
-| --------------------- | --------------------------------- |
-| Click                 | Seek                              |
-| Shift+click           | Toggle or insert a kick           |
-| Right-click           | Inspect candidate                 |
-| Drag                  | Pan timeline                      |
-| Scroll                | Zoom                              |
-| Space                 | Play/pause                        |
-| Left / Right          | Seek ±5 seconds                   |
-| Shift+Left / Right    | Seek ±1 second                    |
-| Backspace             | Seek backward 10 seconds          |
-| F                     | Follow playback                   |
-| `,` / `.`             | Previous/next uncertain candidate |
-| `[` / `]`             | Previous/next unsupported beat    |
-| `<` / `>`             | Previous/next human correction    |
-| Ctrl+Z                | Undo                              |
-| Ctrl+Shift+Z / Ctrl+Y | Redo                              |
-| Ctrl+S                | Save                              |
-| Escape / Q            | Close                             |
+| Input                 | Action                                   |
+| --------------------- | ---------------------------------------- |
+| Click                 | Seek                                     |
+| Shift+click           | Toggle or insert a kick                  |
+| Right-click           | Inspect candidate                        |
+| Drag                  | Pan timeline                             |
+| Scroll                | Smooth zoom with adaptive speed          |
+| Space                 | Play/pause                               |
+| Left / Right          | Seek ±50% of visible duration            |
+| Shift+Left / Right    | Seek ±10% of visible duration            |
+| Backspace             | Seek backward 10 seconds                 |
+| F                     | Follow playback                          |
+| 1                     | Reset to the 10-second view and 1x speed |
+| `,` / `.`             | Previous/next uncertain candidate        |
+| `[` / `]`             | Previous/next unsupported beat           |
+| `<` / `>`             | Previous/next human correction           |
+| Ctrl+Z                | Undo                                     |
+| Ctrl+Shift+Z / Ctrl+Y | Redo                                     |
+| Ctrl+S                | Save                                     |
+| Escape / Q            | Close                                    |
 
 The upper marker lane displays automatic and manually confirmed kicks; the lower lane displays remaining candidates and
 explicit rejections. The graphical legend identifies their respective symbols. Similar-event corrections and
 reclassification can propagate human decisions across acoustically similar candidates without overriding existing
 explicit corrections.
+
+Adaptive speed is enabled by default: zooming in slows playback and zooming out speeds it up, within 0.25x–2x, with
+corresponding pitch changes. Disable **Adaptive speed** for 1x playback without changing the view; arrow-key seeks still
+follow the displayed viewport. Press **1** to restore the 10-second view and 1x speed while preserving playback position
+and navigation mode.
 
 ### Finalization
 

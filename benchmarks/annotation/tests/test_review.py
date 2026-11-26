@@ -44,6 +44,15 @@ class DeterministicPlayback:
         self.generation = 0
         self.reliable_buffering = False
         self.seeks: list[float] = []
+        self.speed = 1.0
+        self.target_speed = 1.0
+        self.dac_time = 0.0
+
+    def set_speed(self, speed: float) -> None:
+        self.target_speed = speed
+
+    def event_time(self, position: float) -> float | None:
+        return position
 
     def seek(self, position: float) -> None:
         self.generation += 1
@@ -62,6 +71,7 @@ class DeterministicPlayback:
         self.paused = True
 
     def poll(self) -> float:
+        self.dac_time = self.position
         return self.position
 
     def close(self) -> None:
@@ -333,10 +343,16 @@ def test_relative_seeks_use_player_clock_and_preserve_mode_and_zoom(
     playback.position = 16
     playback.paused = not playing
     review.playback_position = 1  # Deliberately stale GUI snapshot.
-    for action, expected in [("forward_5", 21), ("back_5", 16), ("back_1", 15), ("forward_1", 16), ("back_10", 6)]:
+    for action, expected in [
+        ("forward_half", 17),
+        ("back_half", 16),
+        ("back_tenth", 15.8),
+        ("forward_tenth", 16),
+        ("back_10", 6),
+    ]:
         before = review.timeline.interval
         review.perform_action(action)
-        assert playback.position == expected
+        assert playback.position == pytest.approx(expected)
         assert playback.paused is (not playing)
         assert review.follow_checkbox.isChecked() is following
         assert review.timeline.interval == pytest.approx((expected - 0.8, expected + 1.2) if following else before)
@@ -344,7 +360,7 @@ def test_relative_seeks_use_player_clock_and_preserve_mode_and_zoom(
     assert playback.position == 0
     assert playback.paused is (not playing)
     playback.position = playback.duration - 1
-    review.perform_action("forward_5")
+    review.perform_action("forward_half")
     assert playback.position == playback.duration and playback.paused
     assert review.timeline.interval[1] - review.timeline.interval[0] == pytest.approx(2)
 
@@ -412,8 +428,20 @@ def test_drag_is_free_navigation_without_playback_or_annotation_changes(
 @pytest.mark.parametrize("following", [True, False])
 @pytest.mark.parametrize("playing", [True, False])
 def test_wheel_zoom_anchors_and_boundaries(
-    review: AnnotationReview, playback: DeterministicPlayback, following: bool, playing: bool
+    review: AnnotationReview,
+    playback: DeterministicPlayback,
+    following: bool,
+    playing: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    now = [10.0]
+    monkeypatch.setattr("benchmarks.annotation.review.timeline.monotonic", lambda: now[0])
+    monkeypatch.setattr("benchmarks.annotation.review.window.monotonic", lambda: now[0])
+
+    def finish_zoom() -> None:
+        now[0] += 0.151
+        review.update_playback()
+
     playback.position = 12
     playback.paused = not playing
     review.update_playback()
@@ -423,6 +451,7 @@ def test_wheel_zoom_anchors_and_boundaries(
         left, right = review.timeline.interval
         mouse_time = left + (right - left) * 0.7
         wheel(review, mouse_time, evidence=evidence)
+        finish_zoom()
         new_left, new_right = review.timeline.interval
         width = new_right - new_left
         assert width < right - left
@@ -436,12 +465,15 @@ def test_wheel_zoom_anchors_and_boundaries(
         playback.position = position
         review.timeline.set_interval(0 if position < 1 else playback.duration - 2, 2)
         wheel(review, position, -120)
+        finish_zoom()
         left, right = review.timeline.interval
         assert 0 <= left < right <= playback.duration
     # A huge zoom out is constrained to the full recording; zoom in has a floor.
     review._zoom(1e6, playback.position)
+    finish_zoom()
     assert review.timeline.interval == pytest.approx((0, playback.duration))
     review._zoom(1e-6, playback.position)
+    finish_zoom()
     left, right = review.timeline.interval
     assert right - left == pytest.approx(0.02)
     assert 0 <= left < right <= playback.duration
@@ -451,17 +483,17 @@ def test_shortcuts_focus_and_override_do_not_duplicate_actions(
     review: AnnotationReview, playback: DeterministicPlayback, application
 ) -> None:
     playback.position = 15
-    for focus in (review.timeline.wave_widget, review.buttons["back_5"], review.seek_slider):
+    for focus in (review.timeline.wave_widget, review.buttons["back_half"], review.seek_slider):
         focus.setFocus()
         application.processEvents()
         playback.position = 15
         count = len(playback.seeks)
         QTest.keyClick(focus, Qt.Key.Key_Left)
-        assert playback.position == 10 and len(playback.seeks) == count + 1
+        assert playback.position == 14 and len(playback.seeks) == count + 1
         QTest.keyClick(focus, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
-        assert playback.position == 11
+        assert playback.position == pytest.approx(14.2)
         QTest.keyClick(focus, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
-        assert playback.position == 10
+        assert playback.position == 14
         QTest.keyClick(focus, Qt.Key.Key_Right)
         assert playback.position == 15
         QTest.keyClick(focus, Qt.Key.Key_Backspace)
@@ -532,7 +564,7 @@ def test_default_grid_and_unsupported_queue_share_hypothesis(
 
 
 def test_playback_actions_disabled_without_audio(review: AnnotationReview) -> None:
-    for action in ("play", "back_10", "back_5", "forward_5", "back_1", "forward_1"):
+    for action in ("play", "back_10", "back_half", "forward_half", "back_tenth", "forward_tenth"):
         assert not review.action_enabled(action)
         review.perform_action(action)
     assert not review.seek_slider.isEnabled()
@@ -892,3 +924,103 @@ def test_escape_cancels_the_actual_unsaved_dialog(review: AnnotationReview) -> N
     QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Q)
     assert len(dialogs) == 1 and isinstance(dialogs[0], QMessageBox)
     assert review.isVisible() and review.dirty and (review.draft, review.editor.history) == before
+
+
+@pytest.mark.parametrize("following", [False, True])
+def test_zoom_redirection_adaptive_speed_reset_and_navigation(
+    review: AnnotationReview, playback: DeterministicPlayback, monkeypatch: pytest.MonkeyPatch, following: bool
+) -> None:
+    now = [100.0]
+    monkeypatch.setattr("benchmarks.annotation.review.timeline.monotonic", lambda: now[0])
+    monkeypatch.setattr("benchmarks.annotation.review.window.monotonic", lambda: now[0])
+    playback.position = 12
+    playback.paused = False
+    review.follow_checkbox.setChecked(following)
+    review.timeline.set_interval(8, 8)
+    review._zoom(0.5, 12)
+    now[0] += 0.075
+    review.update_playback()
+    before = review.timeline.interval
+    assert 4 < before[1] - before[0] < 8
+    previous = review.timeline.zoom_transition
+    assert previous is not None
+    fraction = 0.8
+    target_anchor = previous.target_left + fraction * previous.target_width
+    mouse_time = before[0] + fraction * (before[1] - before[0])
+    now[0] += 0.025  # A wheel event arrives before the next animation frame.
+    review._zoom(0.5, mouse_time)
+    assert review.timeline.target_width == pytest.approx(
+        2
+    )  # Accumulate against the target, not the intermediate width.
+    redirected = review.timeline.zoom_transition
+    assert redirected is not None and 4 < redirected.initial_width < before[1] - before[0]
+    if not following:
+        assert redirected.target_left + fraction * redirected.target_width == pytest.approx(target_anchor)
+    assert review.timeline.interval == pytest.approx(
+        (redirected.initial_left, redirected.initial_left + redirected.initial_width)
+    )
+    now[0] += 0.151
+    review.update_playback()
+    assert review.timeline.interval[1] - review.timeline.interval[0] == pytest.approx(2)
+    assert playback.target_speed == pytest.approx((2 / 10) ** 0.5)
+    assert "Speed: 1.00x" in review.speed_label.text()  # Submitted targets are not audible rates.
+    playback.speed = 0.6
+    review.update_playback()
+    assert "Speed: 0.60x" in review.speed_label.text()
+    before = review.timeline.interval
+    review.adaptive_speed.setChecked(False)
+    assert playback.target_speed == 1 and review.timeline.interval == before
+    review.adaptive_speed.setChecked(True)
+    assert playback.target_speed == pytest.approx((2 / 10) ** 0.5)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_1)
+    assert review.timeline.zoom_transition is not None
+    now[0] += 0.151
+    review.update_playback()
+    assert review.timeline.interval[1] - review.timeline.interval[0] == pytest.approx(10)
+    assert playback.target_speed == pytest.approx(1)
+    assert playback.position == 12 and not playback.paused and review.follow_checkbox.isChecked() is following
+    review._zoom(0.5, 12)
+    now[0] += 0.075
+    review.update_playback()
+    width = review.timeline.interval[1] - review.timeline.interval[0]
+    review._seek(14)
+    assert review.timeline.zoom_transition is None
+    assert review.timeline.interval[1] - review.timeline.interval[0] == pytest.approx(width)
+    review._zoom(0.5, 14)
+    review.timeline.manuallyNavigated.emit()
+    assert review.timeline.zoom_transition is None and not review.follow_checkbox.isChecked()
+    review._zoom(0.5, 14)
+    review.perform_action("follow")
+    assert review.timeline.zoom_transition is None and review.follow_checkbox.isChecked()
+
+
+def test_keyboard_seeking_uses_displayed_zoom_with_adaptive_speed_disabled(
+    review: AnnotationReview, playback: DeterministicPlayback, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [100.0]
+    monkeypatch.setattr("benchmarks.annotation.review.timeline.monotonic", lambda: now[0])
+    monkeypatch.setattr("benchmarks.annotation.review.window.monotonic", lambda: now[0])
+    review.follow_checkbox.setChecked(False)
+    review.adaptive_speed.setChecked(False)
+    review.timeline.set_interval(4, 10)
+    playback.position = 16
+    playback.paused = False
+    playback.speed = 0.25
+    review._zoom(0.25, 9)
+    now[0] += 0.075
+    review.update_playback()
+    before = review.timeline.interval
+    assert before[1] - before[0] == pytest.approx(5)
+    assert review.timeline.target_width == pytest.approx(2.5)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Right)
+    assert playback.position == pytest.approx(18.5)
+    assert review.timeline.interval == pytest.approx(before) and not playback.paused
+    assert review.timeline.zoom_transition is None
+    assert not review.follow_checkbox.isChecked() and not review.adaptive_speed.isChecked()
+    review.timeline.set_interval(0, 0.5)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Left)
+    assert playback.position == pytest.approx(18.25)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    assert playback.position == pytest.approx(18.3)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Backspace)
+    assert playback.position == pytest.approx(8.3)

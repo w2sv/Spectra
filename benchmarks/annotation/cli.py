@@ -22,6 +22,7 @@ from benchmarks.annotation.corrections import (
     proposal_checksum,
     save_review,
 )
+from benchmarks.annotation.review import DEFAULT_VIEW_DURATION
 from benchmarks.annotation.validation import ValidationStrategy, validate
 from benchmarks.fixtures import verify_checksum
 from benchmarks.tracks import TECHNO, Track, read_catalog, validate_timestamps, verified_audio
@@ -81,7 +82,7 @@ def annotate_track(
     regenerate: bool = False,
     mode: Literal["review", "prepare", "diagnostics"] = "review",
     start: float = 0,
-    duration: float = 10,
+    duration: float = DEFAULT_VIEW_DURATION,
     reset: bool = False,
     root: Path = TECHNO,
 ) -> dict[str, object]:
@@ -292,7 +293,7 @@ def main(argv: list[str] | None = None) -> None:
                 regenerate=arguments.regenerate,
                 mode=mode,
                 start=arguments.start if arguments.start is not None else 0,
-                duration=arguments.duration if arguments.duration is not None else 10,
+                duration=arguments.duration if arguments.duration is not None else DEFAULT_VIEW_DURATION,
                 reset=arguments.reset_draft,
             )
             print(json.dumps(summary, indent=2, allow_nan=False))

@@ -45,7 +45,8 @@ from benchmarks.annotation.corrections import (
     save_review,
     uncertain_classification,
 )
-from benchmarks.annotation.review.playback import KickFlash, PCMPlayback
+from benchmarks.annotation.review import DEFAULT_VIEW_DURATION
+from benchmarks.annotation.review.playback import KickFlash, PCMPlayback, zoom_speed
 from benchmarks.annotation.review.styles import (
     AUTOMATIC_KICK,
     BASS,
@@ -68,9 +69,10 @@ KEY_ACTIONS: dict[int, str] = {
     Qt.Key.Key_Q: "close",
     Qt.Key.Key_Space: "play",
     Qt.Key.Key_Backspace: "back_10",
-    Qt.Key.Key_Left: "back_5",
-    Qt.Key.Key_Right: "forward_5",
+    Qt.Key.Key_Left: "back_half",
+    Qt.Key.Key_Right: "forward_half",
     Qt.Key.Key_F: "follow",
+    Qt.Key.Key_1: "reset_zoom",
     Qt.Key.Key_Comma: "previous_uncertain",
     Qt.Key.Key_Period: "next_uncertain",
     Qt.Key.Key_BracketLeft: "previous_unsupported",
@@ -79,17 +81,17 @@ KEY_ACTIONS: dict[int, str] = {
     Qt.Key.Key_Greater: "next_corrected",
 }
 SHIFT_KEY_ACTIONS: dict[int, str] = {
-    Qt.Key.Key_Left: "back_1",
-    Qt.Key.Key_Right: "forward_1",
+    Qt.Key.Key_Left: "back_tenth",
+    Qt.Key.Key_Right: "forward_tenth",
     Qt.Key.Key_Comma: "previous_corrected",
     Qt.Key.Key_Period: "next_corrected",
 }
-RELATIVE_SEEKS = {"back_10": -10, "back_5": -5, "forward_5": 5, "back_1": -1, "forward_1": 1}
+VIEWPORT_SEEKS = {"back_half": -0.5, "forward_half": 0.5, "back_tenth": -0.1, "forward_tenth": 0.1}
 LABELS = {
     "play": "Play (Space)",
     "back_10": "Back 10 s (Backspace)",
-    "back_5": "Back 5 s (Left)",
-    "forward_5": "Forward 5 s (Right)",
+    "back_half": "Back 50% of view (Left)",
+    "forward_half": "Forward 50% of view (Right)",
     "previous_uncertain": "Previous uncertain classification (,)",
     "next_uncertain": "Next uncertain classification (.)",
     "previous_unsupported": "Previous unsupported beat ([)",
@@ -144,7 +146,7 @@ class AnnotationReview(QMainWindow):
         draft: ReviewDraft,
         draft_path: Path,
         start: float = 0,
-        duration: float = 10,
+        duration: float = DEFAULT_VIEW_DURATION,
         *,
         audio_path: Path | None = None,
     ) -> None:
@@ -199,6 +201,18 @@ class AnnotationReview(QMainWindow):
         self.playback_label = QLabel()
         seeking.addWidget(self.seek_slider, 1)
         seeking.addWidget(self.playback_label)
+        self.speed_label = QLabel()
+        self.speed_label.setFixedWidth(
+            self.speed_label.fontMetrics().horizontalAdvance("Zoom: 500.00x  ·  Speed: 2.00x")
+        )
+        seeking.addWidget(self.speed_label)
+        self.adaptive_speed = QCheckBox("Adaptive speed")
+        self.adaptive_speed.setChecked(True)
+        self.adaptive_speed.setToolTip(
+            "Adjust playback speed with zoom; 1 resets the view and speed. Pitch changes with speed."
+        )
+        self.adaptive_speed.toggled.connect(self._adaptive_toggled)
+        seeking.addWidget(self.adaptive_speed)
         left.addLayout(seeking)
         self.inspection = QLabel("Right-click a marker to select and inspect it without editing.")
         self.inspection.setWordWrap(True)
@@ -216,7 +230,7 @@ class AnnotationReview(QMainWindow):
         hint = QLabel("<b>Click: seek playback<br>Shift + Click: correct or add kick</b>")
         hint.setWordWrap(True)
         controls.addWidget(hint)
-        self._section(controls, "Playback", ["play", "back_10", "back_5", "forward_5"])
+        self._section(controls, "Playback", ["play", "back_10", "back_half", "forward_half"])
         self.follow_checkbox = QCheckBox("Follow playback (F)")
         self.follow_checkbox.setChecked(True)
         self.follow_checkbox.setToolTip(
@@ -297,7 +311,7 @@ class AnnotationReview(QMainWindow):
         self.statusBar().setSizeGripEnabled(True)
         self.statusBar().showMessage("Predictions are unreviewed. Save corrections with Ctrl+S.")
         self.timeline.clicked.connect(self.timeline_click)
-        self.timeline.manuallyNavigated.connect(lambda: self.follow_checkbox.setChecked(False))
+        self.timeline.manuallyNavigated.connect(self._manually_navigated)
         self.timeline.zoomRequested.connect(self._zoom)
         self.timeline.rangeChanged.connect(self._range_changed)
         self.timeline.set_interval(start, duration)
@@ -312,6 +326,7 @@ class AnnotationReview(QMainWindow):
             try:
                 self.player = PCMPlayback.from_wav(audio_path)
                 self.player.seek(start)
+                self._set_speed_from_zoom()
             except Exception as error:
                 self.statusBar().showMessage(f"Playback unavailable: {error}. Review edits remain available.")
         self.refresh()
@@ -329,8 +344,9 @@ class AnnotationReview(QMainWindow):
     def _button(self, layout: QBoxLayout, action: str) -> None:
         button = QPushButton(LABELS[action])
         tooltip = LABELS[action]
-        if action in ("back_5", "forward_5"):
-            tooltip += "; Shift + " + ("Left: back 1 s" if action == "back_5" else "Right: forward 1 s")
+        if action in ("back_half", "forward_half"):
+            tooltip += "; Shift + " + ("Left: back 10%" if action == "back_half" else "Right: forward 10%")
+            tooltip += ". Uses the displayed viewport duration, independently of playback speed."
         if action == "redo":
             tooltip += "; Ctrl+Shift+Z also redoes"
         button.setToolTip(tooltip)
@@ -356,8 +372,22 @@ class AnnotationReview(QMainWindow):
         text = f"Visible range: {round(left)}–{round(right)} s"
         if self.range_label.text() != text:
             self.range_label.setText(text)
+        self._set_speed_from_zoom()
+
+    def _set_speed_from_zoom(self) -> None:
+        if self.player is not None:
+            left, right = self.timeline.interval
+            self.player.set_speed(zoom_speed(right - left) if self.adaptive_speed.isChecked() else 1.0)
+
+    def _adaptive_toggled(self, enabled: bool) -> None:
+        self._set_speed_from_zoom()
+
+    def _manually_navigated(self) -> None:
+        self.timeline.cancel_zoom()
+        self.follow_checkbox.setChecked(False)
 
     def _follow_toggled(self, enabled: bool) -> None:
+        self.timeline.cancel_zoom()
         if enabled:
             self.visual_snapshot = None
             self.update_playback(force=True)
@@ -381,6 +411,7 @@ class AnnotationReview(QMainWindow):
         )
 
     def _seek(self, destination: float) -> None:
+        self.timeline.cancel_zoom()
         player = self.player
         if player is not None:
             destination = min(self.analysis.duration_seconds, max(0.0, destination))
@@ -520,7 +551,7 @@ class AnnotationReview(QMainWindow):
         return positions[index][1] if 0 <= index < len(positions) else None
 
     def action_enabled(self, action: str) -> bool:
-        if action == "play" or action in RELATIVE_SEEKS:
+        if action in ("play", "back_10") or action in VIEWPORT_SEEKS:
             return self.player is not None
         if action == "undo":
             return bool(self.editor.history)
@@ -697,10 +728,15 @@ class AnnotationReview(QMainWindow):
                 self.close()
             elif action == "play" and self.player is not None:
                 self._playback_action(self.player.toggle)
-            elif action in RELATIVE_SEEKS and self.player is not None:
-                self._seek(self.player.position + RELATIVE_SEEKS[action])
+            elif (action == "back_10" or action in VIEWPORT_SEEKS) and self.player is not None:
+                left, right = self.timeline.interval
+                distance = -10.0 if action == "back_10" else (right - left) * VIEWPORT_SEEKS[action]
+                self._seek(self.player.position + distance)
             elif action == "follow":
                 self._restore_following()
+            elif action == "reset_zoom":
+                left, right = self.timeline.interval
+                self._zoom(DEFAULT_VIEW_DURATION / self.timeline.target_width, (left + right) / 2)
             elif action.startswith(("previous_", "next_")):
                 direction, kind = action.split("_", 1)
                 key = self.navigation_target(kind, 1 if direction == "next" else -1)
@@ -794,6 +830,13 @@ class AnnotationReview(QMainWindow):
         offset = self.cursor_offset.value() / 1000
         following = self.follow_checkbox.isChecked()
         snapshot = (self.playback_position, offset, following)
+        if self.timeline.advance_zoom(
+            monotonic(), playback_position=self.playback_position if following else None, offset=offset
+        ):
+            self.visual_snapshot = snapshot
+            if not following:
+                self.timeline.set_cursor(self.playback_position, offset=offset)
+            return
         if snapshot == self.visual_snapshot:
             return
         self.visual_snapshot = snapshot
@@ -822,14 +865,23 @@ class AnnotationReview(QMainWindow):
             text = f"Playback unavailable / {round(self.analysis.duration_seconds)} s"
             if self.playback_label.text() != text:
                 self.playback_label.setText(text)
+            self._render_position()
+            self._update_speed_label()
             return
         try:
             was_paused = player.paused
             position = player.poll()
             self.playback_position = position
             self._render_position()
-            flashing = self.kick_flash.update(position, playing=not player.paused, generation=player.generation)
+            flashing = self.kick_flash.update(
+                position,
+                playing=not player.paused,
+                generation=player.generation,
+                playback_time=player.dac_time,
+                event_time=player.event_time,
+            )
             self.timeline.set_flash(flashing and self.flash_checkbox.isChecked())
+            self._update_speed_label()
             self._update_seek_controls(position, force=force or was_paused != player.paused)
             if was_paused != player.paused:
                 self.refresh_actions()
@@ -841,6 +893,14 @@ class AnnotationReview(QMainWindow):
                 )
         except Exception as error:
             self.playback_failed(error)
+
+    def _update_speed_label(self) -> None:
+        left, right = self.timeline.interval
+        zoom = DEFAULT_VIEW_DURATION / (right - left)
+        speed = self.player.speed if self.player is not None else 1.0
+        text = f"Zoom: {zoom:.2f}x  ·  Speed: {speed:.2f}x"
+        if self.speed_label.text() != text:
+            self.speed_label.setText(text)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.dirty and not self.close_pending:

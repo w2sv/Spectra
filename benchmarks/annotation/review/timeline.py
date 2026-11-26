@@ -1,6 +1,8 @@
 """Linked time plots, two marker lanes, and native horizontal navigation."""
 
 import math
+from dataclasses import dataclass
+from time import monotonic
 
 import numpy as np
 import pyqtgraph as pg
@@ -32,6 +34,16 @@ from benchmarks.annotation.review.styles import (
 )
 
 PLAYBACK_ANCHOR_FRACTION = 0.4
+ZOOM_TRANSITION_SECONDS = 0.15
+
+
+@dataclass(frozen=True)
+class ZoomTransition:
+    started: float
+    initial_left: float
+    initial_width: float
+    target_left: float
+    target_width: float
 
 
 class TimeAxis(pg.AxisItem):
@@ -106,6 +118,7 @@ class Timeline(QWidget):
         super().__init__()
         self.analysis = analysis
         self.proposal = proposal
+        self.zoom_transition: ZoomTransition | None = None
         self.wave_box = HorizontalViewBox()
         self.evidence_box = HorizontalViewBox()
         self.wave = pg.PlotItem(viewBox=self.wave_box, axisItems={"bottom": TimeAxis("bottom")})
@@ -237,6 +250,10 @@ class Timeline(QWidget):
         return float(left), float(right)
 
     def set_interval(self, start: float, width: float) -> None:
+        self.cancel_zoom()
+        self._set_interval(start, width)
+
+    def _set_interval(self, start: float, width: float) -> None:
         width = self._clamp_width(width)
         start = min(max(0.0, start), self.analysis.duration_seconds - width)
         if not all(
@@ -419,16 +436,49 @@ class Timeline(QWidget):
         # Range-change signals render this same snapshot, never a newer clock read.
         self.cursor_time = timestamp
         self.cursor_offset = offset
-        self.set_interval(timestamp - width * PLAYBACK_ANCHOR_FRACTION, width)
+        self._set_interval(timestamp - width * PLAYBACK_ANCHOR_FRACTION, width)
         self._position_cursor()
 
     def zoom(
         self, factor: float, mouse_time: float, *, playback_position: float | None = None, offset: float = 0
     ) -> None:
+        # The wheel event's mouse time belongs to the range still on screen.
         left, right = self.interval
-        width = self._clamp_width((right - left) * factor)
+        fraction = min(1.0, max(0.0, (mouse_time - left) / (right - left)))
+        now = monotonic()
+        self.advance_zoom(now, playback_position=playback_position, offset=offset)
+        left, right = self.interval
+        current_width = right - left
+        transition = self.zoom_transition
+        target_width = transition.target_width if transition is not None else current_width
+        target_left = transition.target_left if transition is not None else left
+        width = self._clamp_width(target_width * factor)
+        anchor = target_left + fraction * target_width
+        target_left = min(max(0.0, anchor - fraction * width), self.analysis.duration_seconds - width)
+        self.zoom_transition = ZoomTransition(now, left, current_width, target_left, width)
+
+    @property
+    def target_width(self) -> float:
+        left, right = self.interval
+        return self.zoom_transition.target_width if self.zoom_transition is not None else right - left
+
+    def cancel_zoom(self) -> None:
+        self.zoom_transition = None
+
+    def advance_zoom(self, now: float, *, playback_position: float | None = None, offset: float = 0) -> bool:
+        transition = self.zoom_transition
+        if transition is None:
+            return False
+        progress = min(1.0, max(0.0, (now - transition.started) / ZOOM_TRANSITION_SECONDS))
+        blend = progress * progress * (3 - 2 * progress)
+        width = math.exp(math.log(transition.initial_width) * (1 - blend) + math.log(transition.target_width) * blend)
         if playback_position is not None:
             self.follow(playback_position, width=width, offset=offset)
         else:
-            # Native scaling preserves the mouse anchor and applies ViewBox limits.
-            self.wave_box.scaleBy(x=width / (right - left), center=QPointF(mouse_time, 0))
+            delta = transition.target_width - transition.initial_width
+            fraction = (width - transition.initial_width) / delta if delta else blend
+            left = transition.initial_left + fraction * (transition.target_left - transition.initial_left)
+            self._set_interval(left, width)
+        if progress == 1:
+            self.zoom_transition = None
+        return True
