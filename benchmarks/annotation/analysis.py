@@ -127,7 +127,6 @@ class Proposal[T: Candidate = Candidate](TypedDict):
     source_sample_rate: int
     informational: dict[str, float]
     acoustic_algorithm_version: NotRequired[int]
-    template_definition_sha256: NotRequired[str | None]
     template_parameters: NotRequired[dict[str, object]]
     alternative_phase_seconds: NotRequired[float | None]
     alternative_beat_positions: NotRequired[list[float]]
@@ -135,7 +134,6 @@ class Proposal[T: Candidate = Candidate](TypedDict):
     invalid_positive_templates: NotRequired[list[float]]
     invalid_negative_templates: NotRequired[list[float]]
     positive_template_count: NotRequired[int]
-    reference_alignment_checks: NotRequired[list[dict[str, object]]]
     automatic_parameters: NotRequired[dict[str, object]]
     clusters: NotRequired[list[dict[str, object]]]
     automatic_reference_ids: NotRequired[list[str]]

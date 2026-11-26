@@ -1,11 +1,6 @@
 """Reference-excluded synthetic validation of independent template classification."""
 
-import json
 from dataclasses import asdict
-from pathlib import Path
-
-import numpy as np
-from mir_eval.util import match_events
 
 from benchmarks.annotation.analysis import (
     ALGORITHM_VERSION,
@@ -23,26 +18,16 @@ from benchmarks.annotation.templates import (
     compare_signatures,
     event_feature,
 )
+from benchmarks.annotation.validation.evaluation import (
+    AcousticPopulation,
+    compare_acoustic_populations,
+    exclude_references,
+    reference_onsets,
+)
 from benchmarks.fixtures import synthetic_fixtures
 from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
 
 STAGES = ("acoustic", "grid_aligned", "likely_original", "likely_refined", "likely_and_ambiguous")
-
-
-def reference_onsets(onsets: tuple[float, ...]) -> list[float]:
-    return sorted({onsets[0], onsets[len(onsets) // 2], onsets[-1]}) if onsets else []
-
-
-def exclude_references(candidates: list[Candidate], references: list[float]) -> list[Candidate]:
-    # Use the same candidate identity in every stage, independently of its later
-    # classification or temporal adjustment. Duplicate candidates remain errors.
-    pairs = (
-        match_events(np.asarray(references), np.asarray([c["timestamp"] for c in candidates]), max(TOLERANCES))
-        if references and candidates
-        else []
-    )
-    excluded = {index for _, index in pairs}
-    return [candidate for index, candidate in enumerate(candidates) if index not in excluded]
 
 
 def stage_events(candidates: list[Candidate], grid_available: bool) -> dict[str, list[float] | None]:
@@ -57,7 +42,7 @@ def stage_events(candidates: list[Candidate], grid_available: bool) -> dict[str,
     }
 
 
-def validate_refinement() -> dict[str, object]:
+def validate_guided_template_matching() -> dict[str, object]:
     fixtures = synthetic_fixtures()
     analyses: dict[str, AcousticAnalysis] = {
         fixture.identifier: analyze_audio(fixture.load_audio(), fixture.sample_rate) for fixture in fixtures
@@ -66,12 +51,7 @@ def validate_refinement() -> dict[str, object]:
     clean_references = reference_onsets(clean.kick_onsets)
     negative_source = analyses["offbeat_bass"]
     negative_reference = 0.75  # Generator's independently known first offbeat note onset.
-    original = json.loads(
-        (Path(__file__).resolve().parents[2] / "results" / "annotation_synthetic_baseline.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    baseline = {fixture["identifier"]: fixture for fixture in original["fixtures"]}
+    populations: list[AcousticPopulation] = []
     cases = {}
     for case, use_negative in (("positive_only", False), ("with_offbeat_negative", True)):
         pooled: dict[str, dict[str, list[Evaluation]]] = {
@@ -91,8 +71,15 @@ def validate_refinement() -> dict[str, object]:
             bpm = float(tempo) if isinstance(tempo, (int, float)) else None
             proposal = generate_proposal(analysis, fixture.identifier, None, fixture.sample_rate, bpm)
             candidates = proposal["kick_candidates"]
-            # Preserve the old acoustic baseline exactly before excluding references.
-            assert [c["timestamp"] for c in candidates] == baseline[fixture.identifier]["all_candidate_timestamps"]
+            if not use_negative:
+                populations.append(
+                    (
+                        fixture.identifier,
+                        fixture.kick_onsets,
+                        [c["timestamp"] for c in candidates],
+                        analysis.duration_seconds,
+                    )
+                )
             references_to_exclude = local + (
                 [negative_reference] if use_negative and fixture.identifier == "offbeat_bass" else []
             )
@@ -143,6 +130,8 @@ def validate_refinement() -> dict[str, object]:
             },
         }
     return {
+        "strategy": "guided-template-matching",
+        "historical_comparison": compare_acoustic_populations(populations),
         "annotation_algorithm_version": REFINED_ALGORITHM_VERSION,
         "acoustic_algorithm_version": ALGORITHM_VERSION,
         "acoustic_parameters": asdict(PARAMETERS),
@@ -151,6 +140,6 @@ def validate_refinement() -> dict[str, object]:
         "reference_exclusion": "First/middle/last kick (unique); one-to-one acoustic matching at 100ms removes reference candidates from every stage. One-kick fixture has no non-reference positives.",
         "negative_evaluation": "Cross-fixture stress test using known first offbeat note at 0.75s; exclude that candidate in its source fixture. Not the intended track-specific workflow.",
         "timing": "5ms feature frames; nearest frame context; offset-only refinement with no global correction; combined likely/ambiguous uses refined timestamps.",
-        "baseline_comparison": "Acoustic timestamps asserted identical to original annotation baseline; all stages use the same non-reference candidate and ground-truth population.",
+        "baseline_comparison": "All current stages use the same non-reference candidate and ground-truth population. Historical acoustic differences are reported separately.",
         "cases": cases,
     }

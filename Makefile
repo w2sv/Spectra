@@ -1,8 +1,6 @@
 SHELL=/bin/bash
 
-diff-to-clipboard:
-	@git add -N .
-	@git diff | wl-copy
+.PHONY: format-markdown
 
-head-to-clipboard:
-	@git show HEAD | wl-copy
+format-markdown:
+	@git ls-files -z '*.md' | xargs -0 uv run mdformat

@@ -1,26 +1,25 @@
 # Spectra
 
-Spectra is a real-time, music-reactive LED visualization application for Ubuntu 24.04.
-Spectra captures desktop playback without changing audio routing. Its optional desktop interface
-shows a live frequency spectrum and a virtual strip of 300 RGB LEDs; CLI diagnostics remain available.
-Optional WLED output sends the same RGB frames over Wi-Fi using DDP.
+Spectra is a real-time, music-reactive LED visualization application for Ubuntu 24.04. Spectra captures desktop playback
+without changing audio routing. Its optional desktop interface shows a live frequency spectrum and a virtual strip of
+300 RGB LEDs; CLI diagnostics remain available. Optional WLED output sends the same RGB frames over Wi-Fi using DDP.
 
-The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/pyqtgraph
-for the desktop interface and live plots. Audio capture uses `parec` through PipeWire's
-PulseAudio compatibility server; `pactl` discovers output monitors.
+The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/pyqtgraph for the desktop interface
+and live plots. Audio capture uses `parec` through PipeWire's PulseAudio compatibility server; `pactl` discovers output
+monitors.
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage Python and
-dependencies. The project pins regular CPython 3.15 (with the GIL); uv downloads it when needed.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage Python and dependencies. The project
+pins regular CPython 3.15 (with the GIL); uv downloads it when needed.
 
 ```bash
 uv sync
 uv run spectra
 ```
 
-Audio capture requires a running desktop PipeWire session with `pipewire-pulse`, plus
-`parec` and `pactl` from Ubuntu's `pulseaudio-utils` package (`sudo apt install pulseaudio-utils`).
-Play music and watch RMS/peak levels change; press Ctrl+C to stop and release the capture process.
-Capture is 48 kHz, stereo float32, with left/right columns in `(frames, channels)` NumPy arrays.
+Audio capture requires a running desktop PipeWire session with `pipewire-pulse`, plus `parec` and `pactl` from Ubuntu's
+`pulseaudio-utils` package (`sudo apt install pulseaudio-utils`). Play music and watch RMS/peak levels change; press
+Ctrl+C to stop and release the capture process. Capture is 48 kHz, stereo float32, with left/right columns in
+`(frames, channels)` NumPy arrays.
 
 ```bash
 uv run spectra --list-sources
@@ -29,85 +28,74 @@ uv run spectra --spectrum
 uv run spectra --gui
 ```
 
-In graphical mode, choose an output monitor and click **Start**. **Stop** releases capture;
-closing the window also stops its worker and subprocess. Capture/analysis run off the GUI thread,
-and one GUI timer renders the latest result. The **FPS** selector beside **Visualization**
-offers **30** (default), **60**, **90**, and **120** target FPS, shared by the virtual LED
-preview and WLED/DDP output. Changes apply during playback without restarting capture
-or resetting animations. These are targets; actual rendering frequency can vary.
-Source selection also works with `--gui --source`.
-If results stop arriving for 500 ms, the display clears while capture stays active and recovers
-automatically when results resume.
+In graphical mode, choose an output monitor and click **Start**. **Stop** releases capture; closing the window also
+stops its worker and subprocess. Capture/analysis run off the GUI thread, and one GUI timer renders the latest result.
+The **FPS** selector beside **Visualization** offers **30** (default), **60**, **90**, and **120** target FPS, shared by
+the virtual LED preview and WLED/DDP output. Changes apply during playback without restarting capture or resetting
+animations. These are targets; actual rendering frequency can vary. Source selection also works with `--gui --source`.
+If results stop arriving for 500 ms, the display clears while capture stays active and recovers automatically when
+results resume.
 
-The spectrum displays the 24 log-spaced bands on a fixed −80 to 0 dB scale, with a power floor
-of 10⁻¹² (−120 dB). LED colors progress from red at low frequencies to blue at high frequencies.
-LED intensity uses a fixed −60 to −6 dB range, with adjustable sensitivity and a fixed frequency
-balance tilt. The initial 6 dB tilt applies −3 dB to the lowest band and +3 dB to the highest;
-there is no automatic per-band gain or per-frame normalization. Each band controls 12 or 13 LEDs.
+The spectrum displays the 24 log-spaced bands on a fixed −80 to 0 dB scale, with a power floor of 10⁻¹² (−120 dB). LED
+colors progress from red at low frequencies to blue at high frequencies. LED intensity uses a fixed −60 to −6 dB range,
+with adjustable sensitivity and a fixed frequency balance tilt. The initial 6 dB tilt applies −3 dB to the lowest band
+and +3 dB to the highest; there is no automatic per-band gain or per-frame normalization. Each band controls 12 or 13
+LEDs.
 
-The GUI's **LED sensitivity**, **Frequency balance**, **Attack**, and **Release** controls update
-during playback. Defaults are 0 dB sensitivity, 20 ms attack, and 180 ms release. Positive balance
-favors higher frequencies; negative balance favors lower ones. Attack/release use elapsed audio
-time for every FFT result, independently of GUI rendering. Changes preserve the current envelope;
-zero milliseconds disables smoothing in that direction. Silence releases to an unlit strip.
-These controls affect only LED brightness: the spectrum graph and CLI retain raw power readings.
-The Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues.
+The GUI's **LED sensitivity**, **Frequency balance**, **Attack**, and **Release** controls update during playback.
+Defaults are 0 dB sensitivity, 20 ms attack, and 180 ms release. Positive balance favors higher frequencies; negative
+balance favors lower ones. Attack/release use elapsed audio time for every FFT result, independently of GUI rendering.
+Changes preserve the current envelope; zero milliseconds disables smoothing in that direction. Silence releases to an
+unlit strip. These controls affect only LED brightness: the spectrum graph and CLI retain raw power readings. The
+Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues.
 
-The **Kick** indicator briefly highlights detected bass transients; its session count resets on
-capture restart. Detection uses raw 40–160 Hz power changes, independently of LED controls, with
-an adaptive flux threshold, minimum and rising bass-power gates, and a 200 ms refractory period. It detects
-kick-like low-frequency onsets, including some non-kick sounds. Defaults are adjustable in
-`analysis/kick.py`; no tempo estimation is applied. The worker checks
-every FFT result and drains pending events on GUI updates (newest 32 retained during long stalls,
-with the full detection count preserved).
-See [kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining limitations.
+The **Kick** indicator briefly highlights detected bass transients; its session count resets on capture restart.
+Detection uses raw 40–160 Hz power changes, independently of LED controls, with an adaptive flux threshold, minimum and
+rising bass-power gates, and a 200 ms refractory period. It detects kick-like low-frequency onsets, including some
+non-kick sounds. Defaults are adjustable in `analysis/kick.py`; no tempo estimation is applied. The worker checks every
+FFT result and drains pending events on GUI updates (newest 32 retained during long stalls, with the full detection
+count preserved). See [kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining
+limitations.
 
-The **Visualization** selector offers **Frequency Spectrum** (default), **Kick Pulses**,
-and **Combined**. White kick pulses travel from the first LED to the last, with a
-60-LED fading tail and a 0.75-second lifetime. Multiple kicks can coexist; Combined
-uses per-channel maximum to preserve the frequency colors underneath. All modes
-share a small Qt-independent `Visualization` protocol and render at the selected GUI frame rate.
-Animation uses original kick audio timestamps and interpolates between spectrum updates.
-Switching modes is immediate, leaves capture and detection running, and waits for new
-kicks without replaying previous events. Stop, restart, and stale capture clear animation
-state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`;
-there are no individual effect controls yet.
+The **Visualization** selector offers **Frequency Spectrum** (default), **Kick Pulses**, and **Combined**. White kick
+pulses travel from the first LED to the last, with a 60-LED fading tail and a 0.75-second lifetime. Multiple kicks can
+coexist; Combined uses per-channel maximum to preserve the frequency colors underneath. All modes share a small
+Qt-independent `Visualization` protocol and render at the selected GUI frame rate. Animation uses original kick audio
+timestamps and interpolates between spectrum updates. Switching modes is immediate, leaves capture and detection
+running, and waits for new kicks without replaying previous events. Stop, restart, and stale capture clear animation
+state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`; there are no individual effect
+controls yet.
 
-For physical output, configure WLED for **300 WS2812B RGB LEDs** with the correct
-GPIO and strip color order. WLED receives [DDP on UDP port 4048](https://kno.wled.ge/interfaces/ddp/);
-keep realtime input available and its realtime override disabled. Spectra always sends
-RGB order; WLED handles the strip's physical channel order.
+For physical output, configure WLED for **300 WS2812B RGB LEDs** with the correct GPIO and strip color order. WLED
+receives [DDP on UDP port 4048](https://kno.wled.ge/interfaces/ddp/); keep realtime input available and its realtime
+override disabled. Spectra always sends RGB order; WLED handles the strip's physical channel order.
 
-In **WLED output**, enter the controller's IPv4 address and check **Enable WLED**.
-Output is disabled by default. Disable it to edit the address. All three visualizations
-continue driving the virtual preview, and output can be toggled without restarting capture.
-**UDP sent · delivery unverified** means the local socket accepted a packet, not that
-WLED received it. A busy socket drops the current frame; other socket errors disable
-only WLED output. There is no discovery, handshake, or automatic reconnection.
+In **WLED output**, enter the controller's IPv4 address and check **Enable WLED**. Output is disabled by default.
+Disable it to edit the address. All three visualizations continue driving the virtual preview, and output can be toggled
+without restarting capture. **UDP sent · delivery unverified** means the local socket accepted a packet, not that WLED
+received it. A busy socket drops the current frame; other socket errors disable only WLED output. There is no discovery,
+handshake, or automatic reconnection.
 
-Spectra attempts a final black frame on capture stop, stale capture, output disable,
-and window close. UDP delivery cannot be guaranteed, and WLED may resume its own
-effect after its realtime timeout. Hardware validation on the ESP8266 is still pending;
-loopback tests verify DDP encoding, RGB order, transmission, and cleanup without a controller.
+Spectra attempts a final black frame on capture stop, stale capture, output disable, and window close. UDP delivery
+cannot be guaranteed, and WLED may resume its own effect after its realtime timeout. Hardware validation on the ESP8266
+is still pending; loopback tests verify DDP encoding, RGB order, transmission, and cleanup without a controller.
 
-`--spectrum` adds the three strongest frequency bands about twice per second and can be combined
-with `--source`. Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs
-an overlapping real FFT every 512 samples. Power is summed into 24 logarithmic bands from
-40–16,000 Hz, sharing bin power across band boundaries by fractional frequency overlap.
-Values are mean-square power in squared PCM amplitude units; an in-range sine with peak
-amplitude A contributes approximately A²/2. Timestamps mark the window center relative to
-the stream's first frame. `SpectrumAnalyzer` can also process synthetic PCM and reset for a new stream.
+`--spectrum` adds the three strongest frequency bands about twice per second and can be combined with `--source`.
+Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs an overlapping real FFT every 512
+samples. Power is summed into 24 logarithmic bands from 40–16,000 Hz, sharing bin power across band boundaries by
+fractional frequency overlap. Values are mean-square power in squared PCM amplitude units; an in-range sine with peak
+amplitude A contributes approximately A²/2. Timestamps mark the window center relative to the stream's first frame.
+`SpectrumAnalyzer` can also process synthetic PCM and reset for a new stream.
 
-The default is `@DEFAULT_MONITOR@`, resolved when capture starts. Restart capture after
-selecting a different default output.
+The default is `@DEFAULT_MONITOR@`, resolved when capture starts. Restart capture after selecting a different default
+output.
 
-`uv sync` creates `.venv` and installs runtime and development dependencies from the committed
-`uv.lock`. In PyCharm, select the existing interpreter at `.venv/bin/python`.
+`uv sync` creates `.venv` and installs runtime and development dependencies from the committed `uv.lock`. In PyCharm,
+select the existing interpreter at `.venv/bin/python`.
 
-For repeatable local WAV fixtures, isolated `spectra_test` playback, and offline
-excerpt analysis with JSON detections, see [Audio testing](docs/audio-testing.md).
-The [curated CC0 fixture collection](tests/fixtures/audio/README.md) is version-controlled;
-full tracks and experiments in `samples/` remain local.
+For repeatable local WAV fixtures, isolated `spectra_test` playback, and offline excerpt analysis with JSON detections,
+see [Audio testing](docs/audio-testing.md). The [curated CC0 fixture collection](tests/fixtures/audio/README.md) is
+version-controlled; full tracks and experiments in `samples/` remain local.
 
 Development commands:
 
@@ -119,5 +107,6 @@ uv run ruff format .
 uv run pytest
 ```
 
-Tests cover PCM conversion, frame alignment, spectral power, and streaming continuity without an audio server.
-Ruff is the sole linter and formatter.
+Tests cover PCM conversion, frame alignment, spectral power, and streaming continuity without an audio server. Ruff
+lints and formats Python; mdformat formats Markdown using `.mdformat.toml`. Run `make format-markdown` for tracked
+Markdown files.

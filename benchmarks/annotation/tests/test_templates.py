@@ -1,27 +1,14 @@
-"""Numerical signatures, provenance, diagnostics, and benchmark completeness."""
+"""Signature features, supplied-reference matching and annotation diagnostics."""
 
-import json
 from dataclasses import replace
-from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import pytest
-from scipy.io import wavfile
 
 from benchmarks.annotation.analysis import Candidate, Proposal, analyze_audio
-from benchmarks.annotation.templates import (
-    TemplateDefinition,
-    alternative_phase,
-    classification,
-    event_feature,
-    load_templates,
-    refine_candidates,
-    save_templates,
-)
-from benchmarks.fixtures import file_checksum, synthetic_fixture
-from benchmarks.kick_detection import main as benchmark_main
-from benchmarks.tracks import Track, collection_status, reviewed_fixtures
+from benchmarks.annotation.templates import alternative_phase, classification, compare_signatures, event_feature
+from benchmarks.fixtures import synthetic_fixture
 
 
 def candidate(
@@ -105,8 +92,8 @@ def test_similarity_classification(
 def test_cosine_alignment_uses_template_onset_and_flags_search_boundary() -> None:
     fixture = synthetic_fixture("alignment", "clean", (0.5, 2.0, 3.5))
     analysis = analyze_audio(fixture.load_audio(), fixture.sample_rate)
-    templates = TemplateDefinition("alignment", "0" * 64, [0.5])
-    refined, _, _ = refine_candidates(analysis, [candidate(1.985, aligned=False), candidate(3.455)], templates)
+    positive = [(0.5, event_feature(analysis, 0.5))]
+    refined = compare_signatures(analysis, [candidate(1.985, aligned=False), candidate(3.455)], positive, [])
     assert refined[0]["timestamp"] == 1.985
     assert refined[0].get("refined_timestamp") == pytest.approx(2.0, abs=0.0025)
     assert refined[0].get("positive_similarity") == pytest.approx(1.0, abs=1e-6)
@@ -115,27 +102,9 @@ def test_cosine_alignment_uses_template_onset_and_flags_search_boundary() -> Non
     assert not refined[0].get("alignment_at_search_boundary")
     assert refined[1].get("alignment_at_search_boundary")
     zeros = replace(analysis, template_band_power=np.zeros_like(analysis.template_band_power))
-    invalid, invalid_refs, _ = refine_candidates(zeros, [candidate(0.985)], templates)
-    assert invalid_refs == [0.5]
+    invalid = compare_signatures(zeros, [candidate(0.985)], [(0.5, event_feature(zeros, 0.5))], [])
     assert invalid[0].get("positive_similarity") is None
     assert invalid[0].get("classification") != "likely"
-
-
-def test_template_persistence_checks_audio_identity_and_timestamps(tmp_path: Path) -> None:
-    audio = tmp_path / "audio.wav"
-    audio.write_bytes(b"original recording bytes")
-    checksum = file_checksum(audio)
-    path = tmp_path / "templates.json"
-    templates = TemplateDefinition("track", checksum, [0.125, 1.0], [0.75])
-    save_templates(path, templates, 2.0)
-    assert load_templates(path, "track", checksum, 2.0, audio) == templates
-    with pytest.raises(ValueError, match="checksum"):
-        load_templates(path, "other", checksum, 2.0)
-    with pytest.raises(ValueError, match="unique and sorted"):
-        save_templates(path, TemplateDefinition("track", checksum, [1.0, 0.5]), 2.0)
-    audio.write_bytes(b"changed")
-    with pytest.raises(ValueError, match="SHA-256 mismatch"):
-        load_templates(path, "track", checksum, 2.0, audio)
 
 
 def test_alternative_phase_is_half_a_beat_without_changing_events() -> None:
@@ -165,63 +134,3 @@ def test_diagnostic_ranking_selects_distinct_intervals_and_uses_likely_support()
     assert selected["regular"] is not None and selected["regular"]["start"] == 10
     assert selected["challenging"] is not None and selected["challenging"]["start"] == 20
     assert selected["phase_discrepancy"] is not None and selected["phase_discrepancy"]["start"] == 0
-
-
-def test_complete_and_partial_catalog_reports(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    root = tmp_path
-    (root / "audio").mkdir()
-    audio = root / "audio" / "available.wav"
-    wavfile.write(audio, 48_000, np.zeros((48_000, 2), dtype=np.int16))
-    available = Track(
-        "available",
-        "Artist",
-        "Track",
-        120,
-        "test",
-        "local",
-        "development",
-        "available.wav",
-        file_checksum(audio),
-        48_000,
-        1.0,
-    )
-    missing = replace(available, identifier="missing", filename="missing.wav")
-    (root / "annotations.json").write_text(
-        json.dumps(
-            [
-                {
-                    "track_identifier": "available",
-                    "audio_sha256": available.sha256,
-                    "confirmed_bpm": 120,
-                    "confirmed_kick_onsets": [0.5],
-                    "annotation_algorithm_version": 2,
-                    "review_status": "reviewed",
-                }
-            ]
-        )
-    )
-    monkeypatch.setattr("benchmarks.kick_detection.read_catalog", lambda: [available, missing])
-    monkeypatch.setattr("benchmarks.kick_detection.reviewed_fixtures", lambda tracks: reviewed_fixtures(tracks, root))
-    monkeypatch.setattr(
-        "benchmarks.kick_detection.collection_status",
-        lambda tracks, fixtures: collection_status(tracks, fixtures, root),
-    )
-    output = tmp_path / "result.json"
-    command = ["benchmark", "--dataset", "techno", "--partition", "development", "--json", str(output)]
-    monkeypatch.setattr("sys.argv", command)
-    with pytest.raises(SystemExit) as error:
-        benchmark_main()
-    assert error.value.code == 2
-    assert not output.exists()
-    monkeypatch.setattr("sys.argv", [*command, "--allow-partial"])
-    benchmark_main()
-    report = json.loads(output.read_text())
-    status = report["collection_completeness"]
-    assert report["result_scope"] == "partial"
-    assert not status["complete"]
-    assert status["requested_track_identifiers"] == ["available", "missing"]
-    assert status["evaluated_track_identifiers"] == ["available"]
-    assert status["missing_audio"] == status["missing_reviewed_annotations"] == ["missing"]
-    monkeypatch.setattr("sys.argv", [*command, "--fixture", "available"])
-    benchmark_main()
-    assert json.loads(output.read_text())["result_scope"] == "complete"

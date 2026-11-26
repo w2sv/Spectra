@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 from time import perf_counter
+from typing import Literal
 
 from benchmarks.annotation.analysis import (
     AutomaticCandidate,
@@ -15,14 +16,13 @@ from benchmarks.annotation.analysis import (
 from benchmarks.annotation.automatic import AUTOMATIC_ALGORITHM_VERSION, automatic_proposal
 from benchmarks.annotation.corrections import (
     effective_onsets,
+    has_review_state,
     load_review,
-    migrate_legacy,
     new_review,
     proposal_checksum,
-    reconcile_draft,
     save_review,
 )
-from benchmarks.annotation.validation.acoustic import validate_synthetics
+from benchmarks.annotation.validation import ValidationStrategy, validate
 from benchmarks.fixtures import verify_checksum
 from benchmarks.tracks import TECHNO, Track, read_catalog, validate_timestamps, verified_audio
 
@@ -50,7 +50,6 @@ def proposal_summary(proposal: Proposal[AutomaticCandidate]) -> dict[str, object
         "drift_sections": [section for section in proposal["beat_grid_validation"] if section["drift_flagged"]],
         "informational": proposal["informational"],
         "annotation_algorithm_version": proposal["annotation_algorithm_version"],
-        "template_definition_sha256": proposal.get("template_definition_sha256"),
         "classification_counts": {
             label: sum(
                 candidate.get("classification", "unclassified") == label for candidate in proposal["kick_candidates"]
@@ -58,7 +57,6 @@ def proposal_summary(proposal: Proposal[AutomaticCandidate]) -> dict[str, object
             for label in ("unclassified", "likely", "ambiguous", "unlikely")
         },
         "grid_comparisons": proposal.get("grid_comparisons", []),
-        "reference_alignment_checks": proposal.get("reference_alignment_checks", []),
         "positive_template_count": proposal.get("positive_template_count", 0),
         "invalid_positive_templates": proposal.get("invalid_positive_templates", []),
         "invalid_negative_templates": proposal.get("invalid_negative_templates", []),
@@ -81,30 +79,51 @@ def annotate_track(
     phase: float | None = None,
     *,
     regenerate: bool = False,
-    plot: bool = False,
+    mode: Literal["review", "prepare", "diagnostics"] = "review",
     start: float = 0,
     duration: float = 10,
-    diagnostics: bool = False,
     reset: bool = False,
-    migrate: bool = False,
     root: Path = TECHNO,
 ) -> dict[str, object]:
     if track.partition == "evaluation":
         raise ValueError("Annotation pilot excludes held-out evaluation tracks.")
+    if mode == "review" and (not math.isfinite(start) or start < 0 or not math.isfinite(duration) or duration <= 0):
+        raise ValueError("Review start must be nonnegative and duration positive; both must be finite.")
+    if track.sha256 is None:
+        raise ValueError("Annotation requires a catalog audio checksum.")
     path = root / "proposals" / f"{track.identifier}.json"
-    proposal: Proposal[AutomaticCandidate]
-    if path.exists() and not regenerate:
-        if bpm is not None or phase is not None:
-            raise ValueError("Use --regenerate to replace proposals with BPM/phase overrides.")
-        proposal = json.loads(path.read_text(encoding="utf-8"))
-        verify_checksum(root / "audio" / track.filename, track.sha256)
-        if proposal["track_identifier"] != track.identifier or proposal["audio_sha256"] != track.sha256:
-            raise ValueError("Existing proposals do not match this recording.")
-        if proposal["annotation_algorithm_version"] != AUTOMATIC_ALGORITHM_VERSION:
-            raise ValueError("Existing proposals use another algorithm version; explicitly --regenerate them.")
-        if track.sha256 is None:
-            raise ValueError("Template analysis requires a catalog audio checksum.")
-        analysis = None
+    draft_path = root / "drafts" / f"{track.identifier}.json"
+    cached: Proposal[AutomaticCandidate] | None = (
+        json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    )
+    verify_checksum(root / "audio" / track.filename, track.sha256)
+    backup = draft_path.with_suffix(".before-reset.json")
+    if reset and draft_path.exists():
+        required = f"RESET {track.identifier} DRAFT"
+        if input(f"Discard existing edits? Type '{required}': ") != required:
+            raise ValueError("Draft reset cancelled; existing draft preserved.")
+        if backup.exists():
+            raise ValueError(f"Backup already exists: {backup}")
+        backup.write_bytes(draft_path.read_bytes())
+    review = load_review(draft_path, cached) if draft_path.exists() and cached is not None and not reset else None
+    meaningful = draft_path.exists() and not reset
+    if review is not None and cached is not None:
+        meaningful = has_review_state(review, cached)
+    reusable = cached is not None and (
+        cached["track_identifier"] == track.identifier
+        and cached["audio_sha256"] == track.sha256
+        and cached["annotation_algorithm_version"] == AUTOMATIC_ALGORITHM_VERSION
+    )
+    if meaningful and not reusable and not regenerate:
+        raise ValueError(
+            "Cached proposal is outdated or missing and review state exists. Use --regenerate explicitly; corrections will be reconciled before replacement."
+        )
+    if reusable and not regenerate and (bpm is not None or phase is not None):
+        raise ValueError("Use --regenerate to replace proposals with BPM/phase overrides.")
+    analysis = None
+    if reusable and not regenerate:
+        assert cached is not None
+        proposal = cached
     else:
         bpm = track.bpm if bpm is None else bpm
         if bpm is None:
@@ -113,53 +132,33 @@ def annotate_track(
         rate, samples = verified_audio(track, root)
         analysis = analyze_audio(samples, rate)
         del samples
-        acoustic_proposal = generate_proposal(analysis, track.identifier, track.sha256, rate, bpm, phase)
-        if track.sha256 is None:
-            raise ValueError("Template analysis requires a catalog audio checksum.")
-        proposal = automatic_proposal(analysis, acoustic_proposal)
+        acoustic = generate_proposal(analysis, track.identifier, track.sha256, rate, bpm, phase)
+        proposal = automatic_proposal(analysis, acoustic)
         proposal["informational"]["annotation_processing_seconds"] = perf_counter() - started
-        draft_path = root / "drafts" / f"{track.identifier}.json"
-        if draft_path.exists() and "candidate_ids" in json.loads(draft_path.read_text()):
-            # Validate before replacing proposals. Unmatched decisions remain recoverable.
+        if draft_path.exists() and not reset:
+            # Reconcile explicit corrections before replacing cached proposal bytes.
             load_review(draft_path, proposal)
+        if mode == "review" and start >= proposal["duration_seconds"]:
+            raise ValueError("Review start must be within the recording.")
         write_json(path, proposal)
-    draft_path = root / "drafts" / f"{track.identifier}.json"
     if reset:
-        if draft_path.exists():
-            required = f"RESET {track.identifier} DRAFT"
-            if input(f"Discard existing edits? Type '{required}': ") != required:
-                raise ValueError("Draft reset cancelled; existing draft preserved.")
-            backup = draft_path.with_suffix(".before-reset.json")
-            if backup.exists():
-                raise ValueError(f"Backup already exists: {backup}")
-            backup.write_bytes(draft_path.read_bytes())
         save_review(draft_path, new_review(proposal), proposal)
-    if migrate:
-        migrate_legacy(draft_path, proposal)
     summary = proposal_summary(proposal)
-    if plot or diagnostics:
-        if (
-            not math.isfinite(start)
-            or not math.isfinite(duration)
-            or start < 0
-            or duration <= 0
-            or start >= proposal["duration_seconds"]
-        ):
-            raise ValueError("Plot start must be within the recording and duration must be positive.")
+    if mode != "prepare":
+        if mode == "review" and start >= proposal["duration_seconds"]:
+            raise ValueError("Review start must be within the recording.")
         if analysis is None:
             rate, samples = verified_audio(track, root)
             analysis = analyze_audio(samples, rate)
             del samples
-        if diagnostics:
+        if mode == "diagnostics":
             from benchmarks.annotation.diagnostics import save_diagnostics
 
-            summary["diagnostic_intervals"] = save_diagnostics(
-                analysis, proposal, root / "proposals" / "diagnostics_v3"
-            )
-        if plot:
+            summary["diagnostic_intervals"] = save_diagnostics(analysis, proposal, root / "proposals" / "diagnostics")
+        else:
             from benchmarks.annotation.review.window import show_review
 
-            show_review(analysis, proposal, root / "drafts" / f"{track.identifier}.json", start, duration, root=root)
+            show_review(analysis, proposal, draft_path, start, duration, root=root)
     write_json(root / "proposals" / f"{track.identifier}-summary.json", summary)
     return summary
 
@@ -167,33 +166,28 @@ def annotate_track(
 def finalize_annotation(track: Track, root: Path = TECHNO) -> None:
     draft_path = root / "drafts" / f"{track.identifier}.json"
     if not draft_path.is_file():
-        raise ValueError("No editable draft exists; open --plot and save your reviewed draft first.")
-    draft = json.loads(draft_path.read_text(encoding="utf-8"))
+        raise ValueError("No editable draft exists; open the review and save your corrections first.")
+    proposal: Proposal[AutomaticCandidate] = json.loads((root / "proposals" / f"{track.identifier}.json").read_text())
     rate, samples = verified_audio(track, root)
     duration = len(samples) / rate
     del samples
-    if draft["track_identifier"] != track.identifier or draft["audio_sha256"] != track.sha256:
-        raise ValueError("Draft audio checksum or track identifier disagrees with the recording.")
-    if "candidate_ids" in draft:
-        proposal: Proposal[AutomaticCandidate] = json.loads(
-            (root / "proposals" / f"{track.identifier}.json").read_text()
-        )
-        review = load_review(draft_path, proposal)
-        if review.originating_proposal_sha256 != proposal_checksum(proposal):
-            raise ValueError("Stale review: inspect the regenerated predictions and explicitly save before finalizing.")
-        if reconcile_draft(review, proposal):
-            raise ValueError("Unmatched corrections must be resolved before finalization.")
-        timestamps = effective_onsets(proposal, review)
-    else:
-        timestamps = draft["kick_onsets"]
-    if not isinstance(timestamps, list):
-        raise ValueError("Draft kick_onsets must be an explicit list of timestamps.")
+    if proposal["track_identifier"] != track.identifier or proposal["audio_sha256"] != track.sha256:
+        raise ValueError("Proposal audio checksum or track identifier disagrees with the recording.")
+    if proposal["source_sample_rate"] != rate or proposal["duration_seconds"] != duration:
+        raise ValueError("Proposal acquisition metadata disagrees with the recording.")
+    review = load_review(draft_path, proposal)
+    if review.originating_proposal_sha256 != proposal_checksum(proposal):
+        raise ValueError("Stale review: inspect the regenerated predictions and explicitly save before finalizing.")
+    if review.annotation_algorithm_version != proposal["annotation_algorithm_version"]:
+        raise ValueError("Review algorithm version disagrees with its proposal; explicitly save before finalizing.")
+    timestamps = effective_onsets(proposal, review)
     validate_timestamps(timestamps, duration)
-    bpm = draft["confirmed_bpm"]
-    if type(bpm) not in (int, float) or not math.isfinite(bpm) or bpm <= 0:
+    bpm = review.confirmed_bpm
+    if bpm is None or type(bpm) not in (int, float) or not math.isfinite(bpm) or bpm <= 0:
         raise ValueError("Confirmed BPM must be finite and positive; edit the draft if needed.")
-    if type(draft["annotation_algorithm_version"]) is not int or draft["annotation_algorithm_version"] < 1:
-        raise ValueError("Draft annotation algorithm version must be a positive integer.")
+    version = proposal["annotation_algorithm_version"]
+    if type(version) is not int or version < 1:
+        raise ValueError("Proposal annotation algorithm version must be a positive integer.")
     required = f"REVIEWED {track.identifier} ENTIRE RECORDING"
     response = input(
         "Confirm that you reviewed the ENTIRE recording, including sections with no proposals, "
@@ -209,7 +203,7 @@ def finalize_annotation(track: Track, root: Path = TECHNO) -> None:
         {
             "track_identifier": track.identifier,
             "audio_sha256": track.sha256,
-            "annotation_algorithm_version": draft["annotation_algorithm_version"],
+            "annotation_algorithm_version": version,
             "confirmed_kick_onsets": timestamps,
             "confirmed_bpm": bpm,
             "review_status": "reviewed",
@@ -219,71 +213,67 @@ def finalize_annotation(track: Track, root: Path = TECHNO) -> None:
     print(f"Finalized fully reviewed recording: {track.identifier}")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--track")
-    selection.add_argument("--synthetic", action="store_true", help="Validate proposals on all 15 synthetic fixtures.")
-    selection.add_argument(
-        "--refined-synthetic", action="store_true", help="Validate template refinement, excluding reference events."
-    )
-    selection.add_argument(
-        "--automatic-synthetic",
-        action="store_true",
-        help="Validate automatic discovery without ground-truth references.",
+    selection.add_argument("--validate", action="store_true", help="Run numerical synthetic validation.")
+    parser.add_argument(
+        "--strategy",
+        choices=(*ValidationStrategy, "all"),
+        help="Validation strategy (default: automatic-template-matching).",
     )
     parser.add_argument("--bpm", type=float)
     parser.add_argument("--phase", type=float)
-    parser.add_argument("--regenerate", action="store_true", help="Explicitly replace automatic proposals only.")
+    parser.add_argument("--regenerate", action="store_true", help="Explicitly regenerate and reconcile proposals.")
     parser.add_argument(
-        "--migrate-draft",
-        action="store_true",
-        help="Explicitly migrate an old accepted-event draft, retaining a backup.",
+        "--reset-draft", action="store_true", help="Deliberately discard a review, with confirmation and backup."
     )
-    parser.add_argument(
-        "--reset-draft",
-        action="store_true",
-        help="Recreate a draft from current proposals; confirm before discarding edits.",
-    )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--plot", action="store_true")
-    mode.add_argument("--finalize", action="store_true")
-    mode.add_argument("--diagnostics", action="store_true", help="Save the first qualifying 10s diagnostic plots.")
-    parser.add_argument("--start", type=float, default=0.0)
-    parser.add_argument("--duration", type=float, default=10.0)
-    parser.add_argument("--json", type=Path, help="Export synthetic validation metrics.")
-    arguments = parser.parse_args()
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--prepare-only", dest="mode", action="store_const", const="prepare")
+    modes.add_argument("--diagnostics", dest="mode", action="store_const", const="diagnostics")
+    modes.add_argument("--finalize", dest="mode", action="store_const", const="finalize")
+    parser.set_defaults(mode="review")
+    parser.add_argument("--start", type=float)
+    parser.add_argument("--duration", type=float)
+    parser.add_argument("--json", type=Path, help="Export the selected validation report; no implicit output path.")
+    arguments = parser.parse_args(argv)
+    track_modifiers = {"--bpm", "--phase", "--regenerate", "--reset-draft"}
+    allowed = {
+        "validation": {"--strategy", "--json"},
+        "review": track_modifiers | {"--start", "--duration"},
+        "prepare": track_modifiers,
+        "diagnostics": track_modifiers,
+        "finalize": set(),
+    }
+    provided = {
+        name
+        for name, value in {
+            "--strategy": arguments.strategy,
+            "--json": arguments.json,
+            "--bpm": arguments.bpm,
+            "--phase": arguments.phase,
+            "--regenerate": arguments.regenerate,
+            "--reset-draft": arguments.reset_draft,
+            "--start": arguments.start,
+            "--duration": arguments.duration,
+        }.items()
+        if value is not None and value is not False
+    }
+    if arguments.validate and arguments.mode != "review":
+        parser.error("Track execution modes require --track.")
+    mode: Literal["review", "prepare", "diagnostics", "finalize"] = arguments.mode
+    execution = "validation" if arguments.validate else mode
+    if invalid := provided - allowed[execution]:
+        parser.error(f"Not supported for {execution}: {', '.join(sorted(invalid))}")
     try:
-        if arguments.migrate_draft and (
-            arguments.reset_draft
-            or arguments.finalize
-            or arguments.synthetic
-            or arguments.refined_synthetic
-            or arguments.automatic_synthetic
-        ):
-            raise ValueError(
-                "Draft migration is a separate explicit operation; do not combine it with reset, finalization, or synthetic validation."
+        if arguments.validate:
+            strategy = (
+                "all"
+                if arguments.strategy == "all"
+                else ValidationStrategy(arguments.strategy or ValidationStrategy.AUTOMATIC_TEMPLATE_MATCHING)
             )
-        if arguments.synthetic or arguments.refined_synthetic or arguments.automatic_synthetic:
-            if (
-                arguments.plot
-                or arguments.finalize
-                or arguments.diagnostics
-                or arguments.bpm is not None
-                or arguments.phase is not None
-                or arguments.reset_draft
-            ):
-                raise ValueError("Synthetic validation uses fixture tempos and does not edit real annotations.")
-            if arguments.automatic_synthetic:
-                from benchmarks.annotation.validation.automatic import validate_automatic
-
-                report = validate_automatic()
-            elif arguments.refined_synthetic:
-                from benchmarks.annotation.validation.refinement import validate_refinement
-
-                report = validate_refinement()
-            else:
-                report = validate_synthetics()
+            report = validate(strategy)
             if arguments.json is not None:
                 write_json(arguments.json, report)
             print(json.dumps(report, indent=2, allow_nan=False))
@@ -292,14 +282,7 @@ def main() -> None:
         if arguments.track not in tracks:
             raise ValueError("Unknown catalog track identifier.")
         track = tracks[arguments.track]
-        if arguments.finalize:
-            if (
-                arguments.regenerate
-                or arguments.reset_draft
-                or arguments.bpm is not None
-                or arguments.phase is not None
-            ):
-                raise ValueError("Finalization consumes the saved draft; edit its confirmed_bpm before finalizing.")
+        if mode == "finalize":
             finalize_annotation(track)
         else:
             summary = annotate_track(
@@ -307,12 +290,10 @@ def main() -> None:
                 arguments.bpm,
                 arguments.phase,
                 regenerate=arguments.regenerate,
-                plot=arguments.plot,
-                start=arguments.start,
-                duration=arguments.duration,
-                diagnostics=arguments.diagnostics,
+                mode=mode,
+                start=arguments.start if arguments.start is not None else 0,
+                duration=arguments.duration if arguments.duration is not None else 10,
                 reset=arguments.reset_draft,
-                migrate=arguments.migrate_draft,
             )
             print(json.dumps(summary, indent=2, allow_nan=False))
     except (OSError, ValueError, KeyError, TypeError, EOFError) as error:

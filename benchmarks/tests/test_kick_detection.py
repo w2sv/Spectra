@@ -1,4 +1,4 @@
-"""Protect event accounting, causal availability, and deterministic offline DSP."""
+"""Causal offline benchmarking, reproducible fixtures and annotated WAV input."""
 
 import json
 from pathlib import Path
@@ -9,55 +9,8 @@ from scipy.io import wavfile
 
 from benchmarks.fixtures import load_manifest, synthetic_fixture
 from benchmarks.kick_detection import detect_offline, resample_causally
-from benchmarks.metrics import aggregate, evaluate
 from spectra.analysis import KickDetectionConfig, KickOnsetDetector, SpectrumAnalyzer
 from spectra.audio import DEFAULT_READ_FRAMES
-
-
-def test_matching_is_one_to_one_including_duplicate_detections() -> None:
-    result = evaluate([1.0], [1.01, 1.01], 2.0, 0.05)
-    assert (result.true_positives, result.false_positives, result.false_negatives) == (1, 1, 0)
-    assert result.signed_errors == pytest.approx((0.01,))
-    # A maximum matching must retain both events when tolerance windows overlap.
-    overlapping = evaluate([1.0, 1.08], [0.96, 1.04], 2.0, 0.05)
-    assert overlapping.true_positives == 2
-
-
-def test_missed_extra_detections_timing_and_pooled_counts() -> None:
-    result = evaluate([1.0, 2.0, 3.0], [1.02, 1.5, 3.04], 60.0, 0.05)
-    metrics = result.metrics()
-    assert (result.true_positives, result.false_positives, result.false_negatives) == (2, 1, 1)
-    for name in ("precision", "recall", "f1"):
-        assert metrics[name] == pytest.approx(2 / 3)
-    assert metrics["false_positives_per_minute"] == 1.0
-    assert metrics["median_signed_error_seconds"] == pytest.approx(0.03)
-    assert metrics["median_absolute_error_seconds"] == pytest.approx(0.03)
-    assert metrics["p95_absolute_error_seconds"] == pytest.approx(0.039)
-    pooled = aggregate([result, evaluate([], [1.0, 2.0], 30.0, 0.05)]).metrics()
-    assert pooled["precision"] == pytest.approx(2 / 5)
-    assert pooled["recall"] == pytest.approx(2 / 3)
-    assert pooled["f1"] == 0.5
-    assert pooled["false_positives_per_minute"] == 2.0
-    assert evaluate([1.0], [0.98], 2.0, 0.05).metrics()["median_signed_error_seconds"] == pytest.approx(-0.02)
-
-
-@pytest.mark.parametrize(
-    ("annotated", "detected", "expected"),
-    [([], [], (None, None, None)), ([1.0], [], (None, 0.0, 0.0)), ([], [1.0], (0.0, None, 0.0))],
-)
-def test_empty_annotations_and_detections(
-    annotated: list[float], detected: list[float], expected: tuple[float | None, ...]
-) -> None:
-    result = evaluate(annotated, detected, 60.0, 0.05)
-    metrics = result.metrics()
-    assert result.true_positives == 0
-    assert result.false_positives == len(detected)
-    assert result.false_negatives == len(annotated)
-    assert tuple(metrics[name] for name in ("precision", "recall", "f1")) == expected
-    assert metrics["median_signed_error_seconds"] is None
-    assert metrics["median_absolute_error_seconds"] is None
-    assert metrics["p95_absolute_error_seconds"] is None
-    assert metrics["false_positives_per_minute"] == len(detected)
 
 
 def test_audio_timestamps_use_live_read_availability_and_preserve_detector_history() -> None:

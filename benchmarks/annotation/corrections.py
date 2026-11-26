@@ -9,7 +9,6 @@ from pathlib import Path
 import numpy as np
 
 from benchmarks.annotation.analysis import AutomaticCandidate, Proposal
-from benchmarks.annotation.automatic import AUTOMATIC_ALGORITHM_VERSION
 from benchmarks.annotation.templates import TEMPLATE_PARAMETERS
 from benchmarks.tracks import validate_timestamps
 
@@ -47,10 +46,20 @@ def new_review(proposal: Proposal[AutomaticCandidate]) -> ReviewDraft:
     return ReviewDraft(
         proposal["track_identifier"],
         proposal["audio_sha256"],
-        AUTOMATIC_ALGORITHM_VERSION,
+        proposal["annotation_algorithm_version"],
         proposal_checksum(proposal),
         proposal["bpm"],
         [c["candidate_id"] for c in proposal["kick_candidates"]],
+    )
+
+
+def has_review_state(draft: ReviewDraft, proposal: Proposal[AutomaticCandidate]) -> bool:
+    """Protect explicit decisions and nondefault review metadata, not derived predictions."""
+    return bool(
+        draft.overrides
+        or draft.manual_events
+        or draft.confirmed_bpm != proposal["bpm"]
+        or draft.review_status != "draft"
     )
 
 
@@ -88,19 +97,23 @@ def load_review(path: Path, proposal: Proposal[AutomaticCandidate]) -> ReviewDra
     if not path.exists():
         return new_review(proposal)
     data = json.loads(path.read_text(encoding="utf-8"))
-    if "candidate_ids" not in data:
-        raise ValueError("Legacy draft retained unchanged. Use --migrate-draft or --reset-draft explicitly.")
-    data["overrides"] = {key: Correction(**value) for key, value in data.get("overrides", {}).items()}
-    draft = ReviewDraft(**data)
+    try:
+        data["overrides"] = {key: Correction(**value) for key, value in data.get("overrides", {}).items()}
+        draft = ReviewDraft(**data)
+    except (TypeError, KeyError) as error:
+        raise ValueError(f"Unsupported review draft in {path}; file preserved. Deliberate reset required.") from error
     if draft.track_identifier != proposal["track_identifier"] or draft.audio_sha256 != proposal["audio_sha256"]:
         raise ValueError("Review draft does not match the recording checksum.")
+    if draft.originating_proposal_sha256 != proposal_checksum(proposal):
+        # Source identities can survive numerical changes. Reclassification is
+        # reproducible; only explicit corrections carry their frozen onsets over.
+        draft.prediction_updates = []
+        draft.candidate_ids = [c["candidate_id"] for c in proposal["kick_candidates"]]
     if unmatched := reconcile_draft(draft, proposal):
         raise ValueError(
-            f"Unmatched human corrections retained in {path}: {', '.join(unmatched)}. Explicit migration/reset required."
+            f"Unmatched human corrections retained in {path}: {', '.join(unmatched)}. Resolve the corrections or deliberately reset the draft."
         )
     validate_review(draft, proposal["duration_seconds"])
-    if draft.originating_proposal_sha256 != proposal_checksum(proposal):
-        draft.prediction_updates = []
     return draft
 
 
@@ -129,36 +142,15 @@ def save_review(path: Path, draft: ReviewDraft, proposal: Proposal[AutomaticCand
     saved = copy.copy(draft)
     saved.originating_proposal_sha256 = proposal_checksum(proposal)
     saved.candidate_ids = [c["candidate_id"] for c in proposal["kick_candidates"]]
+    saved.annotation_algorithm_version = proposal["annotation_algorithm_version"]
+    validate_review(saved, proposal["duration_seconds"])
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(asdict(saved), indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     temporary.replace(path)
     draft.originating_proposal_sha256 = saved.originating_proposal_sha256
     draft.candidate_ids = saved.candidate_ids
-
-
-def migrate_legacy(path: Path, proposal: Proposal[AutomaticCandidate]) -> ReviewDraft:
-    """Explicit migration interprets membership as a decision, never as verified truth."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if data["track_identifier"] != proposal["track_identifier"] or data["audio_sha256"] != proposal["audio_sha256"]:
-        raise ValueError("Legacy draft audio checksum disagrees with proposals.")
-    if data.get("unsupported_beat_reviews"):
-        raise ValueError("Legacy grid-specific decisions need explicit manual mapping; original draft preserved.")
-    draft = new_review(proposal)
-    candidates = proposal["kick_candidates"]
-    for time in data["kick_onsets"]:
-        matches = [c for c in candidates if abs(c["final_timestamp"] - time) <= 0.030]
-        if len(matches) != 1:
-            raise ValueError(f"Cannot unambiguously migrate legacy onset {time}; original draft preserved.")
-        candidate = matches[0]
-        draft.overrides[candidate["candidate_id"]] = Correction(True, time, candidate["timestamp"], "legacy migration")
-    # Absence from an old accepted list is not an explicit rejection.
-    backup = path.with_suffix(".legacy.json")
-    if backup.exists():
-        raise ValueError(f"Legacy backup already exists: {backup}")
-    backup.write_bytes(path.read_bytes())
-    save_review(path, draft, proposal)
-    return draft
+    draft.annotation_algorithm_version = saved.annotation_algorithm_version
 
 
 class CorrectionEditor:

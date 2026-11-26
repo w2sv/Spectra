@@ -21,15 +21,18 @@ from benchmarks.annotation.corrections import (
     effective_kick,
     effective_onsets,
     effective_timestamp,
+    has_review_state,
     load_review,
-    migrate_legacy,
     navigate_candidate,
     new_review,
     proposal_checksum,
     save_review,
 )
 from benchmarks.annotation.templates import event_feature
+from benchmarks.annotation.validation import automatic_template_matching
+from benchmarks.annotation.validation.evaluation import compare_acoustic_populations
 from benchmarks.fixtures import AudioFixture, synthetic_fixtures
+from benchmarks.result_paths import ACOUSTIC_BASELINE
 
 type Clean = tuple[AudioFixture, AcousticAnalysis, Proposal, Proposal[AutomaticCandidate]]
 
@@ -115,15 +118,55 @@ def test_regeneration_keeps_exact_decisions_and_rejects_unmatched(clean: Clean, 
     proposal = copy.deepcopy(clean[3])
     editor = CorrectionEditor(proposal, new_review(proposal))
     key = proposal["kick_candidates"][0]["candidate_id"]
+    predictions = copy.deepcopy(editor.predictions)
+    for candidate in predictions:
+        candidate["automatic_kick"] = not candidate["automatic_kick"]
+        candidate["final_timestamp"] += 0.001
+    editor.replace_predictions(predictions)
     editor.toggle(key)
+    assert editor.insert({**predictions[0], "candidate_id": "manual", "timestamp": 0.1, "final_timestamp": 0.1})
+    editor.draft.confirmed_bpm = 119
+    editor.draft.review_status = "reviewed"
     path = tmp_path / "draft.json"
     save_review(path, editor.draft, proposal)
+    saved = path.read_bytes()
     other = copy.deepcopy(proposal)
     other["informational"]["annotation_processing_seconds"] = 123.4
     assert proposal_checksum(other) == proposal_checksum(proposal)
-    other["kick_candidates"][0]["final_timestamp"] += 0.010
+    assert load_review(path, other).prediction_updates == editor.draft.prediction_updates
+    other["annotation_algorithm_version"] += 1
+    other["kick_candidates"].pop()  # Disappearing derived predictions must not block adoption.
+    for candidate in other["kick_candidates"]:
+        candidate.update(
+            automatic_kick=False,
+            classification="unlikely",
+            positive_similarity=0.1,
+            negative_similarity=0.9,
+            localized_timestamp=candidate["timestamp"] + 0.005,
+            final_timestamp=candidate["timestamp"] + 0.010,
+            localization_reliable=False,
+            timing_reason="updated localization",
+            uncertainty_reasons=["updated uncertainty"],
+            low_confidence=True,
+        )
+    other["kick_candidates"].append(
+        {**other["kick_candidates"][-1], "candidate_id": "new", "timestamp": 7.9, "final_timestamp": 7.9}
+    )
     loaded = load_review(path, other)
+    assert not loaded.prediction_updates
+    assert loaded.candidate_ids == [c["candidate_id"] for c in other["kick_candidates"]]
+    assert CorrectionEditor(other, loaded).predictions == other["kick_candidates"]
+    assert loaded.overrides == editor.draft.overrides and loaded.manual_events == editor.draft.manual_events
+    assert loaded.confirmed_bpm == 119 and loaded.review_status == "reviewed"
     assert effective_timestamp(other["kick_candidates"][0], loaded) == editor.draft.overrides[key].timestamp
+    assert loaded.originating_proposal_sha256 != proposal_checksum(other) and path.read_bytes() == saved
+    save_review(path, loaded, other)
+    assert loaded.originating_proposal_sha256 == proposal_checksum(other)
+    assert loaded.annotation_algorithm_version == other["annotation_algorithm_version"]
+    changed_anchor = copy.deepcopy(other)
+    changed_anchor["kick_candidates"][0]["timestamp"] += 0.001
+    with pytest.raises(ValueError, match="Unmatched human corrections"):
+        load_review(path, changed_anchor)
     other["kick_candidates"].pop(0)
     with pytest.raises(ValueError, match="Unmatched human corrections"):
         load_review(path, other)
@@ -131,6 +174,21 @@ def test_regeneration_keeps_exact_decisions_and_rejects_unmatched(clean: Clean, 
     other["audio_sha256"] = "different"
     with pytest.raises(ValueError, match="checksum"):
         load_review(path, other)
+
+
+def test_only_explicit_decisions_and_review_metadata_require_protection(clean: Clean) -> None:
+    proposal = clean[3]
+    draft = new_review(proposal)
+    draft.prediction_updates = copy.deepcopy(proposal["kick_candidates"])
+    draft.annotation_algorithm_version -= 1
+    draft.originating_proposal_sha256 = "outdated"
+    draft.candidate_ids = ["outdated"]
+    assert not has_review_state(draft, proposal)
+    draft.confirmed_bpm = 119
+    assert has_review_state(draft, proposal)
+    draft.confirmed_bpm = proposal["bpm"]
+    draft.review_status = "reviewed"
+    assert has_review_state(draft, proposal)
 
 
 def test_unified_unsupported_navigation_preserves_close_events_and_grid_decisions(clean: Clean) -> None:
@@ -180,24 +238,20 @@ def test_unified_unsupported_navigation_preserves_close_events_and_grid_decision
     assert navigate_candidate(candidates, editor.draft, "unsupported", 1, None, 0, "alternative") == "alt"
 
 
-def test_legacy_migration_is_explicit_and_keeps_original_bytes(clean: Clean, tmp_path: Path) -> None:
+def test_unsupported_review_keeps_original_bytes(clean: Clean, tmp_path: Path) -> None:
     proposal = copy.deepcopy(clean[3])
-    candidate = proposal["kick_candidates"][0]
     path = tmp_path / "draft.json"
     original = json.dumps(
         {
             "track_identifier": proposal["track_identifier"],
             "audio_sha256": proposal["audio_sha256"],
-            "kick_onsets": [candidate["final_timestamp"]],
+            "kick_onsets": [0.5],
         }
     )
     path.write_text(original)
-    with pytest.raises(ValueError, match="Legacy draft retained"):
+    with pytest.raises(ValueError, match="Unsupported review draft"):
         load_review(path, proposal)
-    migrated = migrate_legacy(path, proposal)
-    assert effective_onsets(proposal, migrated)
-    assert path.with_suffix(".legacy.json").read_text() == original
-    assert migrated.overrides[candidate["candidate_id"]].provenance == "legacy migration"
+    assert path.read_text() == original
 
 
 def test_manual_insertion_deduplicates_and_undoes(clean: Clean) -> None:
@@ -223,7 +277,7 @@ def test_finalization_exports_effective_predictions_only_after_review(
 
     from benchmarks.annotation.cli import finalize_annotation
     from benchmarks.fixtures import file_checksum
-    from benchmarks.tracks import Track
+    from benchmarks.tracks import Track, reviewed_fixtures
 
     fixture, _, _, original = clean
     root = tmp_path
@@ -260,6 +314,13 @@ def test_finalization_exports_effective_predictions_only_after_review(
     monkeypatch.setattr("builtins.input", lambda _: "REVIEWED four_on_floor ENTIRE RECORDING")
     finalize_annotation(track, root)
     assert json.loads(manifest.read_text())[0]["confirmed_kick_onsets"] == effective_onsets(proposal, editor.draft)
+    fixtures, missing = reviewed_fixtures([track], root)
+    assert not missing and fixtures[0].kick_onsets == tuple(effective_onsets(proposal, editor.draft))
+    audio.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        finalize_annotation(track, root)
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        fixtures[0].load_audio()
 
 
 @pytest.mark.parametrize("saved", [False, True])
@@ -337,3 +398,30 @@ def test_snapshot_history_symmetry_branching_and_clean_checkpoint(clean: Clean) 
     editor.toggle(key)
     assert editor.dirty and editor.undo() and not editor.dirty
     assert editor.redo() and editor.dirty
+
+
+def test_historical_differences_are_reported_and_automatic_metrics_do_not_depend_on_guided_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixture = next(f for f in synthetic_fixtures() if f.identifier == "four_on_floor")
+    monkeypatch.setattr(automatic_template_matching, "synthetic_fixtures", lambda: [fixture])
+    normal = json.loads(json.dumps(automatic_template_matching.validate_automatic_template_matching()))
+    historical = json.loads(ACOUSTIC_BASELINE.read_text())
+    old = next(f for f in historical["fixtures"] if f["identifier"] == fixture.identifier)
+    times = old["all_candidate_timestamps"]
+    changed = times[1:] + [7.99]
+    report = json.loads(
+        json.dumps(compare_acoustic_populations([(fixture.identifier, fixture.kick_onsets, changed, 8)]))
+    )
+    assert report["fixtures"][0]["candidate_population_changed"]
+    assert report["fixtures"][0]["added_timestamps"] == [7.99]
+    assert report["fixtures"][0]["removed_timestamps"] == times[:1]
+    incompatible = tmp_path / "guided.json"
+    incompatible.write_text(json.dumps({"cases": {"positive_only": {"fixtures": []}}}))
+    monkeypatch.setattr(automatic_template_matching, "GUIDED_BASELINE", incompatible)
+    current = json.loads(json.dumps(automatic_template_matching.validate_automatic_template_matching()))
+    assert current["aggregate_by_stage_and_tolerance_ms"] == normal["aggregate_by_stage_and_tolerance_ms"]
+    assert current["fixtures"][0]["candidate_classifications"] == normal["fixtures"][0]["candidate_classifications"]
+    comparison = current["fixtures"][0]["comparison_on_guided_non_reference_population"]
+    assert not comparison["compatible"] and comparison["automatic"] is None

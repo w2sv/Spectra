@@ -1,8 +1,10 @@
 # Spectra — Engineering Guidelines
 
-Spectra is a Python application for real-time music analysis and visualization. It captures desktop audio, extracts musical features, and produces RGB frames for a virtual LED strip, with support for physical LED controllers planned.
+Spectra is a Python application for real-time music analysis and visualization. It captures desktop audio, extracts
+musical features, and produces RGB frames for a virtual LED strip and physical WLED controllers over DDP.
 
-The project prioritizes clean, modular, readable code and experimentation over unnecessary abstraction or architectural complexity.
+The project prioritizes clean, modular, readable code and experimentation over unnecessary abstraction or architectural
+complexity.
 
 ## Python and tooling
 
@@ -24,7 +26,8 @@ The project prioritizes clean, modular, readable code and experimentation over u
 - Avoid unnecessary boilerplate, defensive checks, and redundant state.
 - Avoid premature optimization. Optimize measured bottlenecks rather than hypothetical ones.
 - Use exceptions for exceptional conditions rather than obscuring failures with fallback values.
-- Add comments and docstrings when they explain non-obvious behavior, important constraints, or design decisions. Avoid restating what the code already expresses.
+- Add comments and docstrings when they explain non-obvious behavior, important constraints, or design decisions. Avoid
+  restating what the code already expresses.
 - Do not introduce compatibility code for Python versions older than the project's minimum supported version.
 - Initialize instance attributes explicitly in __init__.
 
@@ -34,7 +37,8 @@ The project prioritizes clean, modular, readable code and experimentation over u
 - Maintain implementation-agnostic boundaries between audio capture, signal analysis, visualization, and output.
 - Keep domain logic independent of specific frameworks, hardware, and transport mechanisms.
 - Prefer composition over inheritance.
-- Use `Protocol` for meaningful interchangeable implementations, rather than requiring inheritance from abstract base classes.
+- Use `Protocol` for meaningful interchangeable implementations, rather than requiring inheritance from abstract base
+  classes.
 - Do not introduce interfaces for components that have no meaningful reason to be abstracted.
 - Prefer ordinary classes and functions over elaborate design patterns.
 - Use explicit constructor dependencies where appropriate. Do not introduce dependency-injection frameworks.
@@ -64,7 +68,8 @@ Write code that works naturally with Pyright rather than weakening type checking
 - Keep audio capture, signal processing, visualization, and presentation logically independent.
 - Do not allow blocking audio operations to stall the GUI.
 - Keep Qt widget interaction on the main GUI thread.
-- Use the simplest concurrency mechanism that satisfies the requirements. Avoid introducing threads, asynchronous frameworks, or synchronization primitives unnecessarily.
+- Use the simplest concurrency mechanism that satisfies the requirements. Avoid introducing threads, asynchronous
+  frameworks, or synchronization primitives unnecessarily.
 - Make shared-state ownership and thread boundaries explicit.
 - Prefer bounded buffering and predictable behavior over unbounded queues.
 - Avoid accumulating stale audio or visualization frames when processing falls behind.
@@ -91,12 +96,14 @@ Do not introduce unnecessary frameworks for managing visualizations or audio-pro
 
 Keep automated testing deliberately minimal.
 
-- Test integral, deterministic behavior where incorrect results would compromise the application's fundamental functionality.
+- Test integral, deterministic behavior where incorrect results would compromise the application's fundamental
+  functionality.
 - Prioritize numerical correctness, data integrity, and important boundary conditions.
 - Use synthetic audio signals and other predictable inputs for DSP tests.
 - Avoid extensive mocking and tests coupled to implementation details.
 - Do not test every configuration parameter or minor implementation detail.
-- Avoid brittle assertions about exact visualization colors, animation trajectories, or other intentionally experimental behavior.
+- Avoid brittle assertions about exact visualization colors, animation trajectories, or other intentionally experimental
+  behavior.
 - Do not add tests merely to increase coverage.
 - Prefer manual visual evaluation for rendering behavior and subjective visualization quality.
 
@@ -113,19 +120,24 @@ Tests should protect important invariants without obstructing experimentation.
 
 ## Development workflow
 
-- Run uv commands needed for the requested task without asking for permission. If the default tooling cache is not writable, use a writable repository-local or temporary cache.
-- Do not ask for permission for routine file or directory operations inside this repository, including creating directories and writing or copying command output and generated artifacts.
+- Run uv commands needed for the requested task without asking for permission. If the default tooling cache is not
+  writable, use a writable repository-local or temporary cache.
+- Do not ask for permission for routine file or directory operations inside this repository, including creating
+  directories and writing or copying command output and generated artifacts.
 - Make focused, cohesive changes that address the requested task.
 - Follow existing conventions rather than introducing competing approaches.
 - Avoid unrelated refactoring and speculative improvements.
 - Remove obsolete code instead of retaining unused compatibility paths.
-- Keep documentation accurate and concise.
 - Run relevant Ruff and Pyright checks after changes.
 - Run focused tests when modifying functionality covered by tests.
-- Do not introduce CI pipelines, code-generation tools, task runners, or additional infrastructure without a concrete need.
+- Do not introduce CI pipelines, code-generation tools, task runners, or additional infrastructure without a concrete
+  need.
+- Follow [the documentation guidelines](docs/documentation-guidelines.md) when creating or modifying documentation
+  anywhere in the repository.
 
 ## Guiding principle
 
 **Favor the simplest implementation that preserves meaningful architectural boundaries.**
 
-The project should remain easy to understand, modify, and experiment with. Clean architecture is valuable, but abstractions, tests, and infrastructure must justify their maintenance cost.
+The project should remain easy to understand, modify, and experiment with. Clean architecture is valuable, but
+abstractions, tests, and infrastructure must justify their maintenance cost.

@@ -1,16 +1,12 @@
-"""Track-specific reference signatures after the unchanged acoustic proposal stage."""
+"""Shared feature representation, supplied-reference matching, and grid diagnostics."""
 
-import hashlib
-import json
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
 from benchmarks.annotation.analysis import (
-    ALGORITHM_VERSION,
     PARAMETERS,
     TEMPLATE_BANDS,
     AcousticAnalysis,
@@ -19,8 +15,6 @@ from benchmarks.annotation.analysis import (
     associate_candidates,
     beat_positions,
 )
-from benchmarks.fixtures import verify_checksum
-from benchmarks.tracks import validate_timestamps
 
 REFINED_ALGORITHM_VERSION = 2
 
@@ -65,52 +59,6 @@ class TemplateParameters:
 TEMPLATE_PARAMETERS = TemplateParameters()
 
 
-@dataclass
-class TemplateDefinition:
-    track_identifier: str
-    audio_sha256: str
-    positive_onsets: list[float] = field(default_factory=list)
-    negative_onsets: list[float] = field(default_factory=list)
-
-    def validate(self, identifier: str, checksum: str, duration: float) -> None:
-        if self.track_identifier != identifier or self.audio_sha256 != checksum:
-            raise ValueError("Template definitions do not match this recording and audio checksum.")
-        validate_timestamps(self.positive_onsets, duration)
-        validate_timestamps(self.negative_onsets, duration)
-        if set(self.positive_onsets) & set(self.negative_onsets):
-            raise ValueError("A reference onset cannot be both positive and negative.")
-
-
-def template_checksum(templates: TemplateDefinition) -> str:
-    """Canonical definition hash, independent of JSON whitespace."""
-    payload = json.dumps(asdict(templates), sort_keys=True, separators=(",", ":"), allow_nan=False)
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def load_templates(
-    path: Path, identifier: str, checksum: str, duration: float, audio_path: Path | None = None
-) -> TemplateDefinition:
-    if audio_path is not None:
-        verify_checksum(audio_path, checksum)
-    templates = (
-        TemplateDefinition(**json.loads(path.read_text(encoding="utf-8")))
-        if path.exists()
-        else TemplateDefinition(identifier, checksum)
-    )
-    templates.validate(identifier, checksum, duration)
-    return templates
-
-
-def save_templates(path: Path, templates: TemplateDefinition, duration: float) -> None:
-    templates.validate(templates.track_identifier, templates.audio_sha256, duration)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(
-        json.dumps(asdict(templates), indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
-    )
-    temporary.replace(path)
-
-
 def event_feature(
     analysis: AcousticAnalysis, timestamp: float, parameters: TemplateParameters = TEMPLATE_PARAMETERS
 ) -> NDArray[np.float64] | None:
@@ -146,22 +94,6 @@ def classification(
     ):
         return "likely"
     return "ambiguous"
-
-
-def refine_candidates(
-    analysis: AcousticAnalysis,
-    candidates: list[Candidate],
-    templates: TemplateDefinition,
-    parameters: TemplateParameters = TEMPLATE_PARAMETERS,
-) -> tuple[list[Candidate], list[float], list[float]]:
-    positive = [(time, event_feature(analysis, time, parameters)) for time in templates.positive_onsets]
-    negative = [(time, event_feature(analysis, time, parameters)) for time in templates.negative_onsets]
-    results = compare_signatures(analysis, candidates, positive, negative, parameters)
-    return (
-        results,
-        [time for time, feature in positive if feature is None],
-        [time for time, feature in negative if feature is None],
-    )
 
 
 def compare_signatures(
@@ -254,53 +186,3 @@ def grid_comparisons(proposal: Proposal) -> list[dict[str, object]]:
             }
         comparisons.append({"acoustic_phase_evidence": dict(section), **grids})
     return comparisons
-
-
-def refine_proposal(
-    analysis: AcousticAnalysis,
-    proposal: Proposal,
-    templates: TemplateDefinition,
-    parameters: TemplateParameters = TEMPLATE_PARAMETERS,
-) -> Proposal:
-    refined = proposal.copy()
-    candidates, invalid_positive, invalid_negative = refine_candidates(
-        analysis, proposal["kick_candidates"], templates, parameters
-    )
-    refined["kick_candidates"] = candidates
-    refined["acoustic_algorithm_version"] = ALGORITHM_VERSION
-    refined["annotation_algorithm_version"] = REFINED_ALGORITHM_VERSION
-    refined["template_parameters"] = asdict(parameters) | {"bands_hz": TEMPLATE_BANDS, "frame_interval_seconds": 0.005}
-    refined["template_definition_sha256"] = template_checksum(templates)
-    refined["invalid_positive_templates"] = invalid_positive
-    refined["invalid_negative_templates"] = invalid_negative
-    refined["positive_template_count"] = len(templates.positive_onsets)
-    bpm, phase = proposal["bpm"], proposal["beat_grid_phase_seconds"]
-    refined["alternative_phase_seconds"] = (
-        alternative_phase(phase, bpm) if phase is not None and bpm is not None else None
-    )
-    refined["alternative_beat_positions"] = (
-        beat_positions(bpm, alternative_phase(phase, bpm), 0, analysis.duration_seconds).tolist()
-        if phase is not None and bpm is not None
-        else []
-    )
-    refined["grid_comparisons"] = grid_comparisons(refined)
-    checks = []
-    for onset in templates.positive_onsets:
-        nearest = min(candidates, key=lambda candidate: abs(candidate["timestamp"] - onset)) if candidates else None
-        if nearest is None or abs(nearest["timestamp"] - onset) > 0.05:
-            checks.append({"template_onset": onset, "candidate_found_within_50ms": False})
-        else:
-            timestamp = nearest.get("refined_timestamp")
-            checks.append(
-                {
-                    "template_onset": onset,
-                    "candidate_found_within_50ms": True,
-                    "novelty_timestamp": nearest["timestamp"],
-                    "refined_timestamp": timestamp,
-                    "signed_error_seconds": timestamp - onset if timestamp is not None else None,
-                    "search_boundary": nearest.get("alignment_at_search_boundary", False),
-                    "note": "Reference fit check, not held-out timing accuracy.",
-                }
-            )
-    refined["reference_alignment_checks"] = checks
-    return refined

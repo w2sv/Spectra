@@ -30,11 +30,14 @@ venv = ".venv"
 target-version = "py315"
 line-length = 120
 
+[tool.ruff.format]
+skip-magic-trailing-comma = false
+
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "benchmarks"]
 pythonpath = ["."]
 
 [dependency-groups]
@@ -44,6 +47,8 @@ benchmark = [
 ]
 dev = [
     {include-group = "review"},
+    "mdformat>=1.0.0",
+    "mdformat-gfm>=1.0.0",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
     "ruff>=0.17.6",

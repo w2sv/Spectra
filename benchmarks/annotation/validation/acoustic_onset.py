@@ -3,12 +3,14 @@
 from dataclasses import asdict
 
 from benchmarks.annotation.analysis import ALGORITHM_VERSION, PARAMETERS, analyze_audio, generate_proposal
+from benchmarks.annotation.validation.evaluation import AcousticPopulation, compare_acoustic_populations
 from benchmarks.fixtures import synthetic_fixtures
 from benchmarks.metrics import TOLERANCES, Evaluation, aggregate, evaluate
 
 
-def validate_synthetics() -> dict[str, object]:
+def validate_acoustic_onset() -> dict[str, object]:
     fixtures = []
+    populations: list[AcousticPopulation] = []
     pooled_all: dict[str, list[Evaluation]] = {str(round(t * 1000)): [] for t in TOLERANCES}
     pooled_grid: dict[str, list[Evaluation]] = {key: [] for key in pooled_all}
     for fixture in synthetic_fixtures():
@@ -17,6 +19,7 @@ def validate_synthetics() -> dict[str, object]:
         bpm = float(tempo) if isinstance(tempo, (int, float)) else None
         proposal = generate_proposal(analysis, fixture.identifier, None, fixture.sample_rate, bpm)
         all_events = [candidate["timestamp"] for candidate in proposal["kick_candidates"]]
+        populations.append((fixture.identifier, fixture.kick_onsets, all_events, analysis.duration_seconds))
         grid_events = [candidate["timestamp"] for candidate in proposal["kick_candidates"] if candidate["grid_aligned"]]
         all_metrics, grid_metrics = {}, {}
         for tolerance in TOLERANCES:
@@ -41,6 +44,8 @@ def validate_synthetics() -> dict[str, object]:
             }
         )
     return {
+        "strategy": "acoustic-onset",
+        "historical_comparison": compare_acoustic_populations(populations),
         "annotation_algorithm_version": ALGORITHM_VERSION,
         "analysis_parameters": asdict(PARAMETERS),
         "note": "Independent annotation sanity check; grid metrics only include fixtures with tempo metadata.",
