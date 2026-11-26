@@ -4,6 +4,7 @@ import copy
 import os
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -11,10 +12,10 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 pytest.importorskip("pyqtgraph")
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QKeyEvent, QWheelEvent
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit, QMessageBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLineEdit, QMenu, QMessageBox
 
 from benchmarks.annotation.analysis import AutomaticCandidate, analyze_audio, generate_proposal
 from benchmarks.annotation.automatic import automatic_proposal
@@ -26,6 +27,7 @@ from benchmarks.annotation.corrections import (
     new_review,
     uncertain_classification,
 )
+from benchmarks.annotation.review.styles import AUTOMATIC_KICK, KICK_FLASH
 from benchmarks.annotation.review.timeline import PLAYBACK_ANCHOR_FRACTION, nearest_marker
 from benchmarks.annotation.review.window import AnnotationReview
 from benchmarks.fixtures import synthetic_fixtures
@@ -39,16 +41,19 @@ class DeterministicPlayback:
         self.position = 0.0
         self.paused = True
         self.underruns = 0
+        self.generation = 0
         self.reliable_buffering = False
         self.seeks: list[float] = []
 
     def seek(self, position: float) -> None:
+        self.generation += 1
         self.position = min(self.duration, max(0.0, position))
         self.seeks.append(self.position)
         if self.position == self.duration:
             self.paused = True
 
     def toggle(self) -> None:
+        self.generation += 1
         if self.paused and self.position == self.duration:
             self.position = 0
         self.paused = not self.paused
@@ -96,7 +101,6 @@ def playback(review: AnnotationReview, monkeypatch: pytest.MonkeyPatch):
     player = DeterministicPlayback(review.analysis.duration_seconds)
     monkeypatch.setattr(review, "player", player)
     review.timer.stop()
-    review.follow_timer.stop()
     review.refresh_actions()
     return player
 
@@ -120,7 +124,8 @@ def wheel(view: AnnotationReview, mouse_time: float, delta: int = 120, *, eviden
 
 def marker_point(view: AnnotationReview, key: str):
     timestamp = effective_timestamp(view.editor.candidates[key], view.draft)
-    scene = view.timeline.wave_box.mapViewToScene(QPointF(timestamp, view.timeline.lane_y))
+    y = view.timeline.kick_y if effective_kick(view.editor.candidates[key], view.draft) else view.timeline.candidate_y
+    scene = view.timeline.wave_box.mapViewToScene(QPointF(timestamp, y))
     return view.timeline.wave_widget.mapFromScene(scene)
 
 
@@ -137,11 +142,13 @@ def test_screen_space_hit_testing_and_plain_click_vs_shift_click(review: Annotat
     point = marker_point(review, key)
     viewport = review.timeline.wave_widget.viewport()
     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=point)
-    assert not review.draft.overrides
+    assert not review.draft.overrides and review.selected is None
     QTest.mouseClick(viewport, Qt.MouseButton.RightButton, pos=point)
     assert review.selected == key and not review.draft.overrides
     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, point)
-    assert key in review.draft.overrides and not effective_kick(original, review.draft)
+    assert key in review.draft.overrides and effective_kick(original, review.draft) != original["automatic_kick"]
+    assert review.selected is None
+    assert not any(line.isVisible() for line in review.timeline.selection_lines)
     assert review.editor.candidates[key] == original
     assert key in review.timeline.marker_keys  # rejected markers remain visible/selectable
     review.perform_action("undo")
@@ -161,15 +168,17 @@ def test_hidden_recovery_insertion_duplicate_undo_and_persistence(review: Annota
     candidate = next(c for c in review.editor.candidates.values() if c["automatic_kick"])
     key = candidate["candidate_id"]
     candidate["automatic_kick"] = False
+    review.overlays["candidates"].setChecked(False)
     review.refresh()
     assert key not in review.timeline.marker_keys
     review.correct_or_insert(candidate["localized_timestamp"], None)
-    assert review.selected == key and review.draft.overrides[key].kick
+    assert review.selected is None and review.draft.overrides[key].kick
     assert len(review.draft.manual_events) == 0
     review.perform_action("save")
     assert load_review(review.draft_path, review.proposal).overrides[key].kick
     review.perform_action("undo")
-    assert not review.draft.overrides
+    assert review.draft.overrides[key].kick  # Saving protects prior corrections.
+    assert not review.editor.history and not review.editor.redo_history and not review.dirty
     # An isolated manually identified sound uses the production onset localizer.
     review.insert_manual(0.1)
     assert len(review.draft.manual_events) == 1
@@ -203,6 +212,7 @@ def test_uncertainty_is_classification_only_and_navigation_reveals_one_event(rev
     candidates = list(review.editor.candidates.values())[:3]
     for index, candidate in enumerate(candidates):
         candidate.update(automatic_kick=False, classification="ambiguous", final_timestamp=0.1 + index * 0.1)
+    review.overlays["candidates"].setChecked(False)
     review.refresh()
     before = set(review.timeline.marker_keys)
     review.selected = None
@@ -504,7 +514,7 @@ def test_default_grid_and_unsupported_queue_share_hypothesis(
     try:
         assert view.overlays["grid"].isChecked()
         assert view.grid_choice.currentIndex() == expected
-        assert all(not box.isChecked() for name, box in view.overlays.items() if name != "grid")
+        assert all(not box.isChecked() for name, box in view.overlays.items() if name not in ("grid", "candidates"))
         for index in (expected, 1 - expected) if alternative else (expected,):
             view.grid_choice.setCurrentIndex(index)
             hypothesis = "alternative" if index else "primary"
@@ -513,9 +523,9 @@ def test_default_grid_and_unsupported_queue_share_hypothesis(
             }
             beats = proposal["alternative_beat_positions"] if index else proposal["beat_positions"]
             assert view.timeline.grid.getData()[0] == pytest.approx(np.repeat(beats, 2))
-        assert "estimated beat" in view.legend.text()
+        assert any(entry.label == "Estimated beat" for entry in view.legend.entries)
         view.overlays["grid"].setChecked(False)
-        assert "estimated beat" not in view.legend.text()
+        assert all(entry.label != "Estimated beat" for entry in view.legend.entries)
         assert view.draft == before and not view.dirty
     finally:
         view.close()
@@ -575,28 +585,310 @@ def test_review_navigation_pauses_seeks_and_f_returns_without_seeking(
     assert review.timeline.interval == pytest.approx((position - 0.8, position + 1.2))
 
 
-def test_follow_timers_share_snapshot_and_skip_unchanged_boundary_ranges(
-    review: AnnotationReview, playback: DeterministicPlayback
+def test_visual_frame_uses_one_snapshot_and_skips_unchanged_paused_ranges(
+    review: AnnotationReview, playback: DeterministicPlayback, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     playback.position = 5
     playback.paused = False
     review.perform_action("follow")
-    before = review.timeline.interval
     fixed_x = review.timeline.cursor_lines[0].line().x1()
     playback.position = 6
+    calls = []
+
+    def poll() -> float:
+        calls.append(playback.position)
+        playback.position = 7  # Subsequent reads must not affect this visual frame.
+        return 6
+
+    monkeypatch.setattr(playback, "poll", poll)
     review.update_playback()
-    # Polling must not move the cursor independently of its following viewport.
-    assert review.timeline.interval == before and review.timeline.cursor_time == 5
-    playback.position = 7  # Scrolling must consume the polled snapshot, not reread the clock.
-    review.follow_playback()
+    assert calls == [6]
     assert review.timeline.interval == pytest.approx((5.2, 7.2))
     assert review.timeline.cursor_time == 6
     assert review.timeline.cursor_lines[0].line().x1() == fixed_x
-    playback.position = 0
-    review.update_playback()
-    review.follow_playback()
     changes: list[tuple[float, float]] = []
     review.timeline.rangeChanged.connect(lambda left, right: changes.append((left, right)))
-    review.follow_playback()
-    review.follow_playback()
+    playback.paused = True
+    review.update_playback()
+    review.update_playback()
     assert not changes
+
+
+def test_save_boundary_failure_and_history_shortcuts(review: AnnotationReview, monkeypatch: pytest.MonkeyPatch) -> None:
+    key = next(iter(review.editor.candidates))
+    review.correct_or_insert(0, key)
+    edited = copy.deepcopy(review.draft)
+    assert review.dirty and review.unsaved_label.isVisible()
+    focus = review.timeline.wave_widget
+    QTest.keyClick(focus, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier)
+    assert not review.dirty and not review.buttons["undo"].isEnabled() and review.buttons["redo"].isEnabled()
+    for modifiers, keycode in [
+        (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Z),
+        (Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_Y),
+    ]:
+        QTest.keyClick(focus, keycode, modifiers)
+        assert review.draft == edited and review.dirty
+        review.perform_action("undo")
+    review.perform_action("redo")
+    review.correct_or_insert(0, key)
+    review.perform_action("undo")
+    histories = copy.deepcopy((review.editor.history, review.editor.redo_history, review.draft))
+    original_path = review.draft_path
+    review.draft_path = original_path.parent  # Atomic replacement of a directory must fail.
+    review.perform_action("save")
+    assert (review.editor.history, review.editor.redo_history, review.draft) == histories
+    assert review.dirty and review.buttons["undo"].isEnabled() and review.buttons["redo"].isEnabled()
+    review.draft_path = original_path
+    monkeypatch.setattr(QMessageBox, "question", lambda *args: QMessageBox.StandardButton.Cancel)
+    assert not review.close()
+    assert (review.editor.history, review.editor.redo_history, review.draft) == histories
+    QTest.keyClick(focus, Qt.Key.Key_S, Qt.KeyboardModifier.ControlModifier)
+    assert review.statusBar().currentMessage() == "Review saved · undo history cleared"
+    assert not review.dirty and not review.unsaved_label.isVisible()
+    assert not review.buttons["undo"].isEnabled() and not review.buttons["redo"].isEnabled()
+    assert not review.editor.history and not review.editor.redo_history
+    review.perform_action("undo")
+    assert review.draft == edited
+    review.correct_or_insert(0, key)
+    assert review.dirty
+    review.perform_action("undo")
+    assert not review.dirty
+    review.perform_action("redo")
+    assert review.dirty
+    loaded = load_review(review.draft_path, review.proposal)
+    from benchmarks.annotation.corrections import CorrectionEditor
+
+    reopened = CorrectionEditor(review.proposal, loaded)
+    assert not reopened.history and not reopened.redo_history and not reopened.dirty
+
+
+def test_lanes_separate_coincident_markers_and_follow_classification(review: AnnotationReview) -> None:
+    candidates = list(review.editor.candidates.values())[:2]
+    kick, candidate = candidates
+    for event in candidates:
+        event["final_timestamp"] = 1
+    kick["automatic_kick"] = True
+    candidate["automatic_kick"] = False
+    review.refresh()
+    timeline = review.timeline
+    for event in candidates:
+        key = event["candidate_id"]
+        point = timeline.wave_widget.mapToScene(marker_point(review, key))
+        assert timeline.hit_test(point) == key
+    kick_point = timeline.wave_box.mapViewToScene(QPointF(1, timeline.kick_y))
+    candidate_point = timeline.wave_box.mapViewToScene(QPointF(1, timeline.candidate_y))
+    assert abs(kick_point.y() - candidate_point.y()) == pytest.approx(28, abs=0.5)
+    key = kick["candidate_id"]
+    review.correct_or_insert(1, key)
+    assert timeline.marker_ys[timeline.marker_keys.index(key)] == timeline.candidate_y
+    review.overlays["candidates"].setChecked(False)
+    assert key in timeline.marker_keys and candidate["candidate_id"] not in timeline.marker_keys
+    review.perform_action("undo")
+    assert timeline.marker_ys[timeline.marker_keys.index(key)] == timeline.kick_y
+    review.perform_action("redo")
+    assert timeline.marker_ys[timeline.marker_keys.index(key)] == timeline.candidate_y
+    review.timeline_click(1, key, True, Qt.KeyboardModifier.NoModifier)
+    review.timeline_click(1, key, False, Qt.KeyboardModifier.NoModifier)
+    assert review.selected is None and not any(line.isVisible() for line in timeline.selection_lines)
+
+
+def test_effective_kick_index_drives_both_cursor_flashes(
+    review: AnnotationReview, playback: DeterministicPlayback
+) -> None:
+    # Isolate automatic, human-promoted, rejected, and manual events.
+    events = list(review.editor.candidates.values())
+    for event in events:
+        event["automatic_kick"] = False
+    events[0].update(automatic_kick=True, final_timestamp=1)
+    events[1]["final_timestamp"] = 2
+    events[2]["final_timestamp"] = 3
+    review.editor.toggle(events[1]["candidate_id"])
+    review.editor.set_classification(events[2]["candidate_id"], False)
+    manual: AutomaticCandidate = {
+        **events[0],
+        "candidate_id": "manual-flash",
+        "timestamp": 0.1,
+        "final_timestamp": 0.1,
+        "provenance": "manual",
+    }
+    assert review.editor.insert(manual)
+    review.edited("Test")
+    assert review.kick_flash.timestamps == [0.1, 1, 2]
+    playback.paused = False
+    for timestamp in review.kick_flash.timestamps:
+        playback.position = timestamp - 0.01
+        review.kick_flash.reset()
+        review.update_playback()
+        playback.position = timestamp + 0.01
+        review.update_playback()
+        assert review.timeline.flashing
+        assert all(line.pen() == KICK_FLASH.pen() and line.pen().widthF() == 6 for line in review.timeline.cursor_lines)
+        assert KICK_FLASH.pen().color().saturation() == 255
+        assert KICK_FLASH.pen().color().green() > QColor(AUTOMATIC_KICK.color).green()
+        review.update_playback()  # A repeated snapshot neither restarts nor expires the pulse.
+        assert review.timeline.flashing
+        playback.position = timestamp + 0.074
+        review.update_playback()
+        assert review.timeline.flashing
+        playback.position = timestamp + 0.076
+        review.update_playback()
+        assert not review.timeline.flashing
+        assert all(line.pen().widthF() == 2 for line in review.timeline.cursor_lines)
+    playback.position = 3.01
+    review.update_playback()
+    assert not review.timeline.flashing
+    review._seek(0.99)
+    playback.position = 1.01
+    review.update_playback()
+    assert review.timeline.flashing
+    review.flash_checkbox.setChecked(False)
+    assert not review.timeline.flashing
+    review.flash_checkbox.setChecked(True)
+    assert not review.timeline.flashing
+    review._seek(2.01)
+    assert not review.timeline.flashing
+    review.correct_or_insert(2, events[1]["candidate_id"])
+    assert 2 not in review.kick_flash.timestamps and not review.timeline.flashing
+
+
+@pytest.mark.parametrize("selected", [False, True])
+@pytest.mark.parametrize("following", [False, True])
+def test_seek_only_refreshes_existing_selection(
+    review: AnnotationReview,
+    playback: DeterministicPlayback,
+    monkeypatch: pytest.MonkeyPatch,
+    selected: bool,
+    following: bool,
+) -> None:
+    playback.paused = False
+    review.follow_checkbox.setChecked(following)
+    if selected:
+        review.timeline_click(1, next(iter(review.editor.candidates)), True, Qt.KeyboardModifier.NoModifier)
+    scatter = review.timeline.markers.data
+    inspection = review.timeline.inspection
+    refreshes = [Mock(wraps=getattr(review, name)) for name in ("refresh_markers", "refresh_actions", "_inspect")]
+    for name, refresh in zip(("refresh_markers", "refresh_actions", "_inspect"), refreshes, strict=True):
+        monkeypatch.setattr(review, name, refresh)
+    before = review.timeline.interval
+    review.timeline_click(1.5, None, False, Qt.KeyboardModifier.NoModifier)
+    assert all(refresh.call_count == int(selected) for refresh in refreshes)
+    assert review.selected is None and playback.seeks == [1.5] and not playback.paused
+    assert review.timeline.interval == pytest.approx((0.7, 2.7) if following else before)
+    if not selected:
+        assert review.timeline.markers.data is scatter and review.timeline.inspection is inspection
+
+
+def test_clear_manual_override_removes_event_and_selection(review: AnnotationReview) -> None:
+    review.insert_manual(0.1)
+    event = review.draft.manual_events[0]
+    key = event["candidate_id"]
+    timestamp = effective_timestamp(event, review.draft)
+    review.perform_action("save")
+    review.timeline_click(timestamp, key, True, Qt.KeyboardModifier.NoModifier)
+    assert review.selected == key
+    review.perform_action("clear_override")
+    assert len(review.editor.history) == 1 and review.selected is None
+    assert not review.draft.manual_events and key not in review.draft.overrides and key not in review.editor.candidates
+    assert key not in review.timeline.marker_keys and timestamp not in review.kick_flash.timestamps
+    assert not any(line.isVisible() for line in review.timeline.selection_lines)
+    review.perform_action("undo")
+    assert not review.dirty and key in review.editor.candidates and review.draft.overrides[key].kick
+    review.perform_action("redo")
+    assert review.dirty and key not in review.editor.candidates and not review.draft.manual_events
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Escape, Qt.Key.Key_Q])
+@pytest.mark.parametrize("outcome", ["clean", "save", "discard", "cancel", "failed_save"])
+def test_exit_shortcuts_use_save_discard_cancel_and_cleanup(
+    review: AnnotationReview,
+    playback: DeterministicPlayback,
+    monkeypatch: pytest.MonkeyPatch,
+    key: Qt.Key,
+    outcome: str,
+) -> None:
+    review.perform_action("save")
+    path = review.draft_path
+    saved_bytes = path.read_bytes()
+    if outcome != "clean":
+        first, second = list(review.editor.candidates)[:2]
+        review.correct_or_insert(0, first)
+        review.correct_or_insert(0, second)
+        review.perform_action("undo")
+    before = copy.deepcopy((review.draft, review.editor.history, review.editor.redo_history))
+    choice = {
+        "save": QMessageBox.StandardButton.Save,
+        "failed_save": QMessageBox.StandardButton.Save,
+        "discard": QMessageBox.StandardButton.Discard,
+    }.get(outcome, QMessageBox.StandardButton.Cancel)
+    question = Mock(return_value=choice)
+    monkeypatch.setattr(QMessageBox, "question", question)
+    if outcome == "failed_save":
+        review.draft_path = path.parent  # Replacing a directory must fail.
+    playback.paused = False
+    QTest.keyClick(review.timeline.wave_widget, key)
+    assert question.call_count == (outcome != "clean")
+    remains_open = outcome in ("cancel", "failed_save")
+    assert review.isVisible() is remains_open
+    assert playback.paused is (not remains_open)
+    if remains_open:
+        assert review.dirty and (review.draft, review.editor.history, review.editor.redo_history) == before
+    if outcome == "save":
+        assert load_review(path, review.proposal) == before[0]
+        assert not review.dirty and not review.editor.history and not review.editor.redo_history
+    else:
+        assert path.read_bytes() == saved_bytes
+
+
+def test_exit_shortcuts_defer_to_text_modifiers_and_popups(review: AnnotationReview, application) -> None:
+    entry = QLineEdit(review)
+    entry.show()
+    entry.setFocus()
+    application.processEvents()
+    QTest.keyClick(entry, Qt.Key.Key_Q)
+    assert entry.text() == "q" and review.isVisible()
+    review.timeline.wave_widget.setFocus()
+    for modifiers in (
+        Qt.KeyboardModifier.ShiftModifier,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.KeyboardModifier.AltModifier,
+    ):
+        QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Q, modifiers)
+        assert review.isVisible()
+    menu = QMenu(review)
+    menu.addAction("Inspect")
+    combo = QComboBox(review)
+    combo.addItems(["Primary", "Alternative"])
+    combo.show()
+    for popup in (menu, combo):
+        if isinstance(popup, QMenu):
+            popup.popup(review.mapToGlobal(QPoint(20, 20)))
+        else:
+            popup.showPopup()
+        application.processEvents()
+        active = QApplication.activePopupWidget()
+        assert active is not None
+        QTest.keyClick(active, Qt.Key.Key_Escape)
+        assert review.isVisible() and QApplication.activePopupWidget() is None
+    dialog = QDialog(review)
+    dialog.setModal(True)
+    dialog.show()
+    application.processEvents()
+    QTest.keyClick(dialog, Qt.Key.Key_Escape)
+    assert not dialog.isVisible() and review.isVisible()
+
+
+def test_escape_cancels_the_actual_unsaved_dialog(review: AnnotationReview) -> None:
+    review.correct_or_insert(0, next(iter(review.editor.candidates)))
+    before = copy.deepcopy((review.draft, review.editor.history))
+    dialogs = []
+
+    def dismiss() -> None:
+        dialog = QApplication.activeModalWidget()
+        dialogs.append(dialog)
+        if isinstance(dialog, QMessageBox):
+            QTest.keyClick(dialog, Qt.Key.Key_Escape)
+
+    QTimer.singleShot(0, dismiss)
+    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Q)
+    assert len(dialogs) == 1 and isinstance(dialogs[0], QMessageBox)
+    assert review.isVisible() and review.dirty and (review.draft, review.editor.history) == before

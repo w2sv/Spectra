@@ -126,12 +126,15 @@ def save_review(path: Path, draft: ReviewDraft, proposal: Proposal[AutomaticCand
     validate_review(draft, proposal["duration_seconds"])
     if unmatched := reconcile_draft(draft, proposal):
         raise ValueError(f"Cannot save unmatched corrections: {unmatched}")
-    draft.originating_proposal_sha256 = proposal_checksum(proposal)
-    draft.candidate_ids = [c["candidate_id"] for c in proposal["kick_candidates"]]
+    saved = copy.copy(draft)
+    saved.originating_proposal_sha256 = proposal_checksum(proposal)
+    saved.candidate_ids = [c["candidate_id"] for c in proposal["kick_candidates"]]
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(asdict(draft), indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    temporary.write_text(json.dumps(asdict(saved), indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     temporary.replace(path)
+    draft.originating_proposal_sha256 = saved.originating_proposal_sha256
+    draft.candidate_ids = saved.candidate_ids
 
 
 def migrate_legacy(path: Path, proposal: Proposal[AutomaticCandidate]) -> ReviewDraft:
@@ -163,13 +166,25 @@ class CorrectionEditor:
         self.proposal = proposal
         self.draft = draft
         self.history: list[ReviewDraft] = []
+        self.redo_history: list[ReviewDraft] = []
+        self.saved_draft = copy.deepcopy(draft)
         self.candidates = {c["candidate_id"]: c for c in self.predictions + draft.manual_events}
+
+    @property
+    def dirty(self) -> bool:
+        return self.draft != self.saved_draft
+
+    def mark_saved(self) -> None:
+        self.saved_draft = copy.deepcopy(self.draft)
+        self.history.clear()
+        self.redo_history.clear()
 
     @property
     def predictions(self) -> list[AutomaticCandidate]:
         return self.draft.prediction_updates or self.proposal["kick_candidates"]
 
     def checkpoint(self) -> None:
+        self.redo_history.clear()
         self.history.append(copy.deepcopy(self.draft))
         self.history = self.history[-100:]
 
@@ -179,14 +194,28 @@ class CorrectionEditor:
             kick, effective_timestamp(candidate, self.draft), candidate["timestamp"], provenance
         )
 
+    def _remove_manual_event(self, key: str) -> None:
+        self.draft.manual_events = [c for c in self.draft.manual_events if c["candidate_id"] != key]
+        self.draft.overrides.pop(key, None)
+        del self.candidates[key]
+
     def toggle(self, key: str) -> None:
         self.checkpoint()
+        if effective_kick(self.candidates[key], self.draft) and any(
+            c["candidate_id"] == key for c in self.draft.manual_events
+        ):
+            self._remove_manual_event(key)
+            return
         self.set_classification(key, not effective_kick(self.candidates[key], self.draft))
 
     def clear_override(self, key: str) -> None:
-        if key in self.draft.overrides:
+        manual = any(c["candidate_id"] == key for c in self.draft.manual_events)
+        if manual or key in self.draft.overrides:
             self.checkpoint()
-            del self.draft.overrides[key]
+            if manual:
+                self._remove_manual_event(key)
+            else:
+                del self.draft.overrides[key]
 
     def group_targets(self, key: str) -> list[str]:
         cluster = self.candidates[key].get("cluster_id")
@@ -237,7 +266,16 @@ class CorrectionEditor:
     def undo(self) -> bool:
         if not self.history:
             return False
+        self.redo_history.append(copy.deepcopy(self.draft))
         self.draft = self.history.pop()
+        self.candidates = {c["candidate_id"]: c for c in self.predictions + self.draft.manual_events}
+        return True
+
+    def redo(self) -> bool:
+        if not self.redo_history:
+            return False
+        self.history.append(copy.deepcopy(self.draft))
+        self.draft = self.redo_history.pop()
         self.candidates = {c["candidate_id"]: c for c in self.predictions + self.draft.manual_events}
         return True
 

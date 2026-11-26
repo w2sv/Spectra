@@ -32,8 +32,13 @@ Matplotlib is used only for saved static diagnostics.
   for a matching hidden acoustic candidate before automatically localizing a new
   manually identified kick. Ambiguous matches are highlighted for clarification:
   inspect and Shift-click the highlighted marker to correct it. Existing duplicate
-  protection also runs after localization. All corrections are undoable.
-- Right-click a marker to select and inspect it without changing labels.
+  protection also runs after localization. All corrections support undo and redo
+  until saved. Toggling off a manually inserted kick or removing its explicit
+  classification override deletes the event and override entirely, including after saving;
+  automatic candidates retain their identity and explicit rejection.
+- Ordinary corrections and left-click seeks clear selection. Right-click inspection,
+  candidate-review navigation, and ambiguous recovery explicitly select a candidate.
+  Similar-event corrections retain that explicit selection.
 - **Follow playback (F)** is the default navigation mode. The viewport follows
   playback with the cursor at 40% of the plot width wherever recording boundaries
   permit. Wheel zoom anchors at playback, both while playing and paused.
@@ -55,12 +60,32 @@ the viewport only in follow mode. The recording-wide slider previews a destinati
 while dragging and seeks on release, with the same mode-dependent behavior. Ordinary times are
 integer seconds; subsecond zoom and Advanced inspection retain finer display.
 
-The two plots show waveform and bass-onset/broadband evidence. A single marker
-lane above the waveform normally shows green automatic kicks, blue human kicks,
-and subdued red human rejections. Non-kicks remain available but hidden. Direct
-review navigation temporarily reveals only the selected hidden event. The pink
-selection and cyan playback indicators span both plots. The spectrogram remains
+The plots show waveform and bass-onset/broadband evidence. Two compact lanes
+above the waveform separate effective kicks from remaining correction targets:
+
+- Kick lane: green circles for automatic kicks, blue squares for human kicks.
+- Candidate lane: small muted gray dots for kick candidates, muted red crosses
+  for explicit human rejections.
+
+Both lanes start visible. **Show kick candidates** in Advanced hides ordinary
+candidates while keeping effective kicks and explicit rejections visible. Explicit
+review selection also reveals a hidden target. Classification changes, undo, redo
+and reclassification immediately update lane membership. Markers in different lanes
+can be clicked independently even at the same timestamp.
+
+The wrapping graphical legend beneath the plots uses the same marker samples and
+line styles as the plots: cyan playback, pink selection, dashed gray estimated
+beats, blue bass evidence and rose broadband evidence. It reflects optional
+uncertainty outlines, timing outlines and similarity scores. The playback and
+selection indicators span both plots and both marker lanes. The spectrogram remains
 available in static diagnostics only.
+
+**Flash on kicks** starts enabled in Advanced. Crossing an effective kick changes
+both playback cursors from cyan / 2 px to saturated bright green / 6 px for 75 ms of actual
+playback progression, without fading. Rejected candidates and grid-only positions
+never flash. Seeks, skips, restarts, pause/resume and edits reset crossings. Missed
+pulses expire rather than flashing late. Visual cursor offset changes only drawing;
+flash crossings use the unmodified DAC-synchronized annotation timestamps.
 
 | Shortcut | Action |
 | --- | --- |
@@ -72,12 +97,18 @@ available in static diagnostics only.
 | , / . | Previous / next uncertain classification |
 | [ / ] | Previous / next unsupported beat |
 | < / > | Previous / next human correction |
-| Ctrl+Z / Ctrl+S | Undo / save review |
+| Ctrl+Z | Undo |
+| Ctrl+Shift+Z / Ctrl+Y | Redo |
+| Ctrl+S | Save review and clear undo/redo history |
+| Escape / Q | Close review through the Save / Discard / Cancel dialog if unsaved |
 
 Playback skips use the player's current clock, independent of zoom, clamp to the
 recording boundaries, and retain play/pause state. Seeking to the recording end
 leaves playback paused. Playback controls are disabled if audio is unavailable.
 Shortcuts work with plot, button or slider focus; text entry keeps its usual keys.
+Q closes only without modifiers and outside text input. Escape dismisses active
+dialogs, popups and expanded combo boxes before it can close the review. Canceling
+the close dialog or a failed save keeps the window and unsaved state intact.
 
 Candidate navigation centers a two-second viewport, enters free navigation,
 pauses and seeks to its beginning. Repeated navigation advances from the selected event even when events
@@ -87,14 +118,14 @@ Classification uncertainty includes ambiguous/unclassified template decisions,
 threshold proximity and conflicting references. Onset uncertainty, off-grid
 predictions and unsupported provenance alone do not enter that queue.
 
-**Advanced** contains non-kicks, classification uncertainty, grid/hypothesis,
-similarity and timing overlays, correction navigation, override removal, and a
+**Advanced** contains kick candidate visibility, cursor flashes, classification
+uncertainty, grid/hypothesis, similarity and timing overlays, correction navigation, override removal, and a
 signed visual cursor offset in milliseconds. The estimated beat grid starts
 visible as thin dashed gray lines behind the waveform, using the proposal's
 selected primary or available alternative hypothesis. The unsupported-beat queue
 uses the same hypothesis. Advanced can hide the grid or switch hypotheses;
-neither changes annotations. All other optional overlays start hidden. A positive
-offset moves only the drawn cursor forward; it never changes audio, seeking,
+neither changes annotations. Kick candidates and cursor flashes also start enabled;
+diagnostic overlays start hidden. A positive offset moves only the drawn cursor forward; it never changes audio, seeking,
 onsets, saved reviews or benchmark results. Leave it at zero unless residual
 device-specific timing warrants calibration.
 
@@ -110,7 +141,14 @@ prompts to save, discard or cancel. Opening/closing a review does not write it.
 Effective annotations are derived from predictions and explicit decisions; the UI
 has no independent mutable kick list. Drafts retain identities, frozen corrected
 onsets, manual events, group provenance and saved reclassification. Undo retains
-100 actions in memory. Correction counts do **not** represent verified coverage.
+100 actions in memory, with a matching redo stack. A new edit after undo clears redo.
+Successful saving establishes a checkpoint: both histories clear, the prominent
+unsaved indicator disappears, and the status reads **Review saved · undo history
+cleared**. Saved changes remain individually editable, and cannot be undone across
+the save boundary. Undoing all edits since saving restores the clean state; redo
+restores unsaved changes. A failed save or canceled close confirmation preserves
+both histories and the unsaved state. Reopening starts with empty histories.
+Correction counts do **not** represent verified coverage.
 
 Proposal identity excludes informational processing timings. Regeneration carries
 only exactly matched identities and source anchors forward. Stale reviews require
@@ -131,7 +169,7 @@ sections with no proposals, before confirming. Saving alone does not finalize.
 ## Package and noninteractive tools
 
 `annotation/analysis.py`, `templates.py`, and `automatic.py` retain the independent
-numerical algorithms. `corrections.py` owns review data and undo. `diagnostics.py`
+numerical algorithms. `corrections.py` owns review data and undo/redo checkpoints. `diagnostics.py`
 generates static plots. `validation/` retains the acoustic, refinement and automatic
 synthetic experiments. `review/window.py`, `timeline.py`, and `playback.py` own Qt
 interaction, native PyQtGraph rendering, and PCM/DAC-clock playback respectively.
@@ -148,7 +186,8 @@ uv run --group benchmark python -m benchmarks.annotation --track universal --dia
 Playback retains the original WAV's channel layout and amplitude in float32 PCM,
 loading it once. Native-rate output is tried first; an unsupported rate is resampled
 once to the device default while retaining original recording time. Output initially
-requests backend-selected low-latency buffers. Repeated underruns trigger one retry
+requests the backend's safer high-latency buffers after repeated desktop low-buffer
+underruns. Repeated underruns still trigger one retry
 with 100 ms buffering; cursor synchronization still uses DAC timestamps. Device
 errors leave editing and saving available. Pause/seek abort queued output rather
 than waiting for a draining stop; obsolete timing generations cannot move a paused

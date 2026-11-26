@@ -5,12 +5,14 @@ import copy
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
+from time import monotonic
 
 from PySide6.QtCore import QEvent, QObject, QSignalBlocker, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
+    QBoxLayout,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -43,10 +45,27 @@ from benchmarks.annotation.corrections import (
     save_review,
     uncertain_classification,
 )
-from benchmarks.annotation.review.playback import PCMPlayback
+from benchmarks.annotation.review.playback import KickFlash, PCMPlayback
+from benchmarks.annotation.review.styles import (
+    AUTOMATIC_KICK,
+    BASS,
+    BEAT,
+    BROADBAND,
+    CANDIDATE,
+    HUMAN_KICK,
+    PLAYBACK,
+    REJECTED,
+    SCORE,
+    SELECTION,
+    TIMING,
+    UNCERTAINTY,
+    ReviewLegend,
+)
 from benchmarks.annotation.review.timeline import Timeline
 
 KEY_ACTIONS: dict[int, str] = {
+    Qt.Key.Key_Escape: "close",
+    Qt.Key.Key_Q: "close",
     Qt.Key.Key_Space: "play",
     Qt.Key.Key_Backspace: "back_10",
     Qt.Key.Key_Left: "back_5",
@@ -75,7 +94,8 @@ LABELS = {
     "next_uncertain": "Next uncertain classification (.)",
     "previous_unsupported": "Previous unsupported beat ([)",
     "next_unsupported": "Next unsupported beat (])",
-    "undo": "Undo correction (Ctrl+Z)",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Y)",
     "save": "Save review (Ctrl+S)",
     "group_kick": "Similar events: kicks",
     "group_nonkick": "Similar events: non-kicks",
@@ -135,7 +155,7 @@ class AnnotationReview(QMainWindow):
         self.draft_path = draft_path
         self.proposal_hash = proposal_checksum(proposal)
         self.stale = draft.originating_proposal_sha256 != self.proposal_hash
-        self.dirty = False
+        self.dirty = self.stale
         self.revision = 0
         self.selected: str | None = None
         self.player: PCMPlayback | None = None
@@ -145,6 +165,9 @@ class AnnotationReview(QMainWindow):
         self.localizer = OnsetLocalizer(analysis)
         self.playback_position = start
         self.reported_underruns = 0
+        self.kick_flash = KickFlash()
+        self.last_slider_update = 0.0
+        self.visual_snapshot: tuple[float, float, bool] | None = None
         self.queues: dict[str, list[str]] = {}
         self.queue_positions: dict[str, list[tuple[float, str]]] = {}
         self.buttons: dict[str, QPushButton] = {}
@@ -160,9 +183,12 @@ class AnnotationReview(QMainWindow):
         left.addWidget(self.range_label)
         self.timeline = Timeline(analysis, proposal)
         left.addWidget(self.timeline, 1)
-        self.legend = QLabel()
-        self.legend.setWordWrap(True)
+        self.legend = ReviewLegend()
         left.addWidget(self.legend)
+        self.unsaved_label = QLabel("Unsaved changes")
+        self.unsaved_label.setStyleSheet("color: #ffcc70; font-weight: bold; padding: 3px 10px;")
+        self.statusBar().addPermanentWidget(self.unsaved_label)
+        self.unsaved_label.hide()
         seeking = QHBoxLayout()
         self.seek_slider = QSlider(Qt.Orientation.Horizontal)
         self.seek_slider.setRange(0, 1_000_000)
@@ -199,11 +225,21 @@ class AnnotationReview(QMainWindow):
         )
         self.follow_checkbox.toggled.connect(self._follow_toggled)
         controls.addWidget(self.follow_checkbox)
-        self._section(
+        review_controls = self._section(
             controls,
             "Review",
-            ["previous_uncertain", "next_uncertain", "previous_unsupported", "next_unsupported", "undo", "save"],
+            [
+                "previous_uncertain",
+                "next_uncertain",
+                "previous_unsupported",
+                "next_unsupported",
+            ],
         )
+        history = QHBoxLayout()
+        self._button(history, "undo")
+        self._button(history, "redo")
+        review_controls.addLayout(history)
+        self._button(review_controls, "save")
         self._section(controls, "Classification", ["group_kick", "group_nonkick", "reclassify"])
         progress_group = QGroupBox("Progress")
         progress_layout = QVBoxLayout(progress_group)
@@ -219,17 +255,21 @@ class AnnotationReview(QMainWindow):
         advanced_layout.setContentsMargins(0, 0, 0, 0)
         self.overlays: dict[str, QCheckBox] = {}
         for key, label in [
-            ("nonkicks", "Show non-kick candidates"),
+            ("candidates", "Show kick candidates"),
             ("uncertainty", "Show classification uncertainty"),
             ("grid", "Show beat grid"),
             ("scores", "Show similarity scores"),
             ("timing", "Show timing diagnostics"),
         ]:
             checkbox = QCheckBox(label)
-            checkbox.setChecked(key == "grid")
+            checkbox.setChecked(key in ("grid", "candidates"))
             checkbox.toggled.connect(self.refresh_markers)
             self.overlays[key] = checkbox
             advanced_layout.addWidget(checkbox)
+        self.flash_checkbox = QCheckBox("Flash on kicks")
+        self.flash_checkbox.setChecked(True)
+        self.flash_checkbox.toggled.connect(self._flash_toggled)
+        advanced_layout.addWidget(self.flash_checkbox)
         self.grid_choice = QComboBox()
         self.grid_choice.addItems(["Primary beat grid", "Alternative beat grid"])
         self.grid_choice.setEnabled(bool(proposal.get("alternative_beat_positions")))
@@ -248,6 +288,7 @@ class AnnotationReview(QMainWindow):
         self.cursor_offset.setToolTip(
             "Positive moves only the displayed cursor forward. Audio, seeks and annotations are unchanged."
         )
+        self.cursor_offset.valueChanged.connect(lambda _: self._render_position())
         advanced_layout.addWidget(self.cursor_offset)
         self.advanced.setVisible(False)
         self.advanced_toggle.toggled.connect(self._advanced_toggled)
@@ -267,10 +308,6 @@ class AnnotationReview(QMainWindow):
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.setInterval(16)
         self.timer.timeout.connect(self.update_playback)
-        self.follow_timer = QTimer(self)
-        self.follow_timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self.follow_timer.setInterval(33)
-        self.follow_timer.timeout.connect(self.follow_playback)
         if audio_path is not None:
             try:
                 self.player = PCMPlayback.from_wav(audio_path)
@@ -280,7 +317,6 @@ class AnnotationReview(QMainWindow):
         self.refresh()
         self._follow_toggled(self.follow_checkbox.isChecked())
         self.timer.start()
-        self.follow_timer.start()
 
     @property
     def draft(self) -> ReviewDraft:
@@ -290,23 +326,26 @@ class AnnotationReview(QMainWindow):
     def alternative_grid(self) -> bool:
         return self.grid_choice.currentIndex() == 1
 
-    def _button(self, layout: QVBoxLayout, action: str) -> None:
+    def _button(self, layout: QBoxLayout, action: str) -> None:
         button = QPushButton(LABELS[action])
         tooltip = LABELS[action]
         if action in ("back_5", "forward_5"):
             tooltip += "; Shift + " + ("Left: back 1 s" if action == "back_5" else "Right: forward 1 s")
+        if action == "redo":
+            tooltip += "; Ctrl+Shift+Z also redoes"
         button.setToolTip(tooltip)
         button.clicked.connect(lambda _checked=False, name=action: self.perform_action(name))
         self.buttons[action] = button
         layout.addWidget(button)
 
-    def _section(self, layout: QVBoxLayout, title: str, actions: list[str]) -> None:
+    def _section(self, layout: QVBoxLayout, title: str, actions: list[str]) -> QVBoxLayout:
         group = QGroupBox(title)
         inner = QVBoxLayout(group)
         inner.setSpacing(3)
         for action in actions:
             self._button(inner, action)
         layout.addWidget(group)
+        return inner
 
     def _advanced_toggled(self, expanded: bool) -> None:
         self.advanced.setVisible(expanded)
@@ -314,14 +353,16 @@ class AnnotationReview(QMainWindow):
         self._inspect()
 
     def _range_changed(self, left: float, right: float) -> None:
-        self.range_label.setText(
-            f"Visible range: {round(left)}–{round(right)} s" + (" · unsaved review" if self.dirty else "")
-        )
+        text = f"Visible range: {round(left)}–{round(right)} s"
+        if self.range_label.text() != text:
+            self.range_label.setText(text)
 
     def _follow_toggled(self, enabled: bool) -> None:
         if enabled:
-            self.update_playback()
-            self.follow_playback()
+            self.visual_snapshot = None
+            self.update_playback(force=True)
+            if self.player is None:
+                self._render_position()
 
     def _restore_following(self) -> None:
         if self.follow_checkbox.isChecked():
@@ -362,21 +403,31 @@ class AnnotationReview(QMainWindow):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if (
-            self.isActiveWindow()
-            and event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
+            event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress)
             and isinstance(event, QKeyEvent)
+            and self.isActiveWindow()
+            and QApplication.activePopupWidget() is None
+            and QApplication.activeModalWidget() is None
         ):
             focus = QApplication.focusWidget()
-            if isinstance(focus, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+            if (
+                isinstance(focus, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox))
+                and event.key() != Qt.Key.Key_Escape
+            ):
                 return super().eventFilter(watched, event)
             modifiers = event.modifiers()
             action = None
             if modifiers == Qt.KeyboardModifier.ControlModifier:
-                action = "undo" if event.key() == Qt.Key.Key_Z else "save" if event.key() == Qt.Key.Key_S else None
+                control_actions: dict[int, str] = {Qt.Key.Key_Z: "undo", Qt.Key.Key_Y: "redo", Qt.Key.Key_S: "save"}
+                action = control_actions.get(event.key())
+            elif modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
+                action = "redo" if event.key() == Qt.Key.Key_Z else None
             elif modifiers in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier):
                 action = KEY_ACTIONS.get(event.key())
                 if modifiers == Qt.KeyboardModifier.ShiftModifier:
                     action = SHIFT_KEY_ACTIONS.get(event.key(), action)
+            if action == "close" and modifiers != Qt.KeyboardModifier.NoModifier:
+                action = None
             if action is not None:
                 event.accept()
                 if event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat():
@@ -388,6 +439,10 @@ class AnnotationReview(QMainWindow):
         candidates = list(self.editor.candidates.values())
         ordered = sorted(candidates, key=lambda c: (effective_timestamp(c, self.draft), c["candidate_id"]))
         kicks = sorted(effective_timestamp(c, self.draft) for c in ordered if effective_kick(c, self.draft))
+        self.kick_flash.timestamps = kicks
+        self.kick_flash.reset()
+        self.timeline.set_flash(False)
+        self.unsaved_label.setVisible(self.dirty or self.stale)
         # Build queues only after edits/grid changes, never in the playback timer.
 
         self.queues = {"uncertain": [], "unsupported": [], "corrected": []}
@@ -427,32 +482,25 @@ class AnnotationReview(QMainWindow):
         self.timeline.select(self.selected, self.editor)
         self.timeline.update_candidates(
             self.editor,
-            show_nonkicks=self.overlays["nonkicks"].isChecked(),
+            show_candidates=self.overlays["candidates"].isChecked(),
             uncertainty=self.overlays["uncertainty"].isChecked(),
             timing=self.overlays["timing"].isChecked(),
             scores=self.overlays["scores"].isChecked(),
             grid=self.overlays["grid"].isChecked(),
             alternative=self.alternative_grid,
         )
-        entries = [
-            "● Green: automatic kick",
-            "■ Blue: human kick",
-            "× Red: human rejection",
-            "Pink: selection",
-            "Cyan: playback",
-            "Blue / rose: bass / broadband",
-        ]
-        if self.overlays["nonkicks"].isChecked():
-            entries.append("Gray triangle: non-kick")
+        entries = [AUTOMATIC_KICK, HUMAN_KICK, CANDIDATE, REJECTED, PLAYBACK, SELECTION, BASS, BROADBAND]
+        if not self.overlays["candidates"].isChecked():
+            entries.remove(CANDIDATE)
         if self.overlays["uncertainty"].isChecked():
-            entries.append("Orange outline: classification uncertainty")
+            entries.append(UNCERTAINTY)
         if self.overlays["timing"].isChecked():
-            entries.append("Lilac outline: timing / grid discrepancy")
+            entries.append(TIMING)
         if self.overlays["grid"].isChecked():
-            entries.append("Dashed: estimated beat")
+            entries.append(BEAT)
         if self.overlays["scores"].isChecked():
-            entries.append("Green dots: similarity")
-        self.legend.setText(" · ".join(entries))
+            entries.append(SCORE)
+        self.legend.set_entries(tuple(entries))
 
     def navigation_target(self, kind: str, direction: int) -> str | None:
         positions = self.queue_positions[kind]
@@ -476,6 +524,8 @@ class AnnotationReview(QMainWindow):
             return self.player is not None
         if action == "undo":
             return bool(self.editor.history)
+        if action == "redo":
+            return bool(self.editor.redo_history)
         if action == "reclassify":
             return bool(self.draft.overrides) and self.worker is None
         if action == "clear_override":
@@ -489,7 +539,9 @@ class AnnotationReview(QMainWindow):
 
     def refresh_actions(self) -> None:
         for action, button in self.buttons.items():
-            button.setEnabled(self.action_enabled(action))
+            enabled = self.action_enabled(action)
+            if button.isEnabled() != enabled:
+                button.setEnabled(enabled)
         self.buttons["play"].setText(
             "Pause (Space)" if self.player is not None and not self.player.paused else LABELS["play"]
         )
@@ -507,7 +559,7 @@ class AnnotationReview(QMainWindow):
         if candidate is None:
             self.inspection.setText("Right-click a marker to select and inspect it without editing.")
             return
-        text = f"Selected: {'Kick' if effective_kick(candidate, self.draft) else 'Non-kick'} at {round(effective_timestamp(candidate, self.draft))} s"
+        text = f"Selected: {'Kick' if effective_kick(candidate, self.draft) else 'Rejected candidate' if self.selected in self.draft.overrides else 'Kick candidate'} at {round(effective_timestamp(candidate, self.draft))} s"
         if self.advanced_toggle.isChecked():
             text += (
                 f" · {effective_timestamp(candidate, self.draft):.4f} s · cluster {candidate['cluster_id']}\n{candidate['timing_reason']} · "
@@ -516,7 +568,7 @@ class AnnotationReview(QMainWindow):
         self.inspection.setText(text)
 
     def edited(self, message: str) -> None:
-        self.dirty = True
+        self.dirty = self.stale or self.editor.dirty
         self.revision += 1
         self.pending_group = None
         self.statusBar().showMessage(message)
@@ -533,18 +585,20 @@ class AnnotationReview(QMainWindow):
         if modifiers == Qt.KeyboardModifier.ShiftModifier:
             self.correct_or_insert(timestamp, key)
         else:
-            if key is not None:
-                self.selected = key
+            if self.selected is not None:
+                self.selected = None
                 self.refresh_markers()
                 self.refresh_actions()
                 self._inspect()
             self._seek(timestamp)
 
     def correct_or_insert(self, timestamp: float, key: str | None) -> None:
+        self.selected = None
         if key is not None:
-            self.selected = key
             self.editor.toggle(key)
-            self.edited("Existing event corrected; onset and identity preserved.")
+            self.edited(
+                "Kick removed." if key not in self.editor.candidates else "Existing event corrected; onset preserved."
+            )
             return
         nearby = nearby_hidden_candidates(self.editor, timestamp, set(self.timeline.marker_keys))
         if nearby:
@@ -557,9 +611,8 @@ class AnnotationReview(QMainWindow):
                 if reliable and abs(self.editor.candidates[k]["localized_timestamp"] - localized) <= 0.015
             ]
             if len(appropriate) == 1:
-                self.selected = appropriate[0]
-                self.editor.toggle(self.selected)
-                self.edited("Hidden non-kick recovered as a kick; existing onset preserved.")
+                self.editor.toggle(appropriate[0])
+                self.edited("Hidden candidate recovered as a kick; existing onset preserved.")
                 return
             self.selected = nearby[0]
             self.refresh_markers()
@@ -599,7 +652,7 @@ class AnnotationReview(QMainWindow):
             "classification": "unclassified",
         }
         if self.editor.insert(candidate):
-            self.selected = key
+            self.selected = None
             self.edited("New kick inserted; onset localized automatically.")
         else:
             nearest = min(
@@ -614,15 +667,19 @@ class AnnotationReview(QMainWindow):
             )
 
     def _playback_action(self, action: Callable[[], None]) -> None:
+        was_paused = self.player is None or self.player.paused
         try:
             action()
         except Exception as error:
             self.playback_failed(error)
-        self.update_playback()
-        self.follow_playback()
-        self.refresh_actions()
+        self.kick_flash.reset()
+        self.update_playback(force=True)
+        if self.player is not None and self.player.paused != was_paused:
+            self.refresh_actions()
 
     def playback_failed(self, error: Exception) -> None:
+        self.kick_flash.reset()
+        self.timeline.set_flash(False)
         player, self.player = self.player, None
         if player is not None:
             try:
@@ -636,7 +693,9 @@ class AnnotationReview(QMainWindow):
         if not self.action_enabled(action):
             return
         try:
-            if action == "play" and self.player is not None:
+            if action == "close":
+                self.close()
+            elif action == "play" and self.player is not None:
                 self._playback_action(self.player.toggle)
             elif action in RELATIVE_SEEKS and self.player is not None:
                 self._seek(self.player.position + RELATIVE_SEEKS[action])
@@ -657,21 +716,27 @@ class AnnotationReview(QMainWindow):
                     self.refresh_markers()
                     self.refresh_actions()
                     self._inspect()
-            elif action == "undo":
-                self.editor.undo()
+            elif action in ("undo", "redo"):
+                if action == "undo":
+                    self.editor.undo()
+                else:
+                    self.editor.redo()
                 if self.selected not in self.editor.candidates:
                     self.selected = None
-                self.edited("Correction undone.")
+                self.edited("Correction undone." if action == "undo" else "Correction redone.")
             elif action == "clear_override" and self.selected is not None:
                 self.editor.clear_override(self.selected)
-                self.edited("Explicit classification override removed.")
+                removed = self.selected not in self.editor.candidates
+                if removed:
+                    self.selected = None
+                self.edited("Manual kick removed." if removed else "Explicit classification override removed.")
             elif action == "save":
                 save_review(self.draft_path, self.draft, self.proposal)
+                self.editor.mark_saved()
                 self.dirty = self.stale = False
-                self.statusBar().showMessage(
-                    "Review saved. Finalization still requires explicit full-recording confirmation."
-                )
-                self._range_changed(*self.timeline.interval)
+                self.unsaved_label.hide()
+                self.statusBar().showMessage("Review saved · undo history cleared")
+                self.refresh_actions()
             elif action.startswith("group_") and self.selected is not None:
                 kick = action == "group_kick"
                 request = (self.selected, kick, tuple(self.editor.group_targets(self.selected)))
@@ -721,36 +786,61 @@ class AnnotationReview(QMainWindow):
         if self.close_pending:
             self.close()
 
-    def update_playback(self) -> None:
-        if self.player is None:
-            self.playback_label.setText(f"Playback unavailable / {round(self.analysis.duration_seconds)} s")
+    def _flash_toggled(self, enabled: bool) -> None:
+        self.kick_flash.reset()
+        self.timeline.set_flash(False)
+
+    def _render_position(self) -> None:
+        offset = self.cursor_offset.value() / 1000
+        following = self.follow_checkbox.isChecked()
+        snapshot = (self.playback_position, offset, following)
+        if snapshot == self.visual_snapshot:
+            return
+        self.visual_snapshot = snapshot
+        if following:
+            self.timeline.follow(self.playback_position, offset=offset)
+        else:
+            self.timeline.set_cursor(self.playback_position, offset=offset)
+
+    def _update_seek_controls(self, position: float, *, force: bool) -> None:
+        if self.seek_slider.isSliderDown():
+            return
+        now = monotonic()
+        if force or now - self.last_slider_update >= 0.08:
+            self.last_slider_update = now
+            value = round(position / self.analysis.duration_seconds * 1_000_000)
+            if self.seek_slider.value() != value:
+                with QSignalBlocker(self.seek_slider):
+                    self.seek_slider.setValue(value)
+        text = f"Playback: {round(position)} / {round(self.analysis.duration_seconds)} s"
+        if self.playback_label.text() != text:
+            self.playback_label.setText(text)
+
+    def update_playback(self, *, force: bool = False) -> None:
+        player = self.player
+        if player is None:
+            text = f"Playback unavailable / {round(self.analysis.duration_seconds)} s"
+            if self.playback_label.text() != text:
+                self.playback_label.setText(text)
             return
         try:
-            was_paused = self.player.paused
-            position = self.player.poll()
+            was_paused = player.paused
+            position = player.poll()
             self.playback_position = position
-            if not self.follow_checkbox.isChecked() or self.player.paused:
-                self.timeline.set_cursor(position, offset=self.cursor_offset.value() / 1000)
-            if not self.seek_slider.isSliderDown():
-                with QSignalBlocker(self.seek_slider):
-                    self.seek_slider.setValue(round(position / self.analysis.duration_seconds * 1_000_000))
-                self.playback_label.setText(f"Playback: {round(position)} / {round(self.analysis.duration_seconds)} s")
-            if was_paused != self.player.paused:
+            self._render_position()
+            flashing = self.kick_flash.update(position, playing=not player.paused, generation=player.generation)
+            self.timeline.set_flash(flashing and self.flash_checkbox.isChecked())
+            self._update_seek_controls(position, force=force or was_paused != player.paused)
+            if was_paused != player.paused:
                 self.refresh_actions()
-            if self.player.underruns > self.reported_underruns:
-                self.reported_underruns = self.player.underruns
+            if player.underruns > self.reported_underruns:
+                self.reported_underruns = player.underruns
                 self.statusBar().showMessage(
                     f"Audio output underrun ({self.reported_underruns}); "
-                    + ("switched to reliable buffering." if self.player.reliable_buffering else "playback continues.")
+                    + ("switched to reliable buffering." if player.reliable_buffering else "playback continues.")
                 )
         except Exception as error:
             self.playback_failed(error)
-
-    def follow_playback(self) -> None:
-        if self.player is not None and self.follow_checkbox.isChecked():
-            # The cursor timer polls the clock. Scroll and render that snapshot
-            # together, including while paused after explicit navigation.
-            self.timeline.follow(self.playback_position, offset=self.cursor_offset.value() / 1000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.dirty and not self.close_pending:
@@ -782,7 +872,7 @@ class AnnotationReview(QMainWindow):
             event.ignore()
             return
         self.timer.stop()
-        self.follow_timer.stop()
+
         if self.player is not None:
             try:
                 self.player.close()

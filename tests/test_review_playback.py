@@ -146,9 +146,29 @@ def test_underrun_recovery_and_device_failure_freeze_audible_position(monkeypatc
     player.underruns = 3
     assert player.poll() == 0.2
     assert player.reliable_buffering and first.closed
-    assert requested == ["low", 0.1]
+    assert requested == ["high", 0.1]
     second.active = False
     with pytest.raises(RuntimeError, match="stopped unexpectedly"):
         player.poll()
     assert player.paused and player.position == 0.2
     player.close()
+
+
+def test_kick_flash_crossings_expiration_and_discontinuities() -> None:
+    from benchmarks.annotation.review.playback import KickFlash
+
+    flash = KickFlash()
+    flash.timestamps = [1, 1.02, 2, 3]
+    assert not flash.update(0.9, playing=True, generation=1)
+    assert flash.update(1.01, playing=True, generation=1)
+    assert flash.update(1.04, playing=True, generation=1)  # Latest crossed kick wins.
+    assert flash.update(1.094, playing=True, generation=1)
+    assert not flash.update(1.096, playing=True, generation=1)
+    assert not flash.update(2.2, playing=True, generation=1)  # Entire pulse missed.
+    assert not flash.update(3.01, playing=True, generation=2)  # Seek/recovery generation.
+    assert not flash.update(0.9, playing=True, generation=2)  # Backward discontinuity.
+    assert flash.update(1, playing=True, generation=2)
+    assert not flash.update(1.01, playing=False, generation=2)
+    assert not flash.update(2.01, playing=True, generation=2)  # Resuming seeds crossings.
+    flash.reset()  # Editing must never create a crossing.
+    assert not flash.update(3.01, playing=True, generation=2)

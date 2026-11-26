@@ -6,6 +6,7 @@ every transition; no old callback can publish into a new generation.
 """
 
 import math
+from bisect import bisect_right
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,34 @@ from spectra.audio import AudioSamples
 
 if TYPE_CHECKING:
     import sounddevice as sd
+
+_KICK_FLASH_SECONDS = 0.075
+
+
+class KickFlash:
+    """Crossings and expiration use recording time from consecutive DAC snapshots."""
+
+    def __init__(self) -> None:
+        self.timestamps: list[float] = []
+        self.previous: float | None = None
+        self.generation: int | None = None
+        self.until = 0.0
+
+    def reset(self) -> None:
+        self.previous = None
+        self.until = 0.0
+
+    def update(self, position: float, *, playing: bool, generation: int) -> bool:
+        previous = self.previous
+        if not playing or generation != self.generation or previous is None or position < previous:
+            self.until = 0.0
+        else:
+            index = bisect_right(self.timestamps, position) - 1
+            if index >= 0 and previous < self.timestamps[index] <= position:
+                self.until = self.timestamps[index] + _KICK_FLASH_SECONDS
+        self.generation = generation
+        self.previous = position if playing else None
+        return playing and position < self.until
 
 
 class CallbackTime(Protocol):
@@ -98,7 +127,9 @@ class PCMPlayback:
             )
             self.rate = supported_rate
         self.clock = PlaybackClock(self.rate, len(self.samples), self.duration)
-        self.stream = self._open_stream("low")
+        # Desktop profiling repeatedly exhausted the backend's tiny low-latency
+        # buffers during Qt painting. The DAC clock accounts for queued output.
+        self.stream = self._open_stream("high")
 
     def _open_stream(self, latency: str | float) -> sd.OutputStream:
         return self.audio.OutputStream(
@@ -120,6 +151,10 @@ class PCMPlayback:
     @property
     def paused(self) -> bool:
         return not self.clock.playing
+
+    @property
+    def generation(self) -> int:
+        return self.clock.generation
 
     @property
     def position(self) -> float:
@@ -212,8 +247,7 @@ class PCMPlayback:
                 if not self.eof:
                     raise RuntimeError("Audio device stopped unexpectedly. Review edits are retained.")
             elif self.underruns >= 3 and not self.reliable_buffering:
-                # Some backends request only a few milliseconds at 'low'. A
-                # Python callback also needs the GIL during native Qt painting.
+                # A Python callback also needs the GIL during native Qt painting.
                 # Retry once with reliable buffering; the DAC clock accounts
                 # for the larger queue, so this needs no cursor compensation.
                 self.pause()

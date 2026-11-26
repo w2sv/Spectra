@@ -1,4 +1,4 @@
-"""Linked time plots, a single marker lane, and native horizontal navigation."""
+"""Linked time plots, two marker lanes, and native horizontal navigation."""
 
 import math
 
@@ -14,11 +14,33 @@ from benchmarks.annotation.corrections import (
     effective_timestamp,
     uncertain_classification,
 )
+from benchmarks.annotation.review.styles import (
+    AUTOMATIC_KICK,
+    BASS,
+    BEAT,
+    BROADBAND,
+    CANDIDATE,
+    HUMAN_KICK,
+    KICK_FLASH,
+    MARKER_STYLES,
+    PLAYBACK,
+    REJECTED,
+    SCORE,
+    SELECTION,
+    TIMING,
+    UNCERTAINTY,
+)
 
 PLAYBACK_ANCHOR_FRACTION = 0.4
 
 
 class TimeAxis(pg.AxisItem):
+    def __init__(self, orientation: str) -> None:
+        super().__init__(orientation)
+        # Recording coordinates always stay in seconds. Avoid rebuilding the
+        # unchanged rich-text axis label on every following range change.
+        self.enableAutoSIPrefix(False)
+
     def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:
         if spacing >= 1:
             return [str(round(value)) for value in values]
@@ -102,7 +124,12 @@ class Timeline(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.splitter)
         self.amplitude = max(0.01, float(np.max(np.abs(analysis.mono))))
-        self.lane_y = self.amplitude * 1.28
+        self.kick_y = self.amplitude * 1.28
+        self.candidate_y = self.amplitude * 1.1
+        self.marker_spots: list[dict] = []
+        self.marker_kicks: list[bool] = []
+        self.marker_ys = np.empty(0, dtype=np.float64)
+        self.selected_kick = False
         self.wave_box.setYRange(-self.amplitude * 1.05, self.amplitude * 1.48, padding=0)
         self.wave.setLabel("left", "PCM amplitude")
         self.evidence.setLabel("left", "Onset evidence")
@@ -116,14 +143,19 @@ class Timeline(QWidget):
             autoDownsampleFactor=1.0,
             downsampleMethod="peak",
         )
-        self.bass = self.evidence.plot(analysis.timestamps, analysis.bass, pen="#6595dc", autoDownsample=True)
-        self.broadband = self.evidence.plot(analysis.timestamps, analysis.broadband, pen="#c48aa8", autoDownsample=True)
+        self.bass = self.evidence.plot(
+            analysis.timestamps, analysis.bass, pen=BASS.pen(), autoDownsample=True, autoDownsampleFactor=1.0
+        )
+        self.broadband = self.evidence.plot(
+            analysis.timestamps, analysis.broadband, pen=BROADBAND.pen(), autoDownsample=True, autoDownsampleFactor=1.0
+        )
         self.evidence_box.setYRange(
             0, max(1.1, float(np.max(analysis.bass)), float(np.max(analysis.broadband))) * 1.1, padding=0
         )
         for curve in (self.waveform, self.bass, self.broadband):
             curve.setDownsampling(auto=True, method="peak")
             curve.setClipToView(True)
+            curve.curve.setSegmentedLineMode("on")
             # Native Qt caching avoids repainting curves just to move a cursor.
             curve.curve.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.markers = pg.ScatterPlotItem(pxMode=True, size=10)
@@ -133,10 +165,12 @@ class Timeline(QWidget):
         self.wave.addItem(self.markers)
         self.separator = pg.InfiniteLine(self.amplitude * 1.1, angle=0, pen=pg.mkPen("#555555"))
         self.wave.addItem(self.separator)
-        self.scores = pg.ScatterPlotItem(size=5, pen=None, brush="#66b283")
+        self.lane_separator = pg.InfiniteLine(angle=0, pen=pg.mkPen("#404348"))
+        self.wave.addItem(self.lane_separator)
+        self.scores = pg.ScatterPlotItem(size=5, pen=None, brush=SCORE.color)
         self.scores.setEnabled(False)
         self.evidence.addItem(self.scores)
-        self.grid = pg.PlotDataItem(pen=pg.mkPen("#60656b", width=1, style=Qt.PenStyle.DashLine), connect="pairs")
+        self.grid = pg.PlotDataItem(pen=BEAT.pen(), connect="pairs")
         self.grid.setZValue(-10)
         self.wave.addItem(self.grid)
         self.cursor_time = 0.0
@@ -145,11 +179,15 @@ class Timeline(QWidget):
         # Scrolling then moves only data; the playhead stays at a stable pixel.
         self.cursor_lines = [QGraphicsLineItem(box) for box in (self.wave_box, self.evidence_box)]
         for line in self.cursor_lines:
-            line.setPen(pg.mkPen("#00bbdb", width=2))
+            line.setPen(PLAYBACK.pen())
             line.setZValue(1000)
             line.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self.selection_lines = [pg.InfiniteLine(0, pen=pg.mkPen("#ef72c1", width=1)) for _ in range(2)]
-        self.selection_outline = pg.ScatterPlotItem(size=18, symbol="o", brush=None, pen=pg.mkPen("#ff9adb", width=2))
+        self.flashing = False
+        self.cursor_pens = (PLAYBACK.pen(), KICK_FLASH.pen())
+        self.selection_lines = [pg.InfiniteLine(0, pen=SELECTION.pen()) for _ in range(2)]
+        self.selection_outline = pg.ScatterPlotItem(
+            size=18, symbol="o", brush=None, pen=pg.mkPen(SELECTION.color, width=2)
+        )
         self.selection_outline.setEnabled(False)
         self.wave.addItem(self.selection_outline)
         for plot, selection in zip((self.wave, self.evidence), self.selection_lines, strict=True):
@@ -167,9 +205,11 @@ class Timeline(QWidget):
             selection.hide()
             selection.setZValue(19)
         self.marker_keys: list[str] = []
-        colors = ("#3184e0", "#a96872", "#2bad62", "#93979d", "#e7ae40", "#dca4df")
-        self.marker_pens = {color: pg.mkPen(color, width=2 if color in colors[-2:] else 1) for color in colors}
-        self.marker_brushes = {color: pg.mkBrush(color) for color in colors[:4]}
+        self.marker_pens = {
+            style.color: pg.mkPen(style.color, width=2 if style in (UNCERTAINTY, TIMING) else 1)
+            for style in MARKER_STYLES
+        }
+        self.marker_brushes = {style.color: pg.mkBrush(style.color) for style in MARKER_STYLES}
         self.marker_times = np.empty(0, dtype=np.float64)
         self.inspection: dict[str, str] = {}
         self.selected: str | None = None
@@ -184,6 +224,7 @@ class Timeline(QWidget):
             box.sigResized.connect(self._position_cursor)
             box.sigXRangeChanged.connect(self._position_cursor)
         self.wave_box.sigXRangeChanged.connect(self._range_changed)
+        self.wave_box.sigResized.connect(self._resize_lanes)
         scene = self.wave_widget.scene()
         if isinstance(scene, pg.GraphicsScene):
             scene.sigMouseMoved.connect(self._hover)
@@ -212,11 +253,15 @@ class Timeline(QWidget):
         self.rangeChanged.emit(left, right)
 
     def hit_test(self, point: QPointF) -> str | None:
+        timestamp = self.wave_box.mapSceneToView(point).x()
         left, right = self.interval
-        first, last = np.searchsorted(self.marker_times, [left, right])
+        radius_seconds = 8 * (right - left) / max(1, self.wave_box.width())
+        first, last = np.searchsorted(
+            self.marker_times, [timestamp - radius_seconds, timestamp + radius_seconds], side="left"
+        )
         points = []
-        for index in range(max(0, int(first) - 1), min(len(self.marker_keys), int(last) + 1)):
-            scene = self.wave_box.mapViewToScene(QPointF(float(self.marker_times[index]), self.lane_y))
+        for index in range(int(first), int(last)):
+            scene = self.wave_box.mapViewToScene(QPointF(float(self.marker_times[index]), float(self.marker_ys[index])))
             points.append((self.marker_keys[index], scene.x(), scene.y()))
         return nearest_marker(points, point.x(), point.y())
 
@@ -234,6 +279,31 @@ class Timeline(QWidget):
         key = self.hit_test(point)
         self.wave_widget.setToolTip(self.inspection.get(key, "") if key is not None else "")
 
+    def set_flash(self, flashing: bool) -> None:
+        if flashing == self.flashing:
+            return
+        self.flashing = flashing
+        for line in self.cursor_lines:
+            line.setPen(self.cursor_pens[flashing])
+
+    def _resize_lanes(self, *_: object) -> None:
+        # Reserve two 28 logical-pixel lanes; remaining height belongs to PCM.
+        height = max(112, self.wave_box.height())
+        units_per_pixel = self.amplitude * 2.05 / (height - 56)
+        self.candidate_y = self.amplitude + units_per_pixel * 14
+        self.kick_y = self.amplitude + units_per_pixel * 42
+        self.wave_box.setYRange(-self.amplitude * 1.05, self.amplitude + units_per_pixel * 56, padding=0)
+        self.separator.setPos(self.amplitude)
+        self.lane_separator.setPos(self.amplitude + units_per_pixel * 28)
+        self.marker_ys = np.where(self.marker_kicks, self.kick_y, self.candidate_y)
+        for spot, y in zip(self.marker_spots, self.marker_ys, strict=True):
+            spot["pos"] = (spot["pos"][0], float(y))
+        self.markers.setData(self.marker_spots)
+        if self.selected is not None:
+            self.selection_outline.setData(
+                [self.selection_lines[0].value()], [self.kick_y if self.selected_kick else self.candidate_y]
+            )
+
     def set_cursor(self, timestamp: float, *, offset: float = 0) -> None:
         self.cursor_time = timestamp
         self.cursor_offset = offset
@@ -243,11 +313,14 @@ class Timeline(QWidget):
         for box, line in zip((self.wave_box, self.evidence_box), self.cursor_lines, strict=True):
             left, right = box.viewRange()[0]
             x = box.width() * ((self.cursor_time + self.cursor_offset - left) / (right - left))
-            line.setVisible(0 <= x <= box.width())
+            visible = 0 <= x <= box.width()
+            if line.isVisible() != visible:
+                line.setVisible(visible)
             # Snap the fixed playhead to a device pixel, including fractional DPI.
             ratio = self.devicePixelRatioF()
             x = round(x * ratio) / ratio
-            line.setLine(x, 0, x, box.height())
+            if line.line().x1() != x or line.line().y2() != box.height():
+                line.setLine(x, 0, x, box.height())
 
     def select(self, key: str | None, editor: CorrectionEditor) -> None:
         self.selected = key
@@ -259,13 +332,17 @@ class Timeline(QWidget):
         if candidate is None:
             self.selection_outline.setData([], [])
         else:
-            self.selection_outline.setData([effective_timestamp(candidate, editor.draft)], [self.lane_y])
+            self.selected_kick = effective_kick(candidate, editor.draft)
+            self.selection_outline.setData(
+                [effective_timestamp(candidate, editor.draft)],
+                [self.kick_y if self.selected_kick else self.candidate_y],
+            )
 
     def update_candidates(
         self,
         editor: CorrectionEditor,
         *,
-        show_nonkicks: bool,
+        show_candidates: bool,
         uncertainty: bool,
         timing: bool,
         scores: bool,
@@ -279,6 +356,7 @@ class Timeline(QWidget):
         spots = []
         self.marker_keys = []
         times = []
+        self.marker_kicks = []
         self.inspection = {}
         score_times, score_values = [], []
         for candidate in ordered:
@@ -286,34 +364,35 @@ class Timeline(QWidget):
             kick = effective_kick(candidate, editor.draft)
             corrected = key in editor.draft.overrides
             doubtful = uncertain_classification(candidate, editor.draft)
-            if not (kick or corrected or key == selected or show_nonkicks or uncertainty and doubtful):
+            if not (kick or corrected or key == selected or show_candidates or uncertainty and doubtful):
                 continue
             timestamp = effective_timestamp(candidate, editor.draft)
-            color, symbol = (
-                ("#3184e0", "s")
-                if corrected and kick
-                else ("#a96872", "x")
-                if corrected
-                else ("#2bad62", "o")
-                if kick
-                else ("#93979d", "t")
+            style = (
+                HUMAN_KICK if corrected and kick else REJECTED if corrected else AUTOMATIC_KICK if kick else CANDIDATE
             )
-            outline = "#e7ae40" if uncertainty and doubtful else color
-            # Diagnostics change one marker outline, rather than piling symbols up.
-            if timing and (not candidate["localization_reliable"] or not candidate["grid_aligned"]):
-                outline = "#dca4df"
+            color = style.color
+            diagnostic = (
+                TIMING
+                if timing and (not candidate["localization_reliable"] or not candidate["grid_aligned"])
+                else UNCERTAINTY
+                if uncertainty and doubtful
+                else None
+            )
+            outline = diagnostic.color if diagnostic is not None else color
             spots.append(
                 {
-                    "pos": (timestamp, self.lane_y),
-                    "symbol": symbol,
+                    "pos": (timestamp, self.kick_y if kick else self.candidate_y),
+                    "symbol": style.symbol,
+                    "size": diagnostic.size if diagnostic is not None else style.size,
                     "brush": self.marker_brushes[color],
                     "pen": self.marker_pens[outline],
                 }
             )
             self.marker_keys.append(key)
             times.append(timestamp)
+            self.marker_kicks.append(kick)
             self.inspection[key] = (
-                f"{round(timestamp)} s · {'Kick' if kick else 'Non-kick'}\n{candidate['timing_reason']}\n"
+                f"{round(timestamp)} s · {'Kick' if kick else 'Rejected candidate' if corrected else 'Kick candidate'}\n{candidate['timing_reason']}\n"
                 + ", ".join(candidate["uncertainty_reasons"])
             )
             score = candidate.get("positive_similarity")
@@ -321,6 +400,8 @@ class Timeline(QWidget):
                 score_times.append(timestamp)
                 score_values.append(score)
         self.marker_times = np.asarray(times)
+        self.marker_spots = spots
+        self.marker_ys = np.where(self.marker_kicks, self.kick_y, self.candidate_y)
         self.markers.setData(spots)
         self.scores.setData(score_times, score_values)
         beats = self.proposal.get("alternative_beat_positions", []) if alternative else self.proposal["beat_positions"]

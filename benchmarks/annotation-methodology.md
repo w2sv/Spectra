@@ -544,3 +544,134 @@ These desktop checks exercised the existing automatic buffering retry (three to
 five reported underruns per run); they did not measure sustained FPS or physical audio latency.
 The migration measurements above remain historical observations, not results
 of this navigation change.
+
+## Review ergonomics and desktop rendering (2026-11-26)
+
+The earlier Qt migration/navigation measurements above remain historical
+observations. The review now uses one precise 16 ms visual timer. Each update
+polls one DAC-position snapshot, scrolls the following viewport, positions both
+screen-coordinate cursors, and evaluates effective-kick crossings. It retains
+the 40% anchor, boundary clamping and device-pixel snapping. Paused/unchanged
+positions do not resubmit cursor geometry or viewport ranges. Slider updates
+are limited to 12.5 Hz; playback/range text changes only with displayed values.
+Statistics, actions and the graphical legend stay outside ordinary scrolling.
+
+Two 28-logical-pixel marker lanes share the waveform ViewBox. Effective kicks
+occupy the upper lane; remaining candidates and explicit rejections occupy the
+lower lane. Hit testing binary-searches timestamps within eight screen pixels
+of the pointer, then measures distances to each marker's actual lane position.
+Ordinary corrections/seeks clear selection; inspection, review navigation and
+ambiguous recovery retain explicit selection. Removing a manual kick deletes
+its event and override in one snapshot operation. Undo/redo use bounded snapshots;
+a successful atomic save clears both stacks and establishes the clean checkpoint.
+A failed save leaves draft metadata, histories and dirty state intact.
+
+Cursor flashes use the sorted effective-onset index and successive unmodified
+DAC timestamps. At the time of the measurements below, a crossed effective onset
+within its 50 ms interval produced green 4 px cursors; normal cursors remained
+cyan 2 px. Playback generations,
+pause/resume and edits reset crossing state. There is no interpolated playback
+clock, animation or assumed-latency compensation.
+
+### Measurement procedure and results
+
+[Full paired measurements](results/annotation_review_qt_performance.json) record
+actual `PlotWidget.paintEvent` intervals/costs, visual update costs, process CPU,
+underruns and a software clock-to-cursor snapshot gap. A temporary profiling
+script opened Universal on the real Wayland desktop with a requested 1440×900
+logical-pixel window at 2× scaling, actual sounddevice playback and an isolated temporary
+review. Original and retained implementations ran back-to-back, six seconds per
+scenario, excluding the first 0.5 seconds from paint/update distributions. No
+cProfile ran during the paired measurements. The 180-second viewport started
+at 120 seconds so it actually scrolled; other scenarios started at 60 seconds.
+Interaction actions every 600 ms exercised zoom, seek, correction and undo.
+These short samples characterize this desktop session, not a reproducible
+cross-machine guarantee. Wayland constrained the window to the available desktop;
+the paired harness did not record the configured paint-surface dimensions.
+CPU includes all process threads; 100% represents one
+core. No proposals, existing drafts or human corrections were changed.
+
+Waveform paint intervals in milliseconds (median / P95 / P99 / maximum):
+
+| Scenario | Original | Retained |
+| --- | --- | --- |
+| Follow, 10 s | 22.1 / 31.7 / 53.1 / 56.9 | 20.7 / 26.1 / 27.9 / 32.9 |
+| Follow, 2 s | 16.7 / 21.6 / 27.4 / 30.4 | 16.2 / 20.8 / 27.6 / 29.1 |
+| Follow, 0.3 s | 16.4 / 19.8 / 28.4 / 35.6 | 14.3 / 17.7 / 23.8 / 27.2 |
+| Follow, 180 s | 42.7 / 52.6 / 69.9 / 72.7 | 38.0 / 44.6 / 49.6 / 57.8 |
+| Free navigation | 16.1 / 18.9 / 45.0 / 52.5 | 16.1 / 19.0 / 44.6 / 51.6 |
+| Zoom/seek/correct/undo | 25.2 / 49.0 / 89.2 / 167.8 | 22.5 / 31.0 / 59.8 / 63.7 |
+
+The evidence plot has separate paint events; its complete distributions are in
+the JSON. In the 10-second case, evidence P95 changed from 36.8 to 26.8 ms.
+Median visual-update cost changed from 0.11 to 3.30 ms because the unified loop
+now includes viewport work that previously ran in the separate follow timer.
+Median software snapshot gap fell from 38.5 to 3.3 ms at ten seconds, and from
+75.7 to 9.3 ms at 180 seconds. Interaction-gap outliers in the original include
+skipped seek positions; they are not audio-clock error measurements. CPU was
+100.9% → 102.2% at ten seconds, 101.9% → 102.1% at 180 seconds, and 64.4% →
+73.5% in free navigation. The improvements concern pacing and snapshot coherence,
+with no CPU reduction claimed.
+
+Initial cProfile samples identified native Qt path drawing and high-DPI curve
+repainting as larger costs than ordinary waveform aggregation. Individual
+no-cache and segmented-curve trials were compared. The retained configuration
+keeps native device-coordinate caching, uses native segmented lines for opaque
+curves and limits onset-evidence peak downsampling to the same density as PCM.
+Recording-time axis labels no longer rebuild unchanged SI-prefix rich text
+while scrolling. Antialiasing and viewport update strategy remain unchanged;
+OpenGL was not enabled. Scatter data is rebuilt only after edits/overlay/selection
+changes, with shared pens and brushes; there was no demonstrated need to add a
+viewport scatter cache.
+
+A temporary multiresolution min/max prototype preserved extrema and original
+sample times, used under 8 MB for Universal and buffered its curve data. Trial
+aggregation costs decreased, but desktop paint pacing did not reliably improve
+and several variants regressed. The prototype and its tests were removed.
+The retained waveform uses the existing original PCM, native peak downsampling
+and clipping. Wide-view aggregation/path painting remains a bottleneck.
+
+Repeated original/low-buffer desktop runs reached the existing three-underrun
+recovery threshold. The retained player starts with backend `high` buffering,
+keeping the existing single 100 ms recovery retry and DAC timing. This device
+reported approximately 34.7 ms stream latency for `high`; the original paired
+run recovered to approximately 100 ms after three underruns. The retained paired
+run had zero underruns across all scenarios. Other trial runs still occasionally
+reported initial underruns or recovery, so this is not a universal guarantee.
+
+The approximately 60 Hz loop is a scheduling target. Paint intervals can be
+shorter than timer intervals because Qt can paint more than once per update;
+paint counts and timer rates are not achieved display FPS. Compositor presentation
+was not instrumented. Ten-second and especially wide following still miss the
+20 ms P95 target; free navigation and interaction samples retain some long frames.
+No claim of physical audio-to-display synchronization follows from these data.
+
+Audio-free deterministic tests exercise manual removal (including saved events),
+undo/redo symmetry and branching, save success/failure/cancel checkpoints, dirty
+state, lane-aware hit testing, selection behavior, effective-kick crossing/expiry,
+discontinuities and the single-snapshot navigation/cursor contract. Desktop Qt
+interaction checks use an isolated temporary draft for continuous-playback
+corrections, manual insertion and saved removal, undo/redo/save, dragging, zooming,
+and inspection. Graphical legend samples and lanes were visually inspected at
+2× scaling in both full and narrower windows. These are automated desktop
+interaction checks; subjective listening quality and physical flash-to-audible-kick
+alignment still require human evaluation.
+
+The desktop interaction run in Universal's kick-containing 120-second section
+observed 18 flashing snapshots, with identical pens and zero scene-coordinate
+cursor misalignment between plots. It also reported three initial underruns and
+used the retained recovery path, despite the zero-underrun paired performance run.
+
+### Subsequent review ergonomics refinements
+
+Current flashes last 75 ms and use saturated bright green 6 px cursors; the normal
+cyan 2 px cursor and DAC crossing/discontinuity rules are unchanged. The historical
+measurements above retain their original 50 ms / 4 px flash configuration.
+
+Seeking without selection skips marker, action and inspection refreshes; playback
+actions still update availability when play/pause state changes. Manual event
+deletion is shared by toggling a kick off and removing its explicit override,
+with one undo checkpoint per deletion. Escape and unmodified Q close through the
+existing save/discard/cancel mechanism, deferring to dialogs, popups and text input
+as described in the shortcut documentation. No new rendering measurements or
+optimizations accompany these refinements.

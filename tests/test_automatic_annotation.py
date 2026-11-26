@@ -260,3 +260,80 @@ def test_finalization_exports_effective_predictions_only_after_review(
     monkeypatch.setattr("builtins.input", lambda _: "REVIEWED four_on_floor ENTIRE RECORDING")
     finalize_annotation(track, root)
     assert json.loads(manifest.read_text())[0]["confirmed_kick_onsets"] == effective_onsets(proposal, editor.draft)
+
+
+@pytest.mark.parametrize("saved", [False, True])
+@pytest.mark.parametrize("action", ["toggle", "clear_override"])
+def test_manual_removal_is_atomic_and_reversible(clean: Clean, tmp_path: Path, saved: bool, action: str) -> None:
+    proposal = copy.deepcopy(clean[3])
+    editor = CorrectionEditor(proposal, new_review(proposal))
+    manual: AutomaticCandidate = {
+        **proposal["kick_candidates"][0],
+        "candidate_id": "manual",
+        "timestamp": 0.1,
+        "final_timestamp": 0.1,
+        "provenance": "manual",
+    }
+    assert editor.insert(manual)
+    if saved:
+        path = tmp_path / "manual.json"
+        save_review(path, editor.draft, proposal)
+        editor = CorrectionEditor(proposal, load_review(path, proposal))
+    before = copy.deepcopy(editor.draft)
+    count = len(editor.history)
+    if action == "toggle":
+        editor.toggle("manual")
+    else:
+        editor.clear_override("manual")
+    assert len(editor.history) == count + 1
+    assert "manual" not in editor.candidates and "manual" not in editor.draft.overrides
+    assert not editor.draft.manual_events
+    assert 0.1 not in effective_onsets(proposal, editor.draft)
+    assert editor.undo() and editor.draft == before
+    assert editor.redo() and "manual" not in editor.candidates
+    path = tmp_path / "removed.json"
+    save_review(path, editor.draft, proposal)
+    assert not load_review(path, proposal).manual_events
+    assert editor.insert(manual)  # Removal immediately releases duplicate detection.
+    automatic = proposal["kick_candidates"][0]["candidate_id"]
+    editor.set_classification(automatic, True)
+    editor.toggle(automatic)
+    assert automatic in editor.candidates and not editor.draft.overrides[automatic].kick
+    editor.clear_override(automatic)
+    assert automatic in editor.candidates and automatic not in editor.draft.overrides
+
+
+def test_snapshot_history_symmetry_branching_and_clean_checkpoint(clean: Clean) -> None:
+    proposal = copy.deepcopy(clean[3])
+    for candidate in proposal["kick_candidates"]:
+        candidate["cluster_id"] = 0
+    editor = CorrectionEditor(proposal, new_review(proposal))
+    key = proposal["kick_candidates"][0]["candidate_id"]
+    states = [copy.deepcopy(editor.draft)]
+    editor.toggle(key)
+    states.append(copy.deepcopy(editor.draft))
+    editor.group_correct(key, False)
+    states.append(copy.deepcopy(editor.draft))
+    editor.clear_override(key)
+    states.append(copy.deepcopy(editor.draft))
+    predictions = copy.deepcopy(editor.predictions)
+    for candidate in predictions:
+        candidate["automatic_kick"] = not candidate["automatic_kick"]
+    editor.replace_predictions(predictions)
+    states.append(copy.deepcopy(editor.draft))
+    for state in reversed(states[:-1]):
+        assert editor.undo() and editor.draft == state
+    assert not editor.dirty and not editor.undo()
+    for state in states[1:]:
+        assert editor.redo() and editor.draft == state
+        assert editor.dirty
+    assert not editor.redo()
+    assert editor.undo()
+    editor.toggle(key)
+    assert not editor.redo_history and not editor.redo()
+    editor.mark_saved()
+    assert not editor.dirty and not editor.history and not editor.redo_history
+    assert not editor.undo() and not editor.redo()
+    editor.toggle(key)
+    assert editor.dirty and editor.undo() and not editor.dirty
+    assert editor.redo() and editor.dirty
