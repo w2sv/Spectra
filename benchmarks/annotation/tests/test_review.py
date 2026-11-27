@@ -11,7 +11,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
-pytest.importorskip("pyqtgraph")
+pytest.importorskip("vispy")
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PySide6.QtTest import QTest
@@ -116,9 +116,8 @@ def playback(review: AnnotationReview, monkeypatch: pytest.MonkeyPatch):
 
 
 def wheel(view: AnnotationReview, mouse_time: float, delta: int = 120, *, evidence: bool = False) -> None:
-    box = view.timeline.evidence_box if evidence else view.timeline.wave_box
-    widget = view.timeline.evidence_widget if evidence else view.timeline.wave_widget
-    point = widget.mapFromScene(box.mapViewToScene(QPointF(mouse_time, 0)))
+    widget = view.timeline.native
+    point = view.timeline.time_to_point(mouse_time, evidence=evidence).toPoint()
     event = QWheelEvent(
         QPointF(point),
         QPointF(widget.mapToGlobal(point)),
@@ -129,14 +128,13 @@ def wheel(view: AnnotationReview, mouse_time: float, delta: int = 120, *, eviden
         Qt.ScrollPhase.NoScrollPhase,
         False,
     )
-    QApplication.sendEvent(widget.viewport(), event)
+    QApplication.sendEvent(widget, event)
 
 
 def marker_point(view: AnnotationReview, key: str):
     timestamp = effective_timestamp(view.editor.candidates[key], view.draft)
     y = view.timeline.kick_y if effective_kick(view.editor.candidates[key], view.draft) else view.timeline.candidate_y
-    scene = view.timeline.wave_box.mapViewToScene(QPointF(timestamp, y))
-    return view.timeline.wave_widget.mapFromScene(scene)
+    return view.timeline.time_to_point(timestamp, y).toPoint()
 
 
 def test_screen_space_hit_testing_and_plain_click_vs_shift_click(review: AnnotationReview) -> None:
@@ -150,7 +148,7 @@ def test_screen_space_hit_testing_and_plain_click_vs_shift_click(review: Annotat
     )
     original = copy.deepcopy(review.editor.candidates[key])
     point = marker_point(review, key)
-    viewport = review.timeline.wave_widget.viewport()
+    viewport = review.timeline.native
     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=point)
     assert not review.draft.overrides and review.selected is None
     QTest.mouseClick(viewport, Qt.MouseButton.RightButton, pos=point)
@@ -158,7 +156,7 @@ def test_screen_space_hit_testing_and_plain_click_vs_shift_click(review: Annotat
     QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, point)
     assert key in review.draft.overrides and effective_kick(original, review.draft) != original["automatic_kick"]
     assert review.selected is None
-    assert not any(line.isVisible() for line in review.timeline.selection_lines)
+    assert not review.timeline.selection.visible
     assert review.editor.candidates[key] == original
     assert key in review.timeline.marker_keys  # rejected markers remain visible/selectable
     review.perform_action("undo")
@@ -172,6 +170,79 @@ def test_screen_space_hit_testing_and_plain_click_vs_shift_click(review: Annotat
     )
     assert not review.draft.overrides and len(review.editor.candidates) == count
     assert not review.follow_checkbox.isChecked()
+
+
+def test_canvas_margins_do_not_seek_edit_inspect_pan_or_zoom(
+    review: AnnotationReview, playback: DeterministicPlayback
+) -> None:
+    timeline = review.timeline
+    viewport = timeline.native
+    playback.position = 10
+    review.perform_action("follow")
+    before = timeline.interval
+    draft = copy.deepcopy(review.draft)
+    wave_y = round(timeline.wave_view.size[1] / 2)
+    evidence_bottom = round(timeline.evidence_view.pos[1] + timeline.evidence_view.size[1])
+    for point in (
+        QPoint(25, wave_y),  # Y labels and titles.
+        QPoint(viewport.width() - 2, wave_y),
+        QPoint(300, evidence_bottom + 15),  # Time axis and labels.
+        QPoint(300, viewport.height() - 2),
+    ):
+        assert timeline.interaction_region(QPointF(point)) is None
+        assert timeline.hit_test(QPointF(point)) is None
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=point)
+        QTest.mouseClick(viewport, Qt.MouseButton.RightButton, pos=point)
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, point)
+        event = QWheelEvent(
+            QPointF(point),
+            QPointF(viewport.mapToGlobal(point)),
+            QPoint(),
+            QPoint(0, 120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        QApplication.sendEvent(viewport, event)
+        # A drag that starts outside cannot become a pan after entering the plot.
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=point)
+        inside = timeline.time_to_point(10).toPoint()
+        QTest.mouseMove(viewport, inside, 10)
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=inside)
+        assert timeline.interval == before and timeline.zoom_transition is None
+        assert not playback.seeks and review.selected is None
+        assert review.draft == draft and review.follow_checkbox.isChecked()
+
+
+def test_plot_and_divider_drags_continue_outside_their_initial_bounds(
+    review: AnnotationReview, playback: DeterministicPlayback
+) -> None:
+    timeline = review.timeline
+    viewport = timeline.native
+    playback.position = 10
+    review.perform_action("follow")
+    before = timeline.interval
+    point = timeline.time_to_point(10).toPoint()
+    outside = QPoint(20, point.y())
+    QTest.mousePress(viewport, Qt.MouseButton.MiddleButton, pos=point)
+    QTest.mouseMove(viewport, outside, 10)
+    QTest.mouseRelease(viewport, Qt.MouseButton.MiddleButton, pos=outside)
+    assert timeline.interval[0] > before[0] and not review.follow_checkbox.isChecked()
+    assert not playback.seeks and not review.draft.manual_events
+
+    review.perform_action("follow")
+    before = timeline.interval
+    fraction = timeline.wave_fraction
+    point = QPoint(300, round(timeline.wave_view.size[1] + 3))
+    assert timeline.interaction_region(QPointF(point)) == "divider"
+    outside = point + QPoint(-280, -60)
+    QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=point)
+    QTest.mouseMove(viewport, outside, 10)
+    QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=outside)
+    assert timeline.wave_fraction < fraction
+    assert timeline.interval == before and review.follow_checkbox.isChecked()
+    assert not playback.seeks and not review.draft.manual_events
 
 
 def test_hidden_recovery_insertion_duplicate_undo_and_persistence(review: AnnotationReview) -> None:
@@ -254,17 +325,17 @@ def test_close_cancel_and_following_are_independent_of_annotation_data(
     proposal = copy.deepcopy(review.proposal)
     review.timeline.follow(1.6)
     assert review.timeline.interval == pytest.approx((0.8, 2.8))
-    fixed_x = review.timeline.cursor_lines[0].line().x1()
+    fixed_x = review.timeline.playhead.x - review.timeline.wave_view.pos[0]
     review.timeline.follow(1.8)
-    assert review.timeline.cursor_lines[0].line().x1() == fixed_x
+    assert (review.timeline.playhead.x - review.timeline.wave_view.pos[0]) == fixed_x
     review.timeline.follow(0)
     assert review.timeline.interval == pytest.approx((0, 2))
-    assert review.timeline.cursor_lines[0].line().x1() == 0
+    assert (review.timeline.playhead.x - review.timeline.wave_view.pos[0]) == 0
     review.timeline.follow(100)
     left, right = review.timeline.interval
     assert right == review.analysis.duration_seconds and right - left == pytest.approx(2)
-    assert review.timeline.cursor_lines[0].line().x1() == pytest.approx(
-        round(review.timeline.wave_box.width() * review.devicePixelRatioF()) / review.devicePixelRatioF()
+    assert (review.timeline.playhead.x - review.timeline.wave_view.pos[0]) == pytest.approx(
+        round(review.timeline.wave_view.size[0] * review.devicePixelRatioF()) / review.devicePixelRatioF()
     )
     assert review.proposal == proposal
     review.dirty = True
@@ -307,26 +378,25 @@ def test_follow_ranges_cursor_alignment_and_visual_offset(application, review_da
         for position, expected in [(100, (96, 106)), (2, (0, 10)), (315, (307, 317))]:
             timeline.follow(position)
             assert timeline.interval == pytest.approx(expected)
-            for box, line in zip((timeline.wave_box, timeline.evidence_box), timeline.cursor_lines, strict=True):
-                expected_x = box.width() * (position - expected[0]) / 10
-                assert line.line().x1() == pytest.approx(expected_x, abs=1 / timeline.devicePixelRatioF())
-                assert line.isVisible()
-            scene_x = [line.mapToScene(line.line().p1()).x() for line in timeline.cursor_lines]
-            assert scene_x[0] == pytest.approx(scene_x[1], abs=1 / timeline.devicePixelRatioF())
+            expected_x = timeline.time_to_point(position).x()
+            assert timeline.playhead.x == pytest.approx(expected_x, abs=1 / timeline.devicePixelRatioF())
+            assert timeline.playhead.visible
         timeline.follow(100)
-        fixed_x = timeline.cursor_lines[0].line().x1()
-        assert fixed_x == pytest.approx(timeline.wave_box.width() * PLAYBACK_ANCHOR_FRACTION, abs=1)
+        fixed_x = timeline.playhead.x - timeline.wave_view.pos[0]
+        assert fixed_x == pytest.approx(timeline.wave_view.size[0] * PLAYBACK_ANCHOR_FRACTION, abs=1)
         for position in (100.01, 100.03, 100.09):
             timeline.follow(position)
-            assert timeline.cursor_lines[0].line().x1() == fixed_x
+            assert (timeline.playhead.x - timeline.wave_view.pos[0]) == fixed_x
         timeline.follow(100, offset=0.25)
         assert timeline.interval == pytest.approx((96, 106))
         assert timeline.cursor_time == 100
-        assert timeline.cursor_lines[0].line().x1() > fixed_x
+        assert (timeline.playhead.x - timeline.wave_view.pos[0]) > fixed_x
         timeline.set_interval(0, 1000)
         timeline.follow(100)
         assert timeline.interval == pytest.approx((0, 317))
-        assert timeline.cursor_lines[0].line().x1() == pytest.approx(timeline.wave_box.width() * 100 / 317, abs=1)
+        assert (timeline.playhead.x - timeline.wave_view.pos[0]) == pytest.approx(
+            timeline.wave_view.size[0] * 100 / 317, abs=1
+        )
         timeline.set_interval(1, 0)
         assert timeline.interval[1] - timeline.interval[0] == pytest.approx(0.02)
     finally:
@@ -372,9 +442,9 @@ def test_click_and_slider_seeks_follow_mode_without_changing_annotations(
     review.follow_checkbox.setChecked(following)
     review.timeline.set_interval(0, 2)
     playback.paused = False
-    widget = review.timeline.wave_widget
-    point = widget.mapFromScene(review.timeline.wave_box.mapViewToScene(QPointF(1.5, 0)))
-    QTest.mouseClick(widget.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    widget = review.timeline.native
+    point = review.timeline.time_to_point(1.5).toPoint()
+    QTest.mouseClick(widget, Qt.MouseButton.LeftButton, pos=point)
     assert playback.position == pytest.approx(1.5, abs=0.01)
     assert not playback.paused and not review.draft.overrides
     assert review.timeline.interval[0] == pytest.approx(playback.position - 0.8 if following else 0)
@@ -399,10 +469,9 @@ def test_drag_is_free_navigation_without_playback_or_annotation_changes(
     playback.paused = False
     review.perform_action("follow")
     before = review.timeline.interval
-    widget = review.timeline.evidence_widget if evidence else review.timeline.wave_widget
-    box = review.timeline.evidence_box if evidence else review.timeline.wave_box
-    point = widget.mapFromScene(box.mapViewToScene(QPointF(10, 0)))
-    viewport = widget.viewport()
+    widget = review.timeline.native if evidence else review.timeline.native
+    point = review.timeline.time_to_point(10, evidence=evidence).toPoint()
+    viewport = widget
     QTest.mousePress(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, point)
     assert review.follow_checkbox.isChecked()
     assert review.timeline.interval == before
@@ -413,13 +482,14 @@ def test_drag_is_free_navigation_without_playback_or_annotation_changes(
     assert not review.draft.overrides and not review.draft.manual_events
     left, right = review.timeline.interval
     assert left < before[0] and right - left == pytest.approx(2)
-    assert review.timeline.evidence_box.viewRange()[0] == pytest.approx((left, right))
+    rect = review.timeline.evidence_camera.rect
+    assert rect is not None and (rect.left, rect.right) == pytest.approx((left, right))
     review.follow_checkbox.setChecked(True)
     assert review.timeline.interval == pytest.approx(before)
     review.follow_checkbox.setChecked(False)
     review.timeline.set_interval(1, 2)
     review.update_playback()
-    assert all(not line.isVisible() for line in review.timeline.cursor_lines)
+    assert not review.timeline.playhead.visible
     review.perform_action("follow")
     assert review.timeline.interval == pytest.approx(before)
     assert playback.position == 10 and not playback.paused
@@ -483,7 +553,7 @@ def test_shortcuts_focus_and_override_do_not_duplicate_actions(
     review: AnnotationReview, playback: DeterministicPlayback, application
 ) -> None:
     playback.position = 15
-    for focus in (review.timeline.wave_widget, review.buttons["back_half"], review.seek_slider):
+    for focus in (review.timeline.native, review.buttons["back_half"], review.seek_slider):
         focus.setFocus()
         application.processEvents()
         playback.position = 15
@@ -554,7 +624,8 @@ def test_default_grid_and_unsupported_queue_share_hypothesis(
                 c["candidate_id"] for c in proposal["kick_candidates"] if hypothesis in c["unsupported_grids"]
             }
             beats = proposal["alternative_beat_positions"] if index else proposal["beat_positions"]
-            assert view.timeline.grid.getData()[0] == pytest.approx(np.repeat(beats, 2))
+            assert view.timeline.grid.visible
+            assert view.timeline.beat_positions == pytest.approx(beats)
         assert any(entry.label == "Estimated beat" for entry in view.legend.entries)
         view.overlays["grid"].setChecked(False)
         assert all(entry.label != "Estimated beat" for entry in view.legend.entries)
@@ -580,7 +651,7 @@ def test_corrections_and_inspection_leave_playback_and_navigation_untouched(
     review.update_playback()
     key = next(k for k in review.timeline.marker_keys if 0.2 < review.editor.candidates[k]["final_timestamp"] < 1.8)
     point = marker_point(review, key)
-    viewport = review.timeline.wave_widget.viewport()
+    viewport = review.timeline.native
     before = review.timeline.interval
     QTest.mouseClick(viewport, Qt.MouseButton.RightButton, pos=point)
     assert review.selected == key and not review.draft.overrides
@@ -623,7 +694,7 @@ def test_visual_frame_uses_one_snapshot_and_skips_unchanged_paused_ranges(
     playback.position = 5
     playback.paused = False
     review.perform_action("follow")
-    fixed_x = review.timeline.cursor_lines[0].line().x1()
+    fixed_x = review.timeline.playhead.x - review.timeline.wave_view.pos[0]
     playback.position = 6
     calls = []
 
@@ -637,7 +708,7 @@ def test_visual_frame_uses_one_snapshot_and_skips_unchanged_paused_ranges(
     assert calls == [6]
     assert review.timeline.interval == pytest.approx((5.2, 7.2))
     assert review.timeline.cursor_time == 6
-    assert review.timeline.cursor_lines[0].line().x1() == fixed_x
+    assert (review.timeline.playhead.x - review.timeline.wave_view.pos[0]) == fixed_x
     changes: list[tuple[float, float]] = []
     review.timeline.rangeChanged.connect(lambda left, right: changes.append((left, right)))
     playback.paused = True
@@ -651,7 +722,7 @@ def test_save_boundary_failure_and_history_shortcuts(review: AnnotationReview, m
     review.correct_or_insert(0, key)
     edited = copy.deepcopy(review.draft)
     assert review.dirty and review.unsaved_label.isVisible()
-    focus = review.timeline.wave_widget
+    focus = review.timeline.native
     QTest.keyClick(focus, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier)
     assert not review.dirty and not review.buttons["undo"].isEnabled() and review.buttons["redo"].isEnabled()
     for modifiers, keycode in [
@@ -705,10 +776,10 @@ def test_lanes_separate_coincident_markers_and_follow_classification(review: Ann
     timeline = review.timeline
     for event in candidates:
         key = event["candidate_id"]
-        point = timeline.wave_widget.mapToScene(marker_point(review, key))
+        point = QPointF(marker_point(review, key))
         assert timeline.hit_test(point) == key
-    kick_point = timeline.wave_box.mapViewToScene(QPointF(1, timeline.kick_y))
-    candidate_point = timeline.wave_box.mapViewToScene(QPointF(1, timeline.candidate_y))
+    kick_point = timeline.time_to_point(1, timeline.kick_y)
+    candidate_point = timeline.time_to_point(1, timeline.candidate_y)
     assert abs(kick_point.y() - candidate_point.y()) == pytest.approx(28, abs=0.5)
     key = kick["candidate_id"]
     review.correct_or_insert(1, key)
@@ -721,7 +792,7 @@ def test_lanes_separate_coincident_markers_and_follow_classification(review: Ann
     assert timeline.marker_ys[timeline.marker_keys.index(key)] == timeline.candidate_y
     review.timeline_click(1, key, True, Qt.KeyboardModifier.NoModifier)
     review.timeline_click(1, key, False, Qt.KeyboardModifier.NoModifier)
-    assert review.selected is None and not any(line.isVisible() for line in timeline.selection_lines)
+    assert review.selected is None and not timeline.selection.visible
 
 
 def test_effective_kick_index_drives_both_cursor_flashes(
@@ -754,7 +825,7 @@ def test_effective_kick_index_drives_both_cursor_flashes(
         playback.position = timestamp + 0.01
         review.update_playback()
         assert review.timeline.flashing
-        assert all(line.pen() == KICK_FLASH.pen() and line.pen().widthF() == 6 for line in review.timeline.cursor_lines)
+        assert review.timeline.playhead.color == KICK_FLASH.color and review.timeline.playhead.width == 6
         assert KICK_FLASH.pen().color().saturation() == 255
         assert KICK_FLASH.pen().color().green() > QColor(AUTOMATIC_KICK.color).green()
         review.update_playback()  # A repeated snapshot neither restarts nor expires the pulse.
@@ -765,7 +836,7 @@ def test_effective_kick_index_drives_both_cursor_flashes(
         playback.position = timestamp + 0.076
         review.update_playback()
         assert not review.timeline.flashing
-        assert all(line.pen().widthF() == 2 for line in review.timeline.cursor_lines)
+        assert review.timeline.playhead.width == 2
     playback.position = 3.01
     review.update_playback()
     assert not review.timeline.flashing
@@ -796,7 +867,7 @@ def test_seek_only_refreshes_existing_selection(
     review.follow_checkbox.setChecked(following)
     if selected:
         review.timeline_click(1, next(iter(review.editor.candidates)), True, Qt.KeyboardModifier.NoModifier)
-    scatter = review.timeline.markers.data
+    scatter = review.timeline.marker_arrays
     inspection = review.timeline.inspection
     refreshes = [Mock(wraps=getattr(review, name)) for name in ("refresh_markers", "refresh_actions", "_inspect")]
     for name, refresh in zip(("refresh_markers", "refresh_actions", "_inspect"), refreshes, strict=True):
@@ -807,7 +878,7 @@ def test_seek_only_refreshes_existing_selection(
     assert review.selected is None and playback.seeks == [1.5] and not playback.paused
     assert review.timeline.interval == pytest.approx((0.7, 2.7) if following else before)
     if not selected:
-        assert review.timeline.markers.data is scatter and review.timeline.inspection is inspection
+        assert review.timeline.marker_arrays is scatter and review.timeline.inspection is inspection
 
 
 def test_clear_manual_override_removes_event_and_selection(review: AnnotationReview) -> None:
@@ -822,7 +893,7 @@ def test_clear_manual_override_removes_event_and_selection(review: AnnotationRev
     assert len(review.editor.history) == 1 and review.selected is None
     assert not review.draft.manual_events and key not in review.draft.overrides and key not in review.editor.candidates
     assert key not in review.timeline.marker_keys and timestamp not in review.kick_flash.timestamps
-    assert not any(line.isVisible() for line in review.timeline.selection_lines)
+    assert not review.timeline.selection.visible
     review.perform_action("undo")
     assert not review.dirty and key in review.editor.candidates and review.draft.overrides[key].kick
     review.perform_action("redo")
@@ -857,7 +928,7 @@ def test_exit_shortcuts_use_save_discard_cancel_and_cleanup(
     if outcome == "failed_save":
         review.draft_path = path.parent  # Replacing a directory must fail.
     playback.paused = False
-    QTest.keyClick(review.timeline.wave_widget, key)
+    QTest.keyClick(review.timeline.native, key)
     assert question.call_count == (outcome != "clean")
     remains_open = outcome in ("cancel", "failed_save")
     assert review.isVisible() is remains_open
@@ -878,13 +949,13 @@ def test_exit_shortcuts_defer_to_text_modifiers_and_popups(review: AnnotationRev
     application.processEvents()
     QTest.keyClick(entry, Qt.Key.Key_Q)
     assert entry.text() == "q" and review.isVisible()
-    review.timeline.wave_widget.setFocus()
+    review.timeline.native.setFocus()
     for modifiers in (
         Qt.KeyboardModifier.ShiftModifier,
         Qt.KeyboardModifier.ControlModifier,
         Qt.KeyboardModifier.AltModifier,
     ):
-        QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Q, modifiers)
+        QTest.keyClick(review.timeline.native, Qt.Key.Key_Q, modifiers)
         assert review.isVisible()
     menu = QMenu(review)
     menu.addAction("Inspect")
@@ -921,7 +992,7 @@ def test_escape_cancels_the_actual_unsaved_dialog(review: AnnotationReview) -> N
             QTest.keyClick(dialog, Qt.Key.Key_Escape)
 
     QTimer.singleShot(0, dismiss)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Q)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Q)
     assert len(dialogs) == 1 and isinstance(dialogs[0], QMessageBox)
     assert review.isVisible() and review.dirty and (review.draft, review.editor.history) == before
 
@@ -972,7 +1043,7 @@ def test_zoom_redirection_adaptive_speed_reset_and_navigation(
     assert playback.target_speed == 1 and review.timeline.interval == before
     review.adaptive_speed.setChecked(True)
     assert playback.target_speed == pytest.approx((2 / 10) ** 0.5)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_1)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_1)
     assert review.timeline.zoom_transition is not None
     now[0] += 0.151
     review.update_playback()
@@ -1012,15 +1083,29 @@ def test_keyboard_seeking_uses_displayed_zoom_with_adaptive_speed_disabled(
     before = review.timeline.interval
     assert before[1] - before[0] == pytest.approx(5)
     assert review.timeline.target_width == pytest.approx(2.5)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Right)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Right)
     assert playback.position == pytest.approx(18.5)
     assert review.timeline.interval == pytest.approx(before) and not playback.paused
     assert review.timeline.zoom_transition is None
     assert not review.follow_checkbox.isChecked() and not review.adaptive_speed.isChecked()
     review.timeline.set_interval(0, 0.5)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Left)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Left)
     assert playback.position == pytest.approx(18.25)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
     assert playback.position == pytest.approx(18.3)
-    QTest.keyClick(review.timeline.wave_widget, Qt.Key.Key_Backspace)
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Backspace)
     assert playback.position == pytest.approx(8.3)
+
+
+def test_timeline_click_restores_transport_focus_after_text_input(
+    review: AnnotationReview, playback: DeterministicPlayback, application
+) -> None:
+    entry = QLineEdit(review)
+    entry.show()
+    entry.setFocus()
+    application.processEvents()
+    assert QApplication.focusWidget() is entry
+    QTest.mouseClick(review.timeline.native, Qt.MouseButton.LeftButton, pos=review.timeline.time_to_point(1).toPoint())
+    assert QApplication.focusWidget() is review.timeline.native
+    QTest.keyClick(review.timeline.native, Qt.Key.Key_Space)
+    assert not playback.paused

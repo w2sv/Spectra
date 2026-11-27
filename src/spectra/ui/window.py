@@ -4,10 +4,8 @@ from dataclasses import replace
 from time import monotonic
 
 import numpy as np
-import pyqtgraph as pg
-from numpy.typing import NDArray
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QColor, QKeySequence, QPalette, QShortcut
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
+from PySide6.QtGui import QCloseEvent, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -23,21 +21,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from spectra.analysis import KickEvent
 from spectra.audio import AudioSourceInfo
 from spectra.audio.pipewire import PipeWireSource
 from spectra.capture import CaptureWorker
-from spectra.output.ddp import DDPOutput
+from spectra.output.worker import STALE_SECONDS, LedOutputWorker
 from spectra.ui.led_preview import LedPreview
-from spectra.visualization import Visualization
-from spectra.visualization.combined import CombinedVisualization
-from spectra.visualization.frequency import FrequencyVisualization, band_colors, power_to_decibels
+from spectra.ui.runtime_plots import RuntimePlots
+from spectra.visualization.frequency import power_to_decibels
 from spectra.visualization.intensity import BandIntensitySettings
-from spectra.visualization.pulses import TravelingPulses
 
 SPECTRUM_MIN_DB = -80.0
 SPECTRUM_MAX_DB = 0.0
-STALE_RESULT_TIMEOUT = 0.5
 KICK_FLASH_SECONDS = 0.12
 
 
@@ -52,18 +46,12 @@ class SpectraWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.setWindowTitle("Spectra")
-        self.resize(1000, 600)
-        self.setMinimumSize(680, 400)
+        self.resize(1000, 760)
+        self.setMinimumSize(680, 600)
         self._worker: CaptureWorker | None = None
-        self._ddp_output: DDPOutput | None = None
         self._stopping = False
         self._closing = False
-        self._band_count = 0
-        self._last_result_at: float | None = None
-        self._latest_audio_timestamp: float | None = None
-        self._rendered_audio_timestamp = 0.0
-        self._latest_intensities: NDArray[np.float64] | None = None
-        self._mode_started_at: float | None = None
+        self._last_produced_at: float | None = None
         self._intensity_settings = BandIntensitySettings()
         self._kick_flash_until: float | None = None
         self._kick_count = 0
@@ -75,7 +63,7 @@ class SpectraWindow(QMainWindow):
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Audio source:"))
         self._sources = QComboBox()
@@ -154,7 +142,9 @@ class SpectraWindow(QMainWindow):
         kick_feedback.addWidget(QLabel("FPS:"))
         self._frame_rate_selector = QComboBox()
         self._frame_rate_selector.addItems(["30", "60", "90", "120"])
-        self._frame_rate_selector.setToolTip("Target frame rate shared by the LED preview and WLED output.")
+        self._frame_rate_selector.setToolTip(
+            "Target LED frame rate; transmission continues independently of GUI painting."
+        )
         kick_feedback.addWidget(self._frame_rate_selector)
         layout.addLayout(kick_feedback)
 
@@ -173,35 +163,26 @@ class SpectraWindow(QMainWindow):
         wled_controls.addWidget(self._wled_status, 1)
         layout.addLayout(wled_controls)
 
-        self._plot = pg.PlotWidget(background=self.palette().color(QPalette.ColorRole.Base).name())
-        self._plot.setLabel("left", "Band power", units="dB re 1 PCM²")
-        self._plot.setLabel("bottom", "Frequency", units="Hz")
-        self._plot.setTitle("Frequency spectrum")
-        self._plot.setMouseEnabled(x=False, y=False)
-        self._plot.setMenuEnabled(False)
-        self._plot.hideButtons()
-        self._plot.disableAutoRange()
-        self._plot.getViewBox().setYRange(SPECTRUM_MIN_DB, SPECTRUM_MAX_DB, padding=0)
-        ticks = [(40, "40"), (100, "100"), (250, "250"), (1000, "1k"), (4000, "4k"), (16_000, "16k")]
-        self._plot.getAxis("bottom").setTicks([[(float(np.log10(hz)), label) for hz, label in ticks]])
-        self._plot.getViewBox().setXRange(float(np.log10(ticks[0][0])), float(np.log10(ticks[-1][0])), padding=0.03)
-        for axis in ("left", "bottom"):
-            self._plot.getAxis(axis).setPen(self.palette().color(QPalette.ColorRole.Text))
-            self._plot.getAxis(axis).setTextPen(self.palette().color(QPalette.ColorRole.Text))
-        # BarGraphItem does not transform log coordinates; map edges explicitly.
-        self._bars = pg.BarGraphItem(
-            x0=[],
-            x1=[],
-            y0=SPECTRUM_MIN_DB,
-            height=[],
-            pen=None,
-        )
-        self._plot.addItem(self._bars)
-        layout.addWidget(self._plot, 1)
+        waveform_controls = QHBoxLayout()
+        self._waveform_enabled = QCheckBox("Live PCM and kick markers")
+        self._waveform_enabled.setChecked(True)
+        waveform_controls.addWidget(self._waveform_enabled)
+        waveform_controls.addWidget(QLabel("History:"))
+        self._waveform_seconds = QSpinBox()
+        self._waveform_seconds.setRange(1, 10)
+        self._waveform_seconds.setValue(5)
+        self._waveform_seconds.setSuffix(" s")
+        waveform_controls.addWidget(self._waveform_seconds)
+        waveform_controls.addStretch()
+        layout.addLayout(waveform_controls)
+        self._plots = RuntimePlots()
+        self._plots.setToolTip("Kick markers use the detector's spectrum-window center, not physical onset time.")
+        self._waveform_enabled.toggled.connect(self._plots.set_waveform_enabled)
+        self._waveform_seconds.valueChanged.connect(self._plots.set_history_seconds)
+        layout.addWidget(self._plots, 1)
 
         self._leds = LedPreview()
-        self._last_frame = np.zeros((self._leds.led_count, 3), dtype=np.uint8)
-        self._visualization: Visualization = FrequencyVisualization(led_count=self._leds.led_count)
+        self._led_output = LedOutputWorker(self._leds.led_count)
         self._visualization_selector.currentIndexChanged.connect(self._change_visualization)
         layout.addWidget(QLabel(f"Virtual LED strip · {self._leds.led_count} LEDs"))
         layout.addWidget(self._leds)
@@ -216,11 +197,14 @@ class SpectraWindow(QMainWindow):
         self._timer.timeout.connect(self._update_capture)
         self._frame_rate_selector.currentIndexChanged.connect(self._update_frame_rate)
         self._update_frame_rate()
+        self._led_output.start()
         self._timer.start()
         self._update_controls()
 
     def _update_frame_rate(self) -> None:
-        self._timer.setInterval(round(1000 / int(self._frame_rate_selector.currentText())))
+        fps = int(self._frame_rate_selector.currentText())
+        self._timer.setInterval(round(1000 / fps))
+        self._led_output.set_frame_rate(fps)
 
     def _update_controls(self) -> None:
         idle = self._worker is None and not self._closing
@@ -240,86 +224,31 @@ class SpectraWindow(QMainWindow):
             self._worker.update_settings(self._intensity_settings)
 
     def _clear_display(self) -> None:
-        self._bars.setOpts(height=np.zeros(self._band_count))
-        self._display_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
-        self._visualization.reset()
-        self._last_result_at = None
-        self._latest_audio_timestamp = None
-        self._rendered_audio_timestamp = 0.0
-        self._latest_intensities = None
-        self._mode_started_at = None
+        self._plots.clear()
+        self._leds.set_frame(np.zeros((self._leds.led_count, 3), dtype=np.uint8))
+        self._last_produced_at = None
         self._clear_kick_flash()
 
-    def _set_wled_status(self, text: str) -> None:
-        if self._wled_status.text() != text:
-            self._wled_status.setText(text)
-
     def _set_wled_enabled(self, enabled: bool) -> None:
-        if enabled:
-            try:
-                self._ddp_output = DDPOutput(self._wled_address.text(), led_count=self._leds.led_count)
-            except (ValueError, OSError) as error:
-                self._wled_enabled.setChecked(False)
-                self._set_wled_status(f"Output error: {error}")
-                return
-            self._wled_address.setEnabled(False)
-            self._send_wled_frame(self._last_frame)
-        else:
-            self._wled_address.setEnabled(True)
-            output, self._ddp_output = self._ddp_output, None
-            try:
-                black_sent = output.close() if output is not None else True
-            except OSError as error:
-                self._set_wled_status(f"Disabled · blackout failed: {error}")
-            else:
-                self._set_wled_status("Disabled" if black_sent else "Disabled · blackout dropped")
-
-    def _send_wled_frame(self, frame: NDArray[np.uint8]) -> None:
-        if self._ddp_output is None:
-            return
-        try:
-            sent = self._ddp_output.send(frame)
-        except OSError as error:
-            self._wled_enabled.setChecked(False)
-            self._set_wled_status(f"Output error: {error}")
-        else:
-            self._set_wled_status("UDP sent · delivery unverified" if sent else "Frame dropped · UDP buffer busy")
-
-    def _display_frame(self, frame: NDArray[np.uint8]) -> None:
-        self._last_frame = frame
-        self._leds.set_frame(frame)
-        self._send_wled_frame(frame)
+        self._wled_address.setEnabled(not enabled)
+        self._led_output.set_output(self._wled_address.text() if enabled else None)
 
     def _change_visualization(self, index: int) -> None:
-        self._visualization.reset()
-        if index == 0:
-            self._visualization = FrequencyVisualization(led_count=self._leds.led_count)
-        elif index == 1:
-            self._visualization = TravelingPulses(led_count=self._leds.led_count)
-        else:
-            self._visualization = CombinedVisualization(led_count=self._leds.led_count)
-        now = monotonic()
-        # Ignore kicks from before the switch even if the worker has not yet
-        # delivered them. The indicator and session counter still receive them.
-        self._mode_started_at = self._audio_time(now)
-        self._render_led_frame(now)
+        self._led_output.set_mode(index)
 
-    def _audio_time(self, now: float) -> float | None:
-        if self._latest_audio_timestamp is None or self._last_result_at is None:
-            return None
-        # Interpolate between measurements without rewinding on a delayed poll.
-        # Stale capture clears the audio anchor and the animation state.
-        self._rendered_audio_timestamp = max(
-            self._rendered_audio_timestamp, self._latest_audio_timestamp + now - self._last_result_at
-        )
-        return self._rendered_audio_timestamp
-
-    def _render_led_frame(self, now: float, kicks: tuple[KickEvent, ...] = ()) -> None:
-        timestamp = self._audio_time(now)
-        if timestamp is None or self._latest_intensities is None:
-            return
-        kicks = tuple(kick for kick in kicks if self._mode_started_at is None or kick.timestamp > self._mode_started_at)
-        self._display_frame(self._visualization.render(self._latest_intensities, kicks, timestamp))
+    def _update_output(self, *, fresh: bool) -> None:
+        state = self._led_output.state
+        if fresh:
+            self._leds.set_frame(state.frame)
+        if self._wled_status.text() != state.status:
+            self._wled_status.setText(state.status)
+        if self._wled_enabled.isChecked() and state.status.startswith("Output error:"):
+            with QSignalBlocker(self._wled_enabled):
+                self._wled_enabled.setChecked(False)
+            self._wled_address.setEnabled(True)
+        if state.error is not None:
+            self._error.setText(f"LED visualization failed: {state.error}")
+            self._error.show()
 
     def _clear_kick_flash(self) -> None:
         self._kick_indicator.setStyleSheet("")
@@ -329,24 +258,12 @@ class SpectraWindow(QMainWindow):
         selected = self._sources.currentData()
         if self._worker is not None or not isinstance(selected, AudioSourceInfo):
             return
-        worker = CaptureWorker(PipeWireSource(selected), self._intensity_settings)
+        worker = CaptureWorker(PipeWireSource(selected), self._intensity_settings, on_result=self._led_output.publish)
         self._clear_display()
+        self._led_output.set_capturing(True)
         self._kick_count = 0
         self._kick_count_label.setText("Kicks: 0")
-        edges = np.log10(worker.band_edges)
-        self._band_count = len(edges) - 1
-        gap = np.diff(edges) * 0.08
-        brushes = [
-            pg.mkBrush(QColor.fromRgbF(float(rgb[0]), float(rgb[1]), float(rgb[2])))
-            for rgb in band_colors(self._band_count)
-        ]
-        self._bars.setOpts(
-            x0=edges[:-1] + gap,
-            x1=edges[1:] - gap,
-            height=np.zeros(self._band_count),
-            brushes=brushes,
-        )
-        self._plot.getViewBox().setXRange(float(edges[0]), float(edges[-1]), padding=0.03)
+        self._plots.configure(worker.band_edges)
         self._worker = worker
         self._error.clear()
         self._error.hide()
@@ -357,6 +274,7 @@ class SpectraWindow(QMainWindow):
     def _stop_capture(self) -> None:
         if self._worker is not None and not self._stopping:
             self._stopping = True
+            self._led_output.set_capturing(False)
             self._status.setText("Stopping…")
             self._update_controls()
             self._clear_display()
@@ -368,6 +286,7 @@ class SpectraWindow(QMainWindow):
             self._clear_kick_flash()
         worker = self._worker
         if worker is None:
+            self._update_output(fresh=False)
             return
         # Observe termination before taking the snapshot so a final error
         # cannot arrive between the snapshot and discarding the worker.
@@ -376,27 +295,34 @@ class SpectraWindow(QMainWindow):
         if result is not None:
             self._kick_count = result.kick_count
             self._kick_count_label.setText(f"Kicks: {self._kick_count}")
-        if kicks and not self._stopping and error is None:
-            self._kick_indicator.setStyleSheet(self._kick_flash_style)
-            self._kick_flash_until = now + KICK_FLASH_SECONDS
+            self._last_produced_at = result.produced_at
         if error:
             self._error.setText(f"Error: {error}")
             self._error.show()
             self._status.setText("Capture failed")
-        if result is not None and not self._stopping and error is None:
-            levels = np.clip(power_to_decibels(result.spectrum.band_energies), SPECTRUM_MIN_DB, SPECTRUM_MAX_DB)
-            self._bars.setOpts(height=levels - SPECTRUM_MIN_DB)
-            self._latest_intensities = result.intensities
-            self._latest_audio_timestamp = result.spectrum.timestamp
-            self._last_result_at = now
-            self._status.setText("Capturing")
-        elif self._last_result_at is not None and now - self._last_result_at >= STALE_RESULT_TIMEOUT:
+        fresh = (
+            not self._stopping
+            and error is None
+            and not finished
+            and self._last_produced_at is not None
+            and now - self._last_produced_at < STALE_SECONDS
+        )
+        if fresh:
+            if result is not None:
+                levels = np.clip(power_to_decibels(result.spectrum.band_energies), SPECTRUM_MIN_DB, SPECTRUM_MAX_DB)
+                self._plots.set_features(levels, result.intensities)
+                self._status.setText("Capturing")
+            if kicks:
+                self._kick_indicator.setStyleSheet(self._kick_flash_style)
+                self._kick_flash_until = now + KICK_FLASH_SECONDS
+            self._plots.update_waveform(worker.history, worker.waveform_kicks)
+        elif self._last_produced_at is not None:
             self._clear_display()
-            if error is None and not self._stopping:
+            if error is None and not self._stopping and not finished:
                 self._status.setText("Waiting for audio…")
-        if not self._stopping and error is None:
-            self._render_led_frame(now, kicks)
+        self._update_output(fresh=fresh)
         if finished:
+            self._led_output.set_capturing(False)
             worker.join()
             self._worker = None
             self._stopping = False
@@ -414,6 +340,8 @@ class SpectraWindow(QMainWindow):
             event.ignore()
         else:
             self._timer.stop()
+            self._led_output.close()
+            self._plots.canvas.close()
             event.accept()
 
     def shutdown(self) -> None:
@@ -428,3 +356,5 @@ class SpectraWindow(QMainWindow):
             self._update_controls()
         finally:
             self._wled_enabled.setChecked(False)
+            self._led_output.close()
+            self._plots.canvas.close()

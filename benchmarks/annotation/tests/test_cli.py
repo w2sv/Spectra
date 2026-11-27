@@ -97,7 +97,7 @@ track = Track(**json.loads(sys.argv[1]))
 annotate_track(track, mode="prepare", root=root)
 annotate_track(track, mode="diagnostics", root=root)
 assert list((root / "proposals/diagnostics").glob("*.png"))
-assert not any(name.startswith(("PySide6", "pyqtgraph", "sounddevice")) for name in sys.modules)
+assert not any(name.startswith(("PySide6", "vispy", "sounddevice")) for name in sys.modules)
 """
     subprocess.run([sys.executable, "-c", script, json.dumps(asdict(track)), str(tmp_path)], check=True, timeout=60)
 

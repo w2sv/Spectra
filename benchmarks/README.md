@@ -9,7 +9,8 @@ annotated music.
 uv sync
 ```
 
-Interactive annotation requires a graphical desktop session and PortAudio. On Ubuntu:
+Interactive annotation uses the VisPy timeline embedded in PySide6. It requires a graphical desktop with a working
+OpenGL context and PortAudio. On Ubuntu:
 
 ```bash
 sudo apt install libportaudio2
@@ -73,6 +74,9 @@ Changing BPM or phase for an existing proposal requires `--regenerate`.
 | Ctrl+Shift+Z / Ctrl+Y | Redo                                     |
 | Ctrl+S                | Save                                     |
 | Escape / Q            | Close                                    |
+
+The waveform preserves transient peaks and shows original PCM samples at close zoom. Drag the divider between the
+waveform and evidence plots to resize them. Playback follows at the existing 40% viewport anchor.
 
 The upper marker lane displays automatic and manually confirmed kicks; the lower lane displays remaining candidates and
 explicit rejections. The graphical legend identifies their respective symbols. Similar-event corrections and

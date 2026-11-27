@@ -3,10 +3,8 @@
 from dataclasses import dataclass
 from functools import cache
 
-import pyqtgraph as pg
-from pyqtgraph.graphicsItems.ScatterPlotItem import drawSymbol
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, Qt
-from PySide6.QtGui import QImage, QImageWriter, QPainter, QPen
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QImage, QImageWriter, QPainter, QPen
 from PySide6.QtWidgets import QLabel
 
 
@@ -26,9 +24,10 @@ class LineStyle:
     dashed: bool = False
 
     def pen(self) -> QPen:
-        return pg.mkPen(
-            self.color, width=self.width, style=Qt.PenStyle.DashLine if self.dashed else Qt.PenStyle.SolidLine
-        )
+        pen = QPen(QColor(self.color))
+        pen.setWidth(self.width)
+        pen.setStyle(Qt.PenStyle.DashLine if self.dashed else Qt.PenStyle.SolidLine)
+        return pen
 
 
 AUTOMATIC_KICK = MarkerStyle("Automatic kick", "#2bad62", "o", 10)
@@ -57,13 +56,16 @@ def _sample(style: MarkerStyle | LineStyle, ratio: float) -> str:
     if isinstance(style, MarkerStyle):
         painter.translate(13, 9)
         outline = style in (UNCERTAINTY, TIMING)
-        drawSymbol(
-            painter,
-            style.symbol,
-            style.size,
-            pg.mkPen(style.color, width=2 if outline else 1),
-            pg.mkBrush(None if outline else style.color),
-        )
+        painter.setPen(QPen(QColor(style.color), 2 if outline else 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush if outline else QColor(style.color))
+        radius = style.size / 2
+        if style.symbol == "s":
+            painter.drawRect(QRectF(-radius, -radius, style.size, style.size))
+        elif style.symbol == "x":
+            painter.drawLine(QPointF(-radius, -radius), QPointF(radius, radius))
+            painter.drawLine(QPointF(-radius, radius), QPointF(radius, -radius))
+        else:
+            painter.drawEllipse(QPointF(0, 0), radius, radius)
     else:
         painter.setPen(style.pen())
         painter.drawLine(QPointF(2, 9), QPointF(24, 9))

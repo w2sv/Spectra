@@ -1,365 +1,299 @@
-"""Run isolated desktop workers, alternating renderer order between repetitions."""
+"""Short checks of the production VisPy timeline; historical comparisons are archived."""
 
 import argparse
-import hashlib
-import importlib.metadata
+import copy
 import json
-import os
-import pickle
+import math
 import platform
-import subprocess
 import sys
-import tempfile
-from datetime import UTC, datetime
+from contextlib import contextmanager
 from pathlib import Path
-from time import perf_counter
+from tempfile import TemporaryDirectory
+from time import monotonic, perf_counter
 
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+import numpy as np
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
-from benchmarks.annotation.cli import write_json
+from benchmarks.annotation.corrections import CorrectionEditor, effective_onsets
+from benchmarks.annotation.review.playback import KickFlash, PCMPlayback, zoom_speed
+from benchmarks.annotation.review.timeline import Timeline
 from benchmarks.review_performance.data import checksum, load_recording
-from benchmarks.review_performance.metrics import distribution
-from benchmarks.review_performance.runner import SCENARIOS, ExperimentWindow
-
-RESULTS = Path("benchmarks/results/review_performance")
+from benchmarks.review_performance.metrics import Measurements, resident_bytes
 
 
-def command_output(command: list[str]) -> str:
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    return result.stdout.strip() or result.stderr.strip()
+@contextmanager
+def count_buffers(metrics: Measurements):
+    from vispy.gloo.buffer import Buffer
 
+    original_set, original_sub = Buffer.set_data, Buffer.set_subdata
 
-def conditions(window: ExperimentWindow) -> dict:
-    screen = window.screen()
-    graphics = {}
-    if window.backend == "vispy":
-        from vispy.gloo import gl
+    def record(data):
+        if metrics.active:
+            metrics.geometry_calls += 1
+            metrics.geometry_bytes += data.nbytes
+        else:
+            metrics.initial_upload_calls += 1
+            metrics.initial_upload_bytes += data.nbytes
 
-        from benchmarks.review_performance.vispy_timeline import VispyTimeline
+    def set_data(self, data, copy=False):
+        record(data)
+        return original_set(self, data, copy=copy)
 
-        assert isinstance(window.timeline, VispyTimeline)
+    def sub_data(self, data, offset=0, copy=False):
+        record(data)
+        return original_sub(self, data, offset=offset, copy=copy)
 
-        window.timeline.canvas.set_current()
-        graphics = {
-            key: vars(gl)["glGetParameter"](getattr(gl, key)) for key in ("GL_VENDOR", "GL_RENDERER", "GL_VERSION")
-        }
-        renderer = graphics["GL_RENDERER"].lower()
-        graphics["hardware_accelerated"] = not any(
-            value in renderer for value in ("llvmpipe", "softpipe", "swrast", "software")
-        )
-        graphics["physical_canvas_size"] = list(window.timeline.canvas.physical_size)
-        graphics["samples"] = 4
-        graphics["vsync_requested"] = False
-    else:
-        import pyqtgraph as pg
-
-        graphics = {
-            "useOpenGL": pg.getConfigOption("useOpenGL"),
-            "antialias": pg.getConfigOption("antialias"),
-            "segmentedLineMode": "on",
-            "downsampling": "native peak",
-            "device_coordinate_cache": True,
-        }
-    return {
-        "recorded_utc": datetime.now(UTC).isoformat(),
-        "revision": command_output(["git", "rev-parse", "HEAD"]),
-        "worktree_diff_sha256": hashlib.sha256(
-            subprocess.run(["git", "diff"], capture_output=True, check=True).stdout
-        ).hexdigest(),
-        "experiment_source_sha256": {
-            str(path): checksum(path)
-            for path in Path("benchmarks/review_performance").glob("*.py")
-            if not path.name.startswith("test_") and path.name != "report.py"
-        },
-        "python": sys.version,
-        "versions": {
-            name: importlib.metadata.version(name)
-            for name in ("vispy", "PySide6", "pyqtgraph", "numpy", "scipy", "sounddevice")
-        },
-        "platform": platform.platform(),
-        "cpu": command_output(["lscpu"]),
-        "display": {
-            "platform": QApplication.platformName(),
-            "name": screen.name(),
-            "reported_refresh_hz": screen.refreshRate(),
-            "device_pixel_ratio": screen.devicePixelRatio(),
-            "logical_dpi": screen.logicalDotsPerInch(),
-            "physical_dpi": screen.physicalDotsPerInch(),
-            "geometry": [screen.size().width(), screen.size().height()],
-            "window": [window.width(), window.height()],
-            "timeline": [window.timeline.width(), window.timeline.height()],
-        },
-        "graphics": graphics,
-        "audio_devices": command_output(
-            [sys.executable, "-c", "import sounddevice; print(sounddevice.query_devices())"]
-        ),
-        "gpu_utilization": None,
-        "gpu_memory_bytes": None,
-        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
-        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
-    }
-
-
-def worker(args: argparse.Namespace) -> None:
-    if args.prepared:
-        with args.prepared.open("rb") as source:
-            recording = pickle.load(source)
-    else:
-        recording = load_recording(args.track[0])
-    app = QApplication.instance() or QApplication([])
-    window = ExperimentWindow(
-        recording, args.backend, args.target[0], args.waveform, args.mode == "integrated", args.axes
-    )
-    window.resize(*args.size)
-    if not args.interactive:
-        window.setFixedSize(*args.size)
-    window.show()
-    app.processEvents()
-    environment: dict = {}
-    profile = None
-    underruns_at_start = 0
-    buffering_at_start = False
-    if args.profile:
-        import cProfile
-
-        profile = cProfile.Profile()
-
-    def finished() -> None:
-        if profile is not None:
-            profile.disable()
-            profile.dump_stats(str(args.output.with_suffix(".prof")))
-        result = window.measurements.result(
-            args.target[0], {"canvas"} if args.backend == "vispy" else {"wave", "evidence"}
-        )
-        if args.backend == "pyqtgraph":
-            for key in (
-                "buffer_upload_calls",
-                "buffer_upload_bytes",
-                "buffer_upload_bytes_per_second",
-                "initial_and_warmup_upload_calls",
-                "initial_and_warmup_upload_bytes",
-            ):
-                result[key] = None
-        result["script_actions_dispatched"] = window.last_action + 1
-        player = window.player
-        result["audio"] = {
-            "mode": args.mode,
-            "underruns": player.underruns - underruns_at_start if player else None,
-            "warmup_underruns": underruns_at_start if player else None,
-            "warmup_reliable_buffering": buffering_at_start if player else None,
-            "buffering_recovery": player.reliable_buffering if player else None,
-            "final_speed": player.speed if player else None,
-            "clock_generation": player.generation if player else None,
-            "software_timing_only": True,
-        }
-        if args.backend == "vispy":
-            from benchmarks.review_performance.vispy_timeline import VispyTimeline
-
-            assert isinstance(window.timeline, VispyTimeline)
-            gpu_timer = window.timeline.canvas.gpu_timer
-            result["gpu_scene_execution_ms"] = distribution(gpu_timer.milliseconds) if gpu_timer else None
-        result["stream"] = {
-            "overwritten_before_consumption": window.stream_overwritten,
-            "history_capacity_samples": window.stream.capacity if window.stream else None,
-            "samples_ingested": window.stream.written if window.stream else None,
-            "maximum_ingestion_lateness_ms": window.stream.maximum_ingestion_lateness_seconds * 1000
-            if window.stream
-            else None,
-        }
-        result["initialization_seconds"] = window.initialization_seconds
-        result["waveform_preprocessing_seconds"] = getattr(window.timeline, "preprocessing_seconds", None)
-        result["waveform_cpu_geometry_bytes"] = getattr(window.timeline, "geometry_cpu_bytes", None)
-        result["recording_preparation_seconds"] = recording.preparation_seconds
-        result["recording"] = {
-            "track": recording.proposal["track_identifier"],
-            "audio_sha256": recording.proposal["audio_sha256"],
-            "duration_seconds": recording.analysis.duration_seconds,
-            "candidate_count": len(window.editor.candidates),
-            "saved_overrides": len(recording.draft.overrides),
-            "saved_manual_events": len(recording.draft.manual_events),
-            "protected_files_unchanged": all(
-                checksum(Path(path)) == digest for path, digest in recording.protected_hashes.items()
-            ),
-        }
-        if not result["recording"]["protected_files_unchanged"]:
-            raise RuntimeError("Protected data changed during experiment.")
-        write_json(
-            args.output,
-            {
-                "conditions": environment,
-                "parameters": {
-                    "backend": args.backend,
-                    "scenario": args.scenario[0],
-                    "target_hz": args.target[0],
-                    "duration_seconds": args.duration,
-                    "warmup_seconds": args.warmup,
-                    "waveform": args.waveform,
-                    "axes": args.axes,
-                    "mode": args.mode,
-                    "profiled": args.profile,
-                    "gpu_timing": args.gpu_timing,
-                    "requested_window": args.size,
-                    "stream_full_upload": args.stream_full,
-                },
-                "measurements": result,
-            },
-        )
-        print(
-            f"{args.output}: draw {result['logical_draw_hz']:.1f} Hz; frame P95 {result['frame_interval_ms']['p95']} ms",
-            flush=True,
-        )
-        window.close()
-        app.quit()
-
-    def measured() -> None:
-        nonlocal underruns_at_start, buffering_at_start
-        if window.player is not None:
-            underruns_at_start = window.player.underruns
-            buffering_at_start = window.player.reliable_buffering
-        if args.gpu_timing and args.backend == "vispy":
-            from benchmarks.review_performance.gpu_timing import GPUTimer
-            from benchmarks.review_performance.vispy_timeline import VispyTimeline
-
-            assert isinstance(window.timeline, VispyTimeline)
-            window.timeline.canvas.set_current()
-            window.timeline.canvas.gpu_timer = GPUTimer()
-        environment.update(conditions(window))
-        window.begin(args.scenario[0], args.duration, finished, args.stream_full)
-        window.measurements.start()
-        if args.scenario[0] == "stream":
-            from benchmarks.review_performance.vispy_timeline import VispyTimeline
-
-            assert isinstance(window.timeline, VispyTimeline)
-            window.timeline.strategy = "stream"
-        if profile is not None:
-            profile.enable()
-
-    if args.interactive:
-        window.begin("interactive", 1e9)
-        window.measurements.active = False
-    elif args.warmup:
-        window.begin("follow_10", args.warmup, measured)
-    else:
-        QTimer.singleShot(0, measured)
-    exit_code = app.exec()
-    if exit_code:
-        raise SystemExit(exit_code)
+    Buffer.set_data, Buffer.set_subdata = set_data, sub_data
+    try:
+        yield
+    finally:
+        Buffer.set_data, Buffer.set_subdata = original_set, original_sub
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--track", nargs="+", default=["universal"], choices=("universal", "no_trust"))
-    parser.add_argument("--backend", choices=("all", "pyqtgraph", "vispy"), default="vispy")
-    parser.add_argument("--scenario", nargs="+", choices=SCENARIOS, default=["follow_10"])
-    parser.add_argument("--target", nargs="+", type=int, choices=(30, 60, 90, 120), default=[60])
+    parser.add_argument("--track", choices=("universal", "no_trust"), default="universal")
+    parser.add_argument(
+        "--scenario",
+        choices=(
+            "follow_2.5",
+            "follow_10",
+            "follow_40",
+            "follow_120",
+            "follow_full",
+            "zoom",
+            "seek",
+            "markers",
+            "idle",
+        ),
+        default="follow_10",
+    )
+    parser.add_argument("--target", type=int, choices=(30, 60, 90, 120), default=60)
     parser.add_argument("--duration", type=float, default=3)
     parser.add_argument("--warmup", type=float, default=1)
-    parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--mode", choices=("rendering", "integrated"), default="rendering")
-    parser.add_argument("--waveform", choices=("visible", "resident", "lod", "windowed"), default="windowed")
-    parser.add_argument("--size", type=int, nargs=2, default=(1180, 620), metavar=("WIDTH", "HEIGHT"))
     parser.add_argument("--interactive", action="store_true")
-    parser.add_argument("--profile", action="store_true")
-    parser.add_argument(
-        "--gpu-timing", action="store_true", help="Separate diagnostic; asynchronous OpenGL scene timer queries"
-    )
-    parser.add_argument("--axes", choices=("stock", "cached", "none"), default="cached")
-    parser.add_argument("--stream-full", action="store_true", help="Diagnostic full-history upload baseline")
-    parser.add_argument("--output", type=Path, default=RESULTS / "vispy_comparison.json")
-    parser.add_argument(
-        "--resume", action="store_true", help="Skip existing worker results in the output's run directory"
-    )
-    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--prepared", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--output", type=Path, default=Path("benchmarks/results/review_performance/local_check.json"))
     args = parser.parse_args()
-    if args.duration <= 0 or args.warmup < 0 or args.repetitions < 1 or min(args.size) < 200:
-        parser.error("Positive duration/repetitions and window dimensions >= 200 required.")
-    if not args.interactive and args.duration > 30:
-        parser.error("Fixed measurement intervals support up to 30 seconds without reaching EOF.")
-    if args.mode == "integrated" and "stream" in args.scenario:
-        parser.error("Streaming simulates ingestion independently of playback; use --mode rendering.")
+    if not 0 < args.duration <= 30 or args.warmup < 0:
+        parser.error("Use a positive duration up to 30 seconds and nonnegative warm-up.")
+    recording = load_recording(args.track)
+    app = QApplication.instance() or QApplication([])
     if args.interactive:
-        args.backend = "vispy" if args.backend == "all" else args.backend
-        args.track, args.target = args.track[:1], args.target[:1]
-        worker(args)
+        from benchmarks.annotation.review.window import AnnotationReview
+
+        with TemporaryDirectory(prefix="spectra-review-") as temporary:
+            window = AnnotationReview(
+                recording.analysis,
+                recording.proposal,
+                copy.deepcopy(recording.draft),
+                Path(temporary) / "draft.json",
+                60,
+                10,
+                audio_path=recording.audio_path,
+            )
+            window.show()
+            app.exec()
         return
-    if args.worker:
-        worker(args)
-        return
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    run_dir = args.output.parent / (args.output.stem + "_runs")
-    run_dir.mkdir(exist_ok=True)
-    results = []
-    started = perf_counter()
-    with tempfile.TemporaryDirectory(prefix="spectra-rendering-") as temporary:
-        for track in args.track:
-            print(f"Preparing {track} (read-only)…", flush=True)
-            prepared = Path(temporary) / f"{track}.pickle"
-            with prepared.open("wb") as destination:
-                pickle.dump(load_recording(track), destination, protocol=pickle.HIGHEST_PROTOCOL)
-            for target in args.target:
-                for scenario in args.scenario:
-                    for repeat in range(args.repetitions):
-                        backends = ["pyqtgraph", "vispy"] if args.backend == "all" else [args.backend]
-                        if repeat % 2:
-                            backends.reverse()
-                        for backend in backends:
-                            if scenario == "stream" and backend == "pyqtgraph":
-                                continue
-                            output = run_dir / f"{track}_{target}_{scenario}_{repeat}_{backend}.json"
-                            command = [
-                                sys.executable,
-                                "-m",
-                                "benchmarks.review_performance",
-                                "--worker",
-                                "--prepared",
-                                str(prepared),
-                                "--track",
-                                track,
-                                "--backend",
-                                backend,
-                                "--target",
-                                str(target),
-                                "--scenario",
-                                scenario,
-                                "--duration",
-                                str(args.duration),
-                                "--warmup",
-                                str(args.warmup),
-                                "--axes",
-                                args.axes,
-                                "--waveform",
-                                args.waveform,
-                                "--mode",
-                                args.mode,
-                                "--size",
-                                *map(str, args.size),
-                                "--output",
-                                str(output),
-                            ]
-                            command += [
-                                flag
-                                for flag, enabled in (
-                                    ("--profile", args.profile),
-                                    ("--gpu-timing", args.gpu_timing),
-                                    ("--no-axes", False),
-                                    ("--stream-full", args.stream_full),
-                                )
-                                if enabled
-                            ]
-                            if not args.resume or not output.exists():
-                                print(f"{track} {target} Hz {scenario} repeat {repeat + 1}: {backend}", flush=True)
-                                subprocess.run(command, check=True, env=os.environ.copy())
-                            result = json.loads(output.read_text())
-                            result["repeat"] = repeat
-                            result["source_file"] = str(output)
-                            results.append(result)
-                            write_json(args.output, {"schema_version": 1, "complete": False, "runs": results})
-    write_json(
-        args.output, {"schema_version": 1, "complete": True, "wall_seconds": perf_counter() - started, "runs": results}
-    )
-    print(f"Saved {len(results)} runs to {args.output}", flush=True)
+    metrics = Measurements()
+    editor = CorrectionEditor(recording.proposal, copy.deepcopy(recording.draft))
+    player = PCMPlayback.from_wav(recording.audio_path) if args.mode == "integrated" else None
+    flash = KickFlash()
+    flash.timestamps = effective_onsets(recording.proposal, editor.draft)
+    with count_buffers(metrics):
+        started = perf_counter()
+        timeline = Timeline(recording.analysis, recording.proposal)
+        initialization = perf_counter() - started
+        timeline.update_candidates(
+            editor, show_candidates=True, uncertainty=True, timing=True, scores=True, grid=True, alternative=False
+        )
+        window = QWidget()
+        layout = QVBoxLayout(window)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(timeline)
+        window.setFixedSize(1180, 620)
+        window.setWindowTitle("Spectra — production VisPy rendering check")
+        window.show()
+        timer = QTimer(window)
+        timer.setTimerType(Qt.TimerType.PreciseTimer)
+        timer.setSingleShot(True)
+        width = (
+            recording.analysis.duration_seconds
+            if args.scenario == "follow_full"
+            else float(args.scenario.split("_")[1])
+            if args.scenario.startswith("follow_")
+            else 10
+        )
+        origin = monotonic()
+        paint_start = [0.0]
+        last_action = [-1]
+        visibility = []
+        last_exposed: list[bool | None] = [None]
+        measured = [False]
+        initial_underruns = [0]
+        initial_uploads = [0, 0]
+        generation = [0]
+        seek_offset = [0.0]
+        times = np.arange(math.ceil((args.duration + args.warmup) * 1000) + 2) / 1000
+        speeds = np.full(len(times), zoom_speed(width))
+        positions = 60 + np.cumsum(speeds) / 1000
+
+        def before(event):
+            paint_start[0] = perf_counter()
+
+        def after(event):
+            metrics.painted("canvas", paint_start[0])
+
+        timeline.canvas.events["draw"].connect(before, position="first")
+        timeline.canvas.events["draw"].connect(after, position="last")
+        if player is not None:
+            metrics.clock_position = lambda: player.position
+            player.seek(60)
+            player.set_speed(zoom_speed(width))
+            if args.scenario != "idle":
+                player.play()
+
+        def finish():
+            result = metrics.result(args.target, {"canvas"})
+            result.update(
+                initialization_seconds=initialization,
+                waveform_preprocessing_seconds=timeline.waveform.pyramid.seconds,
+                waveform_cpu_bytes=timeline.waveform.pyramid.bytes,
+                waveform_uploads=timeline.waveform.uploads - initial_uploads[0],
+                waveform_upload_bytes=timeline.waveform.uploaded_bytes - initial_uploads[1],
+                visibility_changes=visibility,
+                audio_underruns=None if player is None else player.underruns - initial_underruns[0],
+                protected_files_unchanged=all(
+                    checksum(Path(path)) == value for path, value in recording.protected_hashes.items()
+                ),
+            )
+            from vispy.gloo import gl
+
+            timeline.canvas.set_current()
+            graphics = {
+                name: vars(gl)["glGetParameter"](getattr(gl, name))
+                for name in ("GL_VENDOR", "GL_RENDERER", "GL_VERSION")
+            }
+            document = {
+                "parameters": vars(args) | {"output": str(args.output)},
+                "python": sys.version,
+                "platform": platform.platform(),
+                "graphics": graphics,
+                "display": {
+                    "refresh_hz": window.screen().refreshRate(),
+                    "scale": window.devicePixelRatioF(),
+                    "window": [window.width(), window.height()],
+                },
+                "measurements": result,
+            }
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(document, indent=2, allow_nan=False) + "\n")
+            print(
+                f"{args.scenario}: {result['logical_draw_hz']:.1f} software draw Hz, P95 {result['frame_interval_ms']['p95']} ms",
+                flush=True,
+            )
+            app.quit()
+
+        def tick():
+            try:
+                now = monotonic()
+                elapsed = now - origin
+                if elapsed >= args.warmup + args.duration:
+                    finish()
+                    return
+                if not measured[0] and elapsed >= args.warmup:
+                    measured[0] = True
+                    metrics.start()
+                    initial_uploads[:] = [timeline.waveform.uploads, timeline.waveform.uploaded_bytes]
+                    initial_underruns[0] = player.underruns if player else 0
+                work_started = perf_counter()
+                metrics.serial += 1
+                if metrics.active:
+                    metrics.updates.append(work_started)
+                    if metrics.serial % args.target == 0:
+                        metrics.memory.append(resident_bytes())
+                exposed = window.windowHandle().isExposed()
+                if exposed != last_exposed[0]:
+                    visibility.append((elapsed, exposed))
+                    last_exposed[0] = exposed
+                action = int(elapsed * 4)
+                if action != last_action[0]:
+                    last_action[0] = action
+                    if args.scenario == "zoom":
+                        target = 10 * math.exp(3 * math.sin(elapsed * math.tau / 4))
+                        metrics.input("zoom")
+                        timeline.zoom(
+                            target / timeline.target_width,
+                            sum(timeline.interval) / 2,
+                            playback_position=player.position
+                            if player
+                            else float(positions[min(len(positions) - 1, round(elapsed * 1000))]),
+                        )
+                    elif args.scenario == "seek" and action % 2 == 0:
+                        seek_offset[0] += 5 if action % 4 == 0 else -1
+                        generation[0] += 1
+                        if player:
+                            player.seek(60 + elapsed + seek_offset[0])
+                    elif args.scenario == "markers":
+                        key = recording.proposal["kick_candidates"][
+                            action % len(recording.proposal["kick_candidates"])
+                        ]["candidate_id"]
+                        metrics.input("marker")
+                        editor.toggle(key)
+                        timeline.update_candidates(
+                            editor,
+                            show_candidates=True,
+                            uncertainty=True,
+                            timing=True,
+                            scores=True,
+                            grid=True,
+                            alternative=False,
+                        )
+                position = (
+                    player.poll()
+                    if player
+                    else 60
+                    if args.scenario == "idle"
+                    else float(positions[min(len(positions) - 1, round(elapsed * 1000))]) + seek_offset[0]
+                )
+                metrics.snapshot_time = perf_counter()
+                metrics.cursor_position = position
+                if not timeline.advance_zoom(monotonic(), playback_position=position):
+                    timeline.follow(position, width=width if args.scenario != "zoom" else None)
+                timeline.set_flash(
+                    flash.update(
+                        position,
+                        playing=args.scenario != "idle",
+                        generation=player.generation if player else generation[0],
+                        playback_time=player.dac_time if player else None,
+                        event_time=player.event_time if player else None,
+                    )
+                )
+                if player:
+                    player.set_speed(zoom_speed(timeline.interval[1] - timeline.interval[0]))
+                if metrics.active:
+                    metrics.update_costs.append((perf_counter() - work_started) * 1000)
+                slot = math.floor((monotonic() - origin) * args.target) + 1
+                timer.start(max(0, math.ceil((origin + slot / args.target - monotonic()) * 1000)))
+            except Exception:
+                import traceback
+
+                traceback.print_exc()
+                app.exit(1)
+
+        timer.timeout.connect(tick)
+        timer.start(0)
+        try:
+            status = app.exec()
+        finally:
+            timer.stop()
+            if player:
+                player.close()
+            timeline.canvas.close()
+            window.close()
+        if status:
+            raise SystemExit(status)
 
 
 if __name__ == "__main__":

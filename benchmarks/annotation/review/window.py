@@ -941,6 +941,7 @@ class AnnotationReview(QMainWindow):
         app = QApplication.instance()
         if app is not None:
             app.removeEventFilter(self)
+        self.timeline.canvas.close()
         event.accept()
 
 

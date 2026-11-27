@@ -71,6 +71,36 @@ and no overwritten pending data. Its three-second duration was insufficient to e
 median/P95 was 2.52/5.80 ms; those asynchronous query intervals may include submission gaps. Production validation is
 recorded with the migration checks rather than another benchmark campaign.
 
-No Trust and the original extensive matrix were not completed. The decision to migrate does not depend on them. Hardware
-WLED delivery and physical audio-to-display alignment remain unverified. Historical Matplotlib/Qt reports keep their
-original measurements. See [the harness](../../review_performance/README.md) for short reproducible checks.
+The original No Trust comparison and extensive matrix were not completed. The decision to migrate does not depend on
+them. Hardware WLED delivery and physical audio-to-display alignment remain unverified. Historical Matplotlib/Qt reports
+keep their original measurements. See [the harness](../../review_performance/README.md) for short reproducible checks.
+
+## Production migration verification
+
+The annotation editor now uses VisPy directly, without experimental inheritance or PyQtGraph dependencies. Editing,
+saving, reclassification and DAC playback retain their existing models and orchestration. Padded local-coordinate
+windows cover PCM, evidence, markers and beat grids; close zoom uses original samples. Omitting the expensive finest
+pyramid levels reduces retained Universal preprocessing geometry from 81.2 to 30.4 MB and measured preprocessing from
+roughly 0.65–0.69 to 0.33–0.38 seconds. Static axis layouts and hidden selections avoid redundant updates.
+
+Runtime now displays raw power, processed intensities and a scrolling peak-preserving PCM envelope. History is
+adjustable from one to ten seconds and independently disableable. A separate LED worker maintains animation and DDP
+cadence independently of painting. Both renderers prepare only their latest state on actual draws; hidden windows cannot
+build a FIFO of deferred waveform uploads. The rolling shader uses bounded integer sample coordinates and conditional
+wrap arithmetic, avoiding a driver-sensitive modulo artifact. GPU readback checks exercise raw and envelope modes across
+wraparound; window captures were inspected for both applications.
+
+Automated desktop interactions exercised actual PCM playback, keyboard seeking, accumulated zoom, marker correction,
+undo/redo, temporary-draft saving and resizing. The final audio smoke reported zero underruns. A 12-second simulated
+runtime capture passed the 480,000-sample history boundary, displayed 46 detections and transmitted 1,361 loopback UDP
+frames. During a deliberate 0.6-second GUI stall, capture advanced 28,672 samples and output transmitted 71 frames.
+These are software/automated checks, not physical audio-to-display or hardware WLED validation.
+
+Three-second production-path checks recorded P95 intervals of 37.6/44.9 ms for Universal 10/40-second views and 38.4 ms
+for No Trust's 10-second view. They retain an advantage over the earlier Qt following measurements but are exploratory,
+not paired statistical comparisons. The Universal checks preceded the final static-axis cache. Their raw data and the
+GUI/readback checks are included under `migration_verification` in the measurement archive.
+
+VisPy is a regular dependency; PyQtGraph and the experiment dependency group are removed. Headless capture and CLI
+imports do not initialize Qt or VisPy. The old prototype renderers and duplicate reports are removed. Long-duration
+memory stability, physical WLED delivery and physical synchronization remain unverified; no spectrogram was added.

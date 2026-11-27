@@ -419,18 +419,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pyqtgraph"
-version = "0.14.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama" },
-    { name = "numpy" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/36/4c242f81fdcbfa4fb62a5645f6af79191f4097a0577bd5460c24f19cc4ef/pyqtgraph-0.14.0-py3-none-any.whl", hash = "sha256:7abb7c3e17362add64f8711b474dffac5e7b0e9245abdf992e9a44119b7aa4f5", size = 1924755, upload-time = "2025-11-16T19:43:22.251Z" },
-]
-
-[[package]]
 name = "pyright"
 version = "1.1.414"
 source = { registry = "https://pypi.org/simple" }
@@ -639,9 +627,9 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
-    { name = "pyqtgraph" },
     { name = "pyside6" },
     { name = "scipy" },
+    { name = "vispy" },
 ]
 
 [package.dev-dependencies]
@@ -654,9 +642,7 @@ dev = [
     { name = "mdformat" },
     { name = "mdformat-gfm" },
     { name = "mir-eval" },
-    { name = "pyqtgraph" },
     { name = "pyright" },
-    { name = "pyside6" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "sounddevice" },
@@ -664,25 +650,15 @@ dev = [
 review = [
     { name = "matplotlib" },
     { name = "mir-eval" },
-    { name = "pyqtgraph" },
-    { name = "pyside6" },
     { name = "sounddevice" },
-]
-visualization-experiment = [
-    { name = "matplotlib" },
-    { name = "mir-eval" },
-    { name = "pyqtgraph" },
-    { name = "pyside6" },
-    { name = "sounddevice" },
-    { name = "vispy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.5.5" },
-    { name = "pyqtgraph", specifier = ">=0.14.0" },
     { name = "pyside6", specifier = ">=6.12.0" },
     { name = "scipy", specifier = ">=1.18.1" },
+    { name = "vispy", specifier = ">=0.17.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -695,9 +671,7 @@ dev = [
     { name = "mdformat", specifier = ">=1.0.0" },
     { name = "mdformat-gfm", specifier = ">=1.0.0" },
     { name = "mir-eval", specifier = ">=0.8.2" },
-    { name = "pyqtgraph", specifier = ">=0.14.0" },
     { name = "pyright", specifier = ">=1.1.414" },
-    { name = "pyside6", specifier = ">=6.12.0" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "ruff", specifier = ">=0.17.6" },
     { name = "sounddevice", specifier = ">=0.5.6" },
@@ -705,17 +679,7 @@ dev = [
 review = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "mir-eval", specifier = ">=0.8.2" },
-    { name = "pyqtgraph", specifier = ">=0.14.0" },
-    { name = "pyside6", specifier = ">=6.12.0" },
     { name = "sounddevice", specifier = ">=0.5.6" },
-]
-visualization-experiment = [
-    { name = "matplotlib", specifier = ">=3.11.2" },
-    { name = "mir-eval", specifier = ">=0.8.2" },
-    { name = "pyqtgraph", specifier = ">=0.14.0" },
-    { name = "pyside6", specifier = ">=6.12.0" },
-    { name = "sounddevice", specifier = ">=0.5.6" },
-    { name = "vispy", specifier = ">=0.17.0" },
 ]
 
 [[package]]

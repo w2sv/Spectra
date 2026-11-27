@@ -1,12 +1,13 @@
 # Spectra
 
 Spectra is a real-time, music-reactive LED visualization application for Ubuntu 24.04. Spectra captures desktop playback
-without changing audio routing. Its optional desktop interface shows a live frequency spectrum and a virtual strip of
-300 RGB LEDs; CLI diagnostics remain available. Optional WLED output sends the same RGB frames over Wi-Fi using DDP.
+without changing audio routing. Its optional desktop interface shows a live frequency spectrum, processed LED
+intensities, scrolling PCM with kick markers, and a virtual strip of 300 RGB LEDs; CLI diagnostics remain available.
+Optional WLED output sends the same RGB frames over Wi-Fi using DDP.
 
-The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/pyqtgraph for the desktop interface
-and live plots. Audio capture uses `parec` through PipeWire's PulseAudio compatibility server; `pactl` discovers output
-monitors.
+The selected stack is Python 3.15, NumPy/SciPy for signal processing, and PySide6/VisPy for the desktop interface and
+GPU-accelerated plots. Audio capture uses `parec` through PipeWire's PulseAudio compatibility server; `pactl` discovers
+output monitors.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage Python and dependencies. The project
 pins regular CPython 3.15 (with the GIL); uv downloads it when needed.
@@ -15,6 +16,9 @@ pins regular CPython 3.15 (with the GIL); uv downloads it when needed.
 uv sync
 uv run spectra
 ```
+
+The GUI requires a working desktop OpenGL context (VisPy with PySide6); Mesa hardware drivers are supported. Headless
+CLI diagnostics do not initialize Qt or OpenGL.
 
 Audio capture requires a running desktop PipeWire session with `pipewire-pulse`, plus `parec` and `pactl` from Ubuntu's
 `pulseaudio-utils` package (`sudo apt install pulseaudio-utils`). Play music and watch RMS/peak levels change; press
@@ -29,12 +33,13 @@ uv run spectra --gui
 ```
 
 In graphical mode, choose an output monitor and click **Start**. **Stop** releases capture; closing the window also
-stops its worker and subprocess. Capture/analysis run off the GUI thread, and one GUI timer renders the latest result.
-The **FPS** selector beside **Visualization** offers **30** (default), **60**, **90**, and **120** target FPS, shared by
-the virtual LED preview and WLED/DDP output. Changes apply during playback without restarting capture or resetting
-animations. These are targets; actual rendering frequency can vary. Source selection also works with `--gui --source`.
-If results stop arriving for 500 ms, the display clears while capture stays active and recovers automatically when
-results resume.
+stops its worker and subprocess. Capture/analysis and LED animation/transmission run off the GUI thread. The GUI paints
+their latest results. The **FPS** selector beside **Visualization** offers **30** (default), **60**, **90**, and **120**
+target FPS, for LED animation and WLED/DDP output. The preview polls at the same target; skipped GUI paints do not delay
+transmission. Changes apply during playback without restarting capture or resetting animations. These are targets;
+actual painting and transmission cadence can vary. Source selection also works with `--gui --source`. If capture
+produces no new results for 500 ms, the display clears while capture stays active and recovers automatically when fresh
+results resume. Delayed delivery of an older result does not restore the display or resume LED transmission.
 
 The spectrum displays the 24 log-spaced bands on a fixed −80 to 0 dB scale, with a power floor of 10⁻¹² (−120 dB). LED
 colors progress from red at low frequencies to blue at high frequencies. LED intensity uses a fixed −60 to −6 dB range,
@@ -47,24 +52,30 @@ Defaults are 0 dB sensitivity, 20 ms attack, and 180 ms release. Positive balanc
 balance favors lower ones. Attack/release use elapsed audio time for every FFT result, independently of GUI rendering.
 Changes preserve the current envelope; zero milliseconds disables smoothing in that direction. Silence releases to an
 unlit strip. These controls affect only LED brightness: the spectrum graph and CLI retain raw power readings. The
-Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues.
+Qt-independent `frequency_frame` renderer accepts normalized intensities, LED count, and hues. The separate
+processed-intensity plot shows those normalized values; the raw spectrum retains its fixed power scale.
 
 The **Kick** indicator briefly highlights detected bass transients; its session count resets on capture restart.
 Detection uses raw 40–160 Hz power changes, independently of LED controls, with an adaptive flux threshold, minimum and
 rising bass-power gates, and a 200 ms refractory period. It detects kick-like low-frequency onsets, including some
 non-kick sounds. Defaults are adjustable in `analysis/kick.py`; no tempo estimation is applied. The worker checks every
-FFT result and drains pending events on GUI updates (newest 32 retained during long stalls, with the full detection
-count preserved). See [kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining
-limitations.
+FFT result. Event delivery is bounded, with the full detection count preserved during long GUI stalls. See
+[kick detection evaluation](docs/kick-detection.md) for the fixture comparison and remaining limitations.
+
+The **Live PCM and kick markers** checkbox independently enables the scrolling waveform. **History** selects 1–10
+seconds (default 5). It uses the same captured PCM as analysis, mixed arithmetically to mono, with peak-preserving
+reduction at wide views. Markers use the production detector's FFT-window-center timestamps relative to capture start;
+they are not estimates of physical kick onset. Their placement uses audio sample time, independently of GUI delivery.
+The history is bounded to ten seconds. Slow or hidden windows skip stale updates without delaying capture or output.
 
 The **Visualization** selector offers **Frequency Spectrum** (default), **Kick Pulses**, and **Combined**. White kick
 pulses travel from the first LED to the last, with a 60-LED fading tail and a 0.75-second lifetime. Multiple kicks can
 coexist; Combined uses per-channel maximum to preserve the frequency colors underneath. All modes share a small
-Qt-independent `Visualization` protocol and render at the selected GUI frame rate. Animation uses original kick audio
-timestamps and interpolates between spectrum updates. Switching modes is immediate, leaves capture and detection
-running, and waits for new kicks without replaying previous events. Stop, restart, and stale capture clear animation
-state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`; there are no individual effect
-controls yet.
+Qt-independent `Visualization` protocol and render on the LED worker at the selected frame rate. Animation uses original
+kick audio timestamps and interpolates between spectrum updates. Switching modes is immediate, leaves capture and
+detection running, and waits for new kicks without replaying previous events. Stop, restart, and stale capture clear
+animation state. Duration, width, RGB color, and brightness are configurable in `TravelingPulses`; there are no
+individual effect controls yet.
 
 For physical output, configure WLED for **300 WS2812B RGB LEDs** with the correct GPIO and strip color order. WLED
 receives [DDP on UDP port 4048](https://kno.wled.ge/interfaces/ddp/); keep realtime input available and its realtime
@@ -76,9 +87,11 @@ without restarting capture. **UDP sent · delivery unverified** means the local 
 received it. A busy socket drops the current frame; other socket errors disable only WLED output. There is no discovery,
 handshake, or automatic reconnection.
 
-Spectra attempts a final black frame on capture stop, stale capture, output disable, and window close. UDP delivery
-cannot be guaranteed, and WLED may resume its own effect after its realtime timeout. Hardware validation on the ESP8266
-is still pending; loopback tests verify DDP encoding, RGB order, transmission, and cleanup without a controller.
+Spectra attempts a black frame when capture stops or becomes stale, then suspends transmission until fresh capture
+resumes. Active capture retains the selected output cadence during silence. Enabling or changing a destination while
+capture is inactive sends one black frame; disabling output and closing the window also attempt a final blackout. UDP
+delivery cannot be guaranteed, and WLED may resume its own effect after its realtime timeout. Hardware validation on the
+ESP8266 is still pending; loopback tests verify DDP encoding, RGB order, transmission, and cleanup without a controller.
 
 `--spectrum` adds the three strongest frequency bands about twice per second and can be combined with `--source`.
 Analysis downmixes stereo to mono, applies a 4,096-sample Hann window, and runs an overlapping real FFT every 512

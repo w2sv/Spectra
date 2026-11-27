@@ -1,13 +1,17 @@
-"""Linked time plots, two marker lanes, and native horizontal navigation."""
+"""VisPy recording timeline; editing and DAC transport remain in the review window."""
 
 import math
 from dataclasses import dataclass
 from time import monotonic
+from typing import Literal
 
 import numpy as np
-import pyqtgraph as pg
-from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsLineItem, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QMouseEvent, QWheelEvent
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+from vispy import scene
+from vispy.color import Color
+from vispy.visuals.transforms import STTransform
 
 from benchmarks.annotation.analysis import PARAMETERS, AcousticAnalysis, AutomaticCandidate, Proposal
 from benchmarks.annotation.corrections import (
@@ -32,6 +36,7 @@ from benchmarks.annotation.review.styles import (
     TIMING,
     UNCERTAINTY,
 )
+from spectra.ui.plots import PlotCanvas, RecordingWaveform, ScreenLine, TimeAxis, line, markers
 
 PLAYBACK_ANCHOR_FRACTION = 0.4
 ZOOM_TRANSITION_SECONDS = 0.15
@@ -46,62 +51,7 @@ class ZoomTransition:
     target_width: float
 
 
-class TimeAxis(pg.AxisItem):
-    def __init__(self, orientation: str) -> None:
-        super().__init__(orientation)
-        # Recording coordinates always stay in seconds. Avoid rebuilding the
-        # unchanged rich-text axis label on every following range change.
-        self.enableAutoSIPrefix(False)
-
-    def tickStrings(self, values: list[float], scale: float, spacing: float) -> list[str]:
-        if spacing >= 1:
-            return [str(round(value)) for value in values]
-        decimals = max(1, math.ceil(-math.log10(spacing)))
-        return [f"{value:.{decimals}f}" for value in values]
-
-    def tickValues(self, minVal: float, maxVal: float, size: float) -> list[tuple[float, list[float]]]:
-        levels = super().tickValues(minVal, maxVal, size)
-        if maxVal - minVal >= 2:
-            return [(spacing, values) for spacing, values in levels if spacing >= 1]
-        return levels
-
-
-class HorizontalViewBox(pg.ViewBox):
-    clicked = Signal(float, QPointF, object, bool)
-    manuallyNavigated = Signal()
-    zoomRequested = Signal(float, float)
-
-    def __init__(self) -> None:
-        super().__init__(enableMenu=False)
-        self.setMouseEnabled(x=True, y=False)
-
-    def mouseClickEvent(self, ev) -> None:
-        if ev.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
-            point = ev.scenePos()
-            self.clicked.emit(
-                self.mapSceneToView(point).x(), point, ev.modifiers(), ev.button() == Qt.MouseButton.RightButton
-            )
-            ev.accept()
-        else:
-            ev.ignore()
-
-    def mouseDragEvent(self, ev, axis=None) -> None:
-        if ev.button() not in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
-            ev.ignore()
-            return
-        if ev.pos().x() != ev.lastPos().x():
-            self.manuallyNavigated.emit()
-        super().mouseDragEvent(ev, axis=0)
-
-    def wheelEvent(self, ev, axis=None) -> None:
-        # Match ViewBox's native wheel scaling, with navigation-specific anchoring.
-        factor = 1.02 ** (ev.delta() * self.state["wheelScaleFactor"])
-        self.zoomRequested.emit(factor, self.mapToView(ev.pos()).x())
-        ev.accept()
-
-
 def nearest_marker(points: list[tuple[str, float, float]], x: float, y: float, radius: float = 8) -> str | None:
-    """Hit-test in scene pixels, so temporal tolerance scales naturally with zoom."""
     if not points:
         return None
     key, px, py = min(points, key=lambda point: (point[1] - x) ** 2 + (point[2] - y) ** 2)
@@ -116,138 +66,82 @@ class Timeline(QWidget):
 
     def __init__(self, analysis: AcousticAnalysis, proposal: Proposal[AutomaticCandidate]) -> None:
         super().__init__()
-        self.analysis = analysis
-        self.proposal = proposal
+        self.analysis, self.proposal = analysis, proposal
         self.zoom_transition: ZoomTransition | None = None
-        self.wave_box = HorizontalViewBox()
-        self.evidence_box = HorizontalViewBox()
-        self.wave = pg.PlotItem(viewBox=self.wave_box, axisItems={"bottom": TimeAxis("bottom")})
-        self.evidence = pg.PlotItem(viewBox=self.evidence_box, axisItems={"bottom": TimeAxis("bottom")})
-        self.wave_widget = pg.PlotWidget(plotItem=self.wave)
-        self.evidence_widget = pg.PlotWidget(plotItem=self.evidence)
-        self.evidence_box.setXLink(self.wave_box)
-        self.splitter = QSplitter(Qt.Orientation.Vertical)
-        self.splitter.addWidget(self.wave_widget)
-        self.splitter.addWidget(self.evidence_widget)
-        self.splitter.setStretchFactor(0, 3)
-        self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([600, 200])
-        self.splitter.setChildrenCollapsible(False)
+        self._interval = (0.0, min(10.0, analysis.duration_seconds))
+        self.canvas = PlotCanvas()
+        self.native = self.canvas.native
+        self.native.installEventFilter(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.splitter)
+        layout.addWidget(self.native)
+        self.wave_camera, self.evidence_camera = scene.PanZoomCamera(), scene.PanZoomCamera()
+        self.wave_camera.interactive = self.evidence_camera.interactive = False
+        self.wave_view = scene.widgets.ViewBox(parent=self.canvas.root, camera=self.wave_camera)
+        self.evidence_view = scene.widgets.ViewBox(parent=self.canvas.root, camera=self.evidence_camera)
+        wave_scene, evidence_scene = self.wave_view.scene, self.evidence_view.scene
+        assert wave_scene is not None and evidence_scene is not None
+        self.wave_scene, self.evidence_scene = wave_scene, evidence_scene
+        self.waveform = RecordingWaveform(wave_scene, analysis.mono, PARAMETERS.sample_rate)
+        self.bass = line(evidence_scene, BASS.color)
+        self.broadband = line(evidence_scene, BROADBAND.color)
+        self.markers, self.scores = markers(wave_scene), markers(evidence_scene)
+        self.grid = line(wave_scene, BEAT.color, segments=True)
+        self.separators = line(wave_scene, "#555555", segments=True)
+        self.axis = TimeAxis(self.canvas)
+        self.y_labels = scene.visuals.Text(
+            parent=self.canvas.root,  # pyright: ignore[reportCallIssue]
+            color="white",
+            font_size=9,
+            anchor_x="right",
+        )
+        self.titles = scene.visuals.Text(
+            parent=self.canvas.root,  # pyright: ignore[reportCallIssue]
+            text=["PCM", "Evidence"],
+            color="white",
+            font_size=9,
+        )
+        self.playhead, self.selection = ScreenLine(self.canvas.root), ScreenLine(self.canvas.root)
+        self.selection.visual.order = 90
+        self.selection_outline = markers(wave_scene)
         self.amplitude = max(0.01, float(np.max(np.abs(analysis.mono))))
-        self.kick_y = self.amplitude * 1.28
-        self.candidate_y = self.amplitude * 1.1
-        self.marker_spots: list[dict] = []
-        self.marker_kicks: list[bool] = []
-        self.marker_ys = np.empty(0, dtype=np.float64)
-        self.selected_kick = False
-        self.wave_box.setYRange(-self.amplitude * 1.05, self.amplitude * 1.48, padding=0)
-        self.wave.setLabel("left", "PCM amplitude")
-        self.evidence.setLabel("left", "Onset evidence")
-        self.evidence.setLabel("bottom", "Recording time", units="s")
-        self.wave.hideAxis("bottom")
-        self.waveform = self.wave.plot(
-            np.arange(len(analysis.mono), dtype=np.float64) / PARAMETERS.sample_rate,
-            analysis.mono,
-            pen=pg.mkPen("#aaaeb5", width=1),
-            autoDownsample=True,
-            autoDownsampleFactor=1.0,
-            downsampleMethod="peak",
-        )
-        self.bass = self.evidence.plot(
-            analysis.timestamps, analysis.bass, pen=BASS.pen(), autoDownsample=True, autoDownsampleFactor=1.0
-        )
-        self.broadband = self.evidence.plot(
-            analysis.timestamps, analysis.broadband, pen=BROADBAND.pen(), autoDownsample=True, autoDownsampleFactor=1.0
-        )
-        self.evidence_box.setYRange(
-            0, max(1.1, float(np.max(analysis.bass)), float(np.max(analysis.broadband))) * 1.1, padding=0
-        )
-        for curve in (self.waveform, self.bass, self.broadband):
-            curve.setDownsampling(auto=True, method="peak")
-            curve.setClipToView(True)
-            curve.curve.setSegmentedLineMode("on")
-            # Native Qt caching avoids repainting curves just to move a cursor.
-            curve.curve.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
-        self.markers = pg.ScatterPlotItem(pxMode=True, size=10)
-        # PyQtGraph dispatches clicks independently of Qt's acceptedMouseButtons.
-        # The ViewBox owns all hit testing, including clicks directly on markers.
-        self.markers.setEnabled(False)
-        self.wave.addItem(self.markers)
-        self.separator = pg.InfiniteLine(self.amplitude * 1.1, angle=0, pen=pg.mkPen("#555555"))
-        self.wave.addItem(self.separator)
-        self.lane_separator = pg.InfiniteLine(angle=0, pen=pg.mkPen("#404348"))
-        self.wave.addItem(self.lane_separator)
-        self.scores = pg.ScatterPlotItem(size=5, pen=None, brush=SCORE.color)
-        self.scores.setEnabled(False)
-        self.evidence.addItem(self.scores)
-        self.grid = pg.PlotDataItem(pen=BEAT.pen(), connect="pairs")
-        self.grid.setZValue(-10)
-        self.wave.addItem(self.grid)
-        self.cursor_time = 0.0
-        self.cursor_offset = 0.0
-        # Parent to each ViewBox itself, outside its transformed data group.
-        # Scrolling then moves only data; the playhead stays at a stable pixel.
-        self.cursor_lines = [QGraphicsLineItem(box) for box in (self.wave_box, self.evidence_box)]
-        for line in self.cursor_lines:
-            line.setPen(PLAYBACK.pen())
-            line.setZValue(1000)
-            line.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
-        self.flashing = False
-        self.cursor_pens = (PLAYBACK.pen(), KICK_FLASH.pen())
-        self.selection_lines = [pg.InfiniteLine(0, pen=SELECTION.pen()) for _ in range(2)]
-        self.selection_outline = pg.ScatterPlotItem(
-            size=18, symbol="o", brush=None, pen=pg.mkPen(SELECTION.color, width=2)
-        )
-        self.selection_outline.setEnabled(False)
-        self.wave.addItem(self.selection_outline)
-        for plot, selection in zip((self.wave, self.evidence), self.selection_lines, strict=True):
-            plot.hideButtons()
-            plot.setMenuEnabled(False)
-            box = self.wave_box if plot is self.wave else self.evidence_box
-            box.setLimits(
-                xMin=0,
-                xMax=analysis.duration_seconds,
-                minXRange=min(0.02, analysis.duration_seconds),
-                maxXRange=analysis.duration_seconds,
-            )
-            box.disableAutoRange()
-            plot.addItem(selection, ignoreBounds=True)
-            selection.hide()
-            selection.setZValue(19)
+        self.evidence_ymax = max(1.1, float(np.max(analysis.bass)), float(np.max(analysis.broadband))) * 1.1
+        self.kick_y, self.candidate_y = self.amplitude * 1.28, self.amplitude * 1.1
+        self.wave_fraction = 0.75
         self.marker_keys: list[str] = []
-        self.marker_pens = {
-            style.color: pg.mkPen(style.color, width=2 if style in (UNCERTAINTY, TIMING) else 1)
-            for style in MARKER_STYLES
-        }
-        self.marker_brushes = {style.color: pg.mkBrush(style.color) for style in MARKER_STYLES}
         self.marker_times = np.empty(0, dtype=np.float64)
+        self.marker_ys = np.empty(0, dtype=np.float64)
+        self.marker_kicks = np.empty(0, dtype=np.bool_)
+        self.marker_arrays: dict = {}
+        self.score_times = np.empty(0, dtype=np.float64)
+        self.score_values = np.empty(0, dtype=np.float64)
+        self.marker_colors = {style.color: Color(style.color).rgba for style in MARKER_STYLES}
         self.inspection: dict[str, str] = {}
         self.selected: str | None = None
-        for box in (self.wave_box, self.evidence_box):
-            box.clicked.connect(
-                lambda timestamp, point, modifiers, inspect_only, source=box: self._click(
-                    timestamp, point, modifiers, inspect_only, source is self.wave_box
-                )
-            )
-            box.manuallyNavigated.connect(self.manuallyNavigated)
-            box.zoomRequested.connect(self.zoomRequested)
-            box.sigResized.connect(self._position_cursor)
-            box.sigXRangeChanged.connect(self._position_cursor)
-        self.wave_box.sigXRangeChanged.connect(self._range_changed)
-        self.wave_box.sigResized.connect(self._resize_lanes)
-        scene = self.wave_widget.scene()
-        if isinstance(scene, pg.GraphicsScene):
-            scene.sigMouseMoved.connect(self._hover)
-        for plot in (self.wave, self.evidence):
-            plot.getAxis("left").setWidth(70)
+        self.selected_time: float | None = None
+        self.selected_kick = False
+        self.cursor_time = self.cursor_offset = 0.0
+        self.flashing = False
+        self.editor: CorrectionEditor | None = None
+        self.marker_options: dict = {}
+        self.geometry_window: tuple[float, float] | None = None
+        self.beat_positions = np.empty(0, dtype=np.float64)
+        self.canvas.before_draw = self._prepare_geometry
+        self._layout_key: object = None
+        self._press: QPointF | None = None
+        self._last_mouse = QPointF()
+        self._button = Qt.MouseButton.NoButton
+        self._dragged = False
+        self._splitting = False
+        self.canvas.events["resize"].connect(self._resize, position="last")
+        self._layout_views()
 
     @property
     def interval(self) -> tuple[float, float]:
-        left, right = self.wave_box.viewRange()[0]
-        return float(left), float(right)
+        return self._interval
+
+    def _clamp_width(self, width: float) -> float:
+        return min(self.analysis.duration_seconds, max(0.02, width))
 
     def set_interval(self, start: float, width: float) -> None:
         self.cancel_zoom()
@@ -255,105 +149,170 @@ class Timeline(QWidget):
 
     def _set_interval(self, start: float, width: float) -> None:
         width = self._clamp_width(width)
-        start = min(max(0.0, start), self.analysis.duration_seconds - width)
-        if not all(
-            math.isclose(a, b, rel_tol=0, abs_tol=1e-10)
+        start = min(max(0, start), self.analysis.duration_seconds - width)
+        changed = not all(
+            math.isclose(a, b, abs_tol=1e-10, rel_tol=0)
             for a, b in zip(self.interval, (start, start + width), strict=True)
-        ):
-            self.wave_box.setXRange(start, start + width, padding=0)
+        )
+        self._interval = (start, start + width)
+        if changed:
+            self._update_view()
+            self.rangeChanged.emit(start, start + width)
+        self._position_cursor()
+        self._position_selection()
 
-    def _clamp_width(self, width: float) -> float:
-        return min(self.analysis.duration_seconds, max(0.02, width))
+    def _layout_views(self) -> None:
+        width, height = self.canvas.size
+        plot_width, available = max(1, width - 80), max(140, height - 50)
+        wave_height = max(100, available * self.wave_fraction)
+        self.wave_view.pos, self.wave_view.size = (75, 0), (plot_width, wave_height)
+        self.evidence_view.pos, self.evidence_view.size = (
+            (75, wave_height + 6),
+            (plot_width, max(30, available - wave_height - 6)),
+        )
+        units = self.amplitude * 2.05 / max(1, wave_height - 56)
+        self.candidate_y, self.kick_y = self.amplitude + units * 14, self.amplitude + units * 42
+        self._update_view()
+        key = (width, height, self.wave_fraction)
+        if key != self._layout_key:
+            self._layout_key = key
+            self.separators.set_data(
+                pos=np.array(
+                    [
+                        [0, self.amplitude],
+                        [self.analysis.duration_seconds, self.amplitude],
+                        [0, self.amplitude + units * 28],
+                        [self.analysis.duration_seconds, self.amplitude + units * 28],
+                    ],
+                    dtype="float32",
+                )
+            )
+            self.geometry_window = None
+            if self.editor is not None:
+                self.update_candidates(self.editor, **self.marker_options)
+            labels, positions = [], []
+            for evidence, values in (
+                (False, [-self.amplitude, 0, self.amplitude]),
+                (True, np.linspace(0, self.evidence_ymax, 4)),
+            ):
+                for value in values:
+                    p = self.time_to_point(self.interval[0], float(value), evidence=evidence)
+                    positions.append((p.x() - 8, p.y()))
+                    labels.append(f"{value:.2g}")
+            self.y_labels.text, self.y_labels.pos = labels, positions
+            self.titles.pos = [(35, 12), (35, self.evidence_view.pos[1] + 12)]
+        self._position_cursor()
+        self._position_selection()
 
-    def _range_changed(self, *_: object) -> None:
+    def _update_view(self) -> None:
         left, right = self.interval
-        self.rangeChanged.emit(left, right)
+        h = self.wave_view.size[1]
+        units = self.amplitude * 2.05 / max(1, h - 56)
+        self.wave_camera.rect = (left, -self.amplitude * 1.05, right - left, self.amplitude * 2.05 + units * 56)
+        self.evidence_camera.rect = (left, 0, right - left, self.evidence_ymax)
+        self.axis.update(
+            left, right, 75, self.evidence_view.pos[1] + self.evidence_view.size[1] + 3, self.wave_view.size[0]
+        )
+        self.canvas.update()
+
+    def _prepare_geometry(self) -> None:
+        left, right = self.interval
+        self.waveform.update(left, right, max(1, round(self.wave_view.size[0] * self.canvas.pixel_scale)))
+        self._update_geometry_window()
+
+    def time_to_point(self, timestamp: float, y: float = 0, *, evidence: bool = False) -> QPointF:
+        left, right = self.interval
+        view = self.evidence_view if evidence else self.wave_view
+        camera = self.evidence_camera if evidence else self.wave_camera
+        rect = camera.rect
+        assert rect is not None
+        return QPointF(
+            float(view.pos[0] + view.size[0] * (timestamp - left) / (right - left)),
+            float(view.pos[1] + view.size[1] * (rect.top - y) / rect.height),
+        )
+
+    def point_to_time(self, point: QPointF) -> float:
+        left, right = self.interval
+        return left + (point.x() - self.wave_view.pos[0]) / max(1, self.wave_view.size[0]) * (right - left)
+
+    def interaction_region(self, point: QPointF) -> Literal["waveform", "evidence", "divider"] | None:
+        x, y = self.wave_view.pos
+        width, height = self.wave_view.size
+        if QRectF(x, y + height, width, self.evidence_view.pos[1] - y - height).contains(point):
+            return "divider"
+        for view in (self.wave_view, self.evidence_view):
+            x, y = view.pos
+            width, height = view.size
+            if QRectF(x, y, width, height).contains(point):
+                return "waveform" if view is self.wave_view else "evidence"
+        return None
 
     def hit_test(self, point: QPointF) -> str | None:
-        timestamp = self.wave_box.mapSceneToView(point).x()
+        if self.interaction_region(point) != "waveform":
+            return None
+        timestamp = self.point_to_time(point)
         left, right = self.interval
-        radius_seconds = 8 * (right - left) / max(1, self.wave_box.width())
-        first, last = np.searchsorted(
-            self.marker_times, [timestamp - radius_seconds, timestamp + radius_seconds], side="left"
-        )
+        radius = 8 * (right - left) / max(1, self.wave_view.size[0])
+        first, last = np.searchsorted(self.marker_times, [timestamp - radius, timestamp + radius])
         points = []
-        for index in range(int(first), int(last)):
-            scene = self.wave_box.mapViewToScene(QPointF(float(self.marker_times[index]), float(self.marker_ys[index])))
-            points.append((self.marker_keys[index], scene.x(), scene.y()))
+        for i in range(int(first), int(last)):
+            p = self.time_to_point(float(self.marker_times[i]), float(self.marker_ys[i]))
+            points.append((self.marker_keys[i], p.x(), p.y()))
         return nearest_marker(points, point.x(), point.y())
 
-    def _click(self, timestamp: float, point: QPointF, modifiers: object, inspect_only: bool, waveform: bool) -> None:
-        if modifiers == Qt.KeyboardModifier.ShiftModifier and not 0 <= timestamp < self.analysis.duration_seconds:
-            return
-        self.clicked.emit(
-            min(self.analysis.duration_seconds, max(0.0, timestamp)),
-            self.hit_test(point) if waveform else None,
-            inspect_only,
-            modifiers,
-        )
-
-    def _hover(self, point: QPointF) -> None:
-        key = self.hit_test(point)
-        self.wave_widget.setToolTip(self.inspection.get(key, "") if key is not None else "")
-
-    def set_flash(self, flashing: bool) -> None:
-        if flashing == self.flashing:
-            return
-        self.flashing = flashing
-        for line in self.cursor_lines:
-            line.setPen(self.cursor_pens[flashing])
-
-    def _resize_lanes(self, *_: object) -> None:
-        # Reserve two 28 logical-pixel lanes; remaining height belongs to PCM.
-        height = max(112, self.wave_box.height())
-        units_per_pixel = self.amplitude * 2.05 / (height - 56)
-        self.candidate_y = self.amplitude + units_per_pixel * 14
-        self.kick_y = self.amplitude + units_per_pixel * 42
-        self.wave_box.setYRange(-self.amplitude * 1.05, self.amplitude + units_per_pixel * 56, padding=0)
-        self.separator.setPos(self.amplitude)
-        self.lane_separator.setPos(self.amplitude + units_per_pixel * 28)
-        self.marker_ys = np.where(self.marker_kicks, self.kick_y, self.candidate_y)
-        for spot, y in zip(self.marker_spots, self.marker_ys, strict=True):
-            spot["pos"] = (spot["pos"][0], float(y))
-        self.markers.setData(self.marker_spots)
-        if self.selected is not None:
-            self.selection_outline.setData(
-                [self.selection_lines[0].value()], [self.kick_y if self.selected_kick else self.candidate_y]
-            )
-
     def set_cursor(self, timestamp: float, *, offset: float = 0) -> None:
-        self.cursor_time = timestamp
-        self.cursor_offset = offset
+        self.cursor_time, self.cursor_offset = timestamp, offset
         self._position_cursor()
 
-    def _position_cursor(self, *_: object) -> None:
-        for box, line in zip((self.wave_box, self.evidence_box), self.cursor_lines, strict=True):
-            left, right = box.viewRange()[0]
-            x = box.width() * ((self.cursor_time + self.cursor_offset - left) / (right - left))
-            visible = 0 <= x <= box.width()
-            if line.isVisible() != visible:
-                line.setVisible(visible)
-            # Snap the fixed playhead to a device pixel, including fractional DPI.
-            ratio = self.devicePixelRatioF()
-            x = round(x * ratio) / ratio
-            if line.line().x1() != x or line.line().y2() != box.height():
-                line.setLine(x, 0, x, box.height())
+    def _position_cursor(self) -> None:
+        left, right = self.interval
+        value = self.cursor_time + self.cursor_offset
+        p = self.time_to_point(value)
+        style = KICK_FLASH if self.flashing else PLAYBACK
+        self.playhead.set(
+            p.x(),
+            0,
+            self.evidence_view.pos[1] + self.evidence_view.size[1],
+            style.width,
+            style.color,
+            left <= value <= right,
+            self.devicePixelRatioF(),
+        )
+
+    def set_flash(self, flashing: bool) -> None:
+        if flashing != self.flashing:
+            self.flashing = flashing
+            self._position_cursor()
 
     def select(self, key: str | None, editor: CorrectionEditor) -> None:
         self.selected = key
-        candidate = editor.candidates.get(key) if key is not None else None
-        for line in self.selection_lines:
-            line.setVisible(candidate is not None)
-            if candidate is not None:
-                line.setPos(effective_timestamp(candidate, editor.draft))
-        if candidate is None:
-            self.selection_outline.setData([], [])
-        else:
-            self.selected_kick = effective_kick(candidate, editor.draft)
-            self.selection_outline.setData(
-                [effective_timestamp(candidate, editor.draft)],
-                [self.kick_y if self.selected_kick else self.candidate_y],
+        candidate = editor.candidates.get(key) if key else None
+        self.selected_time = effective_timestamp(candidate, editor.draft) if candidate is not None else None
+        self.selected_kick = effective_kick(candidate, editor.draft) if candidate is not None else False
+        self._position_selection()
+        self.selection_outline.visible = candidate is not None
+        if candidate is not None:
+            self.selection_outline.transform = STTransform(translate=(self.selected_time, 0))
+            self.selection_outline.set_data(
+                pos=np.array([[0, self.kick_y if self.selected_kick else self.candidate_y]], dtype="float32"),
+                size=18,
+                face_color=(0, 0, 0, 0),  # pyright: ignore[reportArgumentType]
+                edge_color=SELECTION.color,
+                edge_width=2,
             )
+
+    def _position_selection(self) -> None:
+        left, right = self.interval
+        value = self.selected_time
+        self.selection.set(
+            self.time_to_point(value or 0).x(),
+            0,
+            self.evidence_view.pos[1] + self.evidence_view.size[1],
+            1,
+            SELECTION.color,
+            value is not None and left <= value <= right,
+            self.devicePixelRatioF(),
+        )
 
     def update_candidates(
         self,
@@ -366,28 +325,42 @@ class Timeline(QWidget):
         grid: bool,
         alternative: bool,
     ) -> None:
-        selected = self.selected
-        ordered = sorted(
-            editor.candidates.values(), key=lambda c: (effective_timestamp(c, editor.draft), c["candidate_id"])
+        self.editor = editor
+        self.marker_options = dict(
+            show_candidates=show_candidates,
+            uncertainty=uncertainty,
+            timing=timing,
+            scores=scores,
+            grid=grid,
+            alternative=alternative,
         )
-        spots = []
+        times, ys, colors, edges, sizes, symbols, widths, kicks, score_times, score_values = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         self.marker_keys = []
-        times = []
-        self.marker_kicks = []
         self.inspection = {}
-        score_times, score_values = [], []
-        for candidate in ordered:
+        for candidate in sorted(
+            editor.candidates.values(), key=lambda c: (effective_timestamp(c, editor.draft), c["candidate_id"])
+        ):
             key = candidate["candidate_id"]
             kick = effective_kick(candidate, editor.draft)
             corrected = key in editor.draft.overrides
             doubtful = uncertain_classification(candidate, editor.draft)
-            if not (kick or corrected or key == selected or show_candidates or uncertainty and doubtful):
+            if not (kick or corrected or key == self.selected or show_candidates or uncertainty and doubtful):
                 continue
             timestamp = effective_timestamp(candidate, editor.draft)
             style = (
                 HUMAN_KICK if corrected and kick else REJECTED if corrected else AUTOMATIC_KICK if kick else CANDIDATE
             )
-            color = style.color
             diagnostic = (
                 TIMING
                 if timing and (not candidate["localization_reliable"] or not candidate["grid_aligned"])
@@ -395,39 +368,165 @@ class Timeline(QWidget):
                 if uncertainty and doubtful
                 else None
             )
-            outline = diagnostic.color if diagnostic is not None else color
-            spots.append(
-                {
-                    "pos": (timestamp, self.kick_y if kick else self.candidate_y),
-                    "symbol": style.symbol,
-                    "size": diagnostic.size if diagnostic is not None else style.size,
-                    "brush": self.marker_brushes[color],
-                    "pen": self.marker_pens[outline],
-                }
-            )
             self.marker_keys.append(key)
             times.append(timestamp)
-            self.marker_kicks.append(kick)
-            self.inspection[key] = (
-                f"{round(timestamp)} s · {'Kick' if kick else 'Rejected candidate' if corrected else 'Kick candidate'}\n{candidate['timing_reason']}\n"
-                + ", ".join(candidate["uncertainty_reasons"])
+            ys.append(self.kick_y if kick else self.candidate_y)
+            kicks.append(kick)
+            colors.append(self.marker_colors[style.color])
+            edges.append(self.marker_colors[diagnostic.color if diagnostic else style.color])
+            sizes.append(diagnostic.size if diagnostic else style.size)
+            widths.append(2 if diagnostic else 1)
+            symbols.append({"o": "disc", "s": "square", "x": "x"}[style.symbol])
+            self.inspection[key] = f"{timestamp:.4f} s · {style.label}\n{candidate['timing_reason']}\n" + ", ".join(
+                candidate["uncertainty_reasons"]
             )
             score = candidate.get("positive_similarity")
             if scores and score is not None:
                 score_times.append(timestamp)
                 score_values.append(score)
-        self.marker_times = np.asarray(times)
-        self.marker_spots = spots
-        self.marker_ys = np.where(self.marker_kicks, self.kick_y, self.candidate_y)
-        self.markers.setData(spots)
-        self.scores.setData(score_times, score_values)
-        beats = self.proposal.get("alternative_beat_positions", []) if alternative else self.proposal["beat_positions"]
-        if grid:
-            x = np.repeat(beats, 2)
-            self.grid.setData(x, np.tile([-self.amplitude, self.amplitude], len(beats)))
-        else:
-            self.grid.setData([], [])
-        self.select(selected, editor)
+        self.marker_times = np.asarray(times, dtype=np.float64)
+        self.marker_ys = np.asarray(ys, dtype=np.float64)
+        self.marker_kicks = np.asarray(kicks, dtype=np.bool_)
+        self.marker_arrays = dict(
+            face_color=np.asarray(colors).reshape(-1, 4),
+            edge_color=np.asarray(edges).reshape(-1, 4),
+            size=np.asarray(sizes),
+            symbol=np.asarray(symbols),
+            edge_width=np.asarray(widths),
+        )
+        self.score_times = np.asarray(score_times)
+        self.score_values = np.asarray(score_values)
+        self.geometry_window = None
+        self.beat_positions = np.asarray(
+            self.proposal.get("alternative_beat_positions", []) if alternative else self.proposal["beat_positions"],
+            dtype=np.float64,
+        )
+        self.grid.visible = grid and bool(len(self.beat_positions))
+        self.canvas.update()
+        self.select(self.selected, editor)
+
+    def _update_geometry_window(self) -> None:
+        if self.editor is None:
+            return
+        left, right = self.interval
+        cached = self.geometry_window
+        if cached is not None and cached[0] <= left and cached[1] >= right:
+            return
+        pad = (right - left) / 2
+        start, end = max(0, left - pad), min(self.analysis.duration_seconds, right + pad)
+        self.geometry_window = (start, end)
+        origin = start
+        first, last = np.searchsorted(self.marker_times, [start, end])
+        selected = slice(int(first), int(last))
+        self.markers.visible = last > first
+        if last > first:
+            self.markers.transform = STTransform(translate=(origin, 0))
+            self.markers.set_data(
+                pos=np.column_stack((self.marker_times[selected] - origin, self.marker_ys[selected])).astype("float32"),
+                **{key: value[selected] for key, value in self.marker_arrays.items()},
+            )
+        first, last = np.searchsorted(self.score_times, [start, end])
+        self.scores.visible = last > first
+        if last > first:
+            self.scores.transform = STTransform(translate=(origin, 0))
+            self.scores.set_data(
+                pos=np.column_stack((self.score_times[first:last] - origin, self.score_values[first:last])).astype(
+                    "float32"
+                ),
+                face_color=SCORE.color,
+                size=5,
+            )
+        first, last = np.searchsorted(self.analysis.timestamps, [start, end])
+        selected = slice(max(0, int(first) - 1), min(len(self.analysis.timestamps), int(last) + 1))
+        for visual, values in ((self.bass, self.analysis.bass), (self.broadband, self.analysis.broadband)):
+            visual.transform = STTransform(translate=(origin, 0))
+            visual.set_data(
+                pos=np.column_stack((self.analysis.timestamps[selected] - origin, values[selected])).astype("float32")
+            )
+        beats = self.beat_positions
+        beats = beats[(beats >= start) & (beats <= end)]
+        self.grid.visible = self.marker_options["grid"] and bool(len(beats))
+        if self.grid.visible:
+            height = max(1, self.wave_view.size[1] - 56)
+            ys = np.arange(0, height, 6)
+            low = -self.amplitude + ys / height * self.amplitude * 2
+            high = -self.amplitude + np.minimum(ys + 4, height) / height * self.amplitude * 2
+            dashed = np.column_stack((low, high)).ravel()
+            self.grid.transform = STTransform(translate=(origin, 0))
+            self.grid.set_data(
+                pos=np.column_stack((np.repeat(beats - origin, len(dashed)), np.tile(dashed, len(beats)))).astype(
+                    "float32"
+                )
+            )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is not self.native:
+            return super().eventFilter(watched, event)
+        if isinstance(event, QWheelEvent):
+            if event.angleDelta().y() and self.interaction_region(event.position()) in ("waveform", "evidence"):
+                self.zoomRequested.emit(1.02 ** (-event.angleDelta().y() / 8), self.point_to_time(event.position()))
+            return True
+        if isinstance(event, QMouseEvent):
+            point = event.position()
+            if event.type() == QEvent.Type.MouseButtonPress:
+                region = self.interaction_region(point)
+                if region is None:
+                    self._press = None
+                    return True
+                self.native.setFocus(Qt.FocusReason.MouseFocusReason)
+                self._press = point
+                self._last_mouse = point
+                self._button = event.button()
+                self._dragged = False
+                self._splitting = region == "divider"
+                return True
+            if event.type() == QEvent.Type.MouseMove:
+                if self._press is not None and self._button in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+                    if (point - self._press).manhattanLength() > 3:
+                        self._dragged = True
+                    if self._dragged:
+                        if self._splitting:
+                            self.wave_fraction = min(0.85, max(0.2, point.y() / max(1, self.canvas.size[1] - 50)))
+                            self._layout_views()
+                        elif point.x() != self._last_mouse.x():
+                            self.manuallyNavigated.emit()
+                            left, right = self.interval
+                            self.set_interval(
+                                left
+                                - (point.x() - self._last_mouse.x()) / max(1, self.wave_view.size[0]) * (right - left),
+                                right - left,
+                            )
+                    self._last_mouse = point
+                else:
+                    key = self.hit_test(point)
+                    self.native.setToolTip(self.inspection.get(key, "") if key else "")
+                return True
+            if event.type() == QEvent.Type.MouseButtonRelease:
+                if (
+                    self._press is not None
+                    and not self._dragged
+                    and not self._splitting
+                    and self.interaction_region(point) in ("waveform", "evidence")
+                    and event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton)
+                ):
+                    timestamp = self.point_to_time(point)
+                    if (
+                        event.modifiers() != Qt.KeyboardModifier.ShiftModifier
+                        or 0 <= timestamp < self.analysis.duration_seconds
+                    ):
+                        self.clicked.emit(
+                            min(self.analysis.duration_seconds, max(0, timestamp)),
+                            self.hit_test(point),
+                            event.button() == Qt.MouseButton.RightButton,
+                            event.modifiers(),
+                        )
+                self._press = None
+                self._splitting = False
+                return True
+        return super().eventFilter(watched, event)
+
+    def _resize(self, event) -> None:
+        self._layout_views()
 
     def follow(self, timestamp: float, *, width: float | None = None, offset: float = 0) -> None:
         timestamp = min(self.analysis.duration_seconds, max(0, timestamp))
