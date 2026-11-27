@@ -18,3 +18,15 @@ The paired retained run reported zero underruns, while the separate interaction 
 used recovery. Those observations must not be conflated. Software paint/clock measurements do not establish compositor
 presentation times, physical audio-to-display synchronization or human listening alignment. The reports retain their
 original flash settings; current controls and flash specifications are documented in the [tool README](../../README.md).
+
+## VisPy experiment
+
+The [VisPy report](vispy_report.md) retains a separate prototype, reproducible harness and new measurements. In three
+paired 30-second Universal following cases, VisPy reduced P95 software frame intervals by **41–55%** with modestly lower
+CPU use and about 73 MB more process RSS. It is the preferred candidate for a future timeline migration; consistent
+60/120 Hz and long-run streaming stability were not established.
+
+Comparative collection stopped at the user's request after 22 completed runs. The report distinguishes fully repeated 60
+Hz results from flagged wide-view runs and short audio/streaming checks. See the [tables](vispy_summary.md),
+[frame-time distributions](vispy_summary.svg), [machine-readable summary](vispy_summary.json) and
+[experiment commands](../../review_performance/README.md). Production renderers were not migrated.

@@ -1,0 +1,10 @@
+{
+  "purpose": "Recording catalog, cached proposals and saved corrections shared by all retained runs. Each worker verifies its own read-only input integrity.",
+  "sha256": {
+    "benchmarks/datasets/techno/tracks.json": "e9d69ed716d4079389f181612caf5fc0470aa0f66f34ec9a6a47cb2f0cb5b49b",
+    "benchmarks/datasets/techno/proposals/universal.json": "3ae9786624af79927bb083572952bec78e8b324a2e989a9749e6b42d4c6ce77d",
+    "benchmarks/datasets/techno/drafts/universal.json": "33ea688450aa9abd2e465ec1d58734df551137dc41fec30b8c2e86151a0a4bee",
+    "benchmarks/datasets/techno/proposals/no_trust.json": "4642206b6eb66b6a01820e57fd7e6abb3eb737fc6c6382f6dc6b2337aaafe179",
+    "benchmarks/datasets/techno/drafts/no_trust.json": "6ba946509a6441876d967e09229ed7443f581c94a7f41cad857094477463f957"
+  }
+}

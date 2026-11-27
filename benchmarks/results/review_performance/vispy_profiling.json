@@ -1,0 +1,3666 @@
+{
+  "complete": true,
+  "runs": [
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      50%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "06faaa1e17c1a479ca1ffe95d1ae3d044e478a1b6f8f3f43ae26753ed3620d01",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "0efe67b108345043aac7f0c8002896e0babe157c8fc80e6715e994c2385863fe",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:12:53.614493+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 46,
+        "cpu_percent_one_core": 99.38644459689313,
+        "deadline_misses": 45,
+        "deadline_slots_missed": 306,
+        "elapsed_seconds": 2.9302724589979334,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            45,
+            0,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 45,
+          "max": 75.89141999778803,
+          "median": 61.730879002425354,
+          "p95": 73.58976559989968,
+          "p99": 75.51753527921392
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.2549046029998863,
+        "input_to_first_paint_ms": {},
+        "logical_draw_hz": 15.698198936671794,
+        "paint_events": 46,
+        "paint_submission_ms": {
+          "count": 46,
+          "max": 58.14729499979876,
+          "median": 44.50386600001366,
+          "p95": 54.367203500078176,
+          "p99": 56.76050839974777
+        },
+        "process_lifetime_peak_rss_bytes": 718528512,
+        "raw": {
+          "frame_intervals_ms": [
+            57.10670100233983,
+            67.2804969981371,
+            60.527052999532316,
+            53.86022500169929,
+            56.06777199864155,
+            59.112467999511864,
+            60.74025600173627,
+            68.99003299986362,
+            63.855132000753656,
+            61.19649299944285,
+            59.462108998559415,
+            61.071366999385646,
+            61.730879002425354,
+            59.75115099863615,
+            62.446759999147616,
+            67.11651099976734,
+            63.053415000467794,
+            64.99407700175652,
+            55.895040997711476,
+            70.01926400334924,
+            56.43543099722592,
+            60.197222999704536,
+            68.60172400047304,
+            69.6327210025629,
+            60.75784799759276,
+            64.30331299998215,
+            60.62243300038972,
+            61.15020099969115,
+            69.93564699951094,
+            60.49534900012077,
+            59.301928002241766,
+            62.796556998364395,
+            60.9577180002816,
+            62.49867400038056,
+            67.49999499879777,
+            65.79409000187297,
+            61.50779800009332,
+            54.843780999362934,
+            75.04168200102868,
+            74.4823909990373,
+            60.70778700086521,
+            75.89141999778803,
+            64.86894100089557,
+            67.65740799892228,
+            69.25428400063538
+          ],
+          "update_intervals_ms": [
+            57.06732300313888,
+            67.16771399806021,
+            60.53188399891951,
+            53.896174002147745,
+            56.01487999956589,
+            59.210041999904206,
+            60.68692099870532,
+            69.13120500030345,
+            63.74157400205149,
+            61.19964000026812,
+            59.45357099699322,
+            61.04220600172994,
+            61.74396999995224,
+            59.74513799810666,
+            62.4457550002262,
+            67.1516350012098,
+            63.02598700131057,
+            64.97907399898395,
+            55.94258299970534,
+            69.99151499985601,
+            56.47336100082612,
+            60.14247399798478,
+            68.58614700104226,
+            69.69455400030711,
+            60.798720998718636,
+            64.23809700208949,
+            60.876350999024,
+            60.853293998661684,
+            69.96902600076282,
+            60.50207600128488,
+            59.305533999577165,
+            62.82042599923443,
+            60.904415000550216,
+            62.66954300008365,
+            67.35857199964812,
+            65.74376800199389,
+            61.54990099821589,
+            54.85096299889847,
+            75.01906200195663,
+            74.58415099972626,
+            60.63492899920675,
+            75.905944002443,
+            64.88085699675139,
+            67.62309999976424
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 6,
+          "max": 645230592.0,
+          "median": 644837376.0,
+          "p95": 645132288.0,
+          "p99": 645210931.2
+        },
+        "snapshot_to_paint_ms": {
+          "count": 46,
+          "max": 528.4462499985239,
+          "median": 61.199812500490225,
+          "p95": 73.99869525215763,
+          "p99": 324.38478104904664
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 45,
+          "max": 20.510231999651296,
+          "median": 16.431469997769454,
+          "p95": 19.450008000421803,
+          "p99": 20.236232120223576
+        },
+        "update_hz": 15.35693374239632,
+        "update_interval_ms": {
+          "count": 44,
+          "max": 75.905944002443,
+          "median": 61.646935499084066,
+          "p95": 73.89525559974572,
+          "p99": 75.52458474223386
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.6547493720026978,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "follow_10",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_follow_10_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      50%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "06faaa1e17c1a479ca1ffe95d1ae3d044e478a1b6f8f3f43ae26753ed3620d01",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "0efe67b108345043aac7f0c8002896e0babe157c8fc80e6715e994c2385863fe",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:13:04.550188+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 43,
+        "cpu_percent_one_core": 100.34624120950487,
+        "deadline_misses": 42,
+        "deadline_slots_missed": 311,
+        "elapsed_seconds": 2.950952318002237,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            42,
+            0,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 42,
+          "max": 80.78931599811767,
+          "median": 68.45646600049804,
+          "p95": 75.42643594897527,
+          "p99": 79.017993819034
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.2618041459973028,
+        "input_to_first_paint_ms": {},
+        "logical_draw_hz": 14.571567198046269,
+        "paint_events": 43,
+        "paint_submission_ms": {
+          "count": 43,
+          "max": 64.11173600281472,
+          "median": 49.913258000742644,
+          "p95": 59.64335979842872,
+          "p99": 62.72119664179626
+        },
+        "process_lifetime_peak_rss_bytes": 718716928,
+        "raw": {
+          "frame_intervals_ms": [
+            75.45559099889942,
+            80.78931599811767,
+            73.4222030005185,
+            68.90190000194707,
+            73.0199299978267,
+            66.04130400228314,
+            66.93253199773608,
+            65.29533399952925,
+            70.84709199989447,
+            69.8594490022515,
+            62.23187199793756,
+            68.16309700298007,
+            58.210143997712294,
+            64.96926600084407,
+            68.71498699911172,
+            68.19794500188436,
+            60.114788997452706,
+            72.40321300196229,
+            74.87249000041629,
+            64.85689299734076,
+            60.72457800109987,
+            72.45756100019207,
+            64.031898000394,
+            68.78422600129852,
+            69.65766699795495,
+            63.6754330007534,
+            65.09184400056256,
+            64.99131799864699,
+            67.73078600235749,
+            63.124020998657215,
+            63.35728200065205,
+            70.8111280000594,
+            67.4218979984289,
+            76.46901800035266,
+            73.83572300022934,
+            74.8706359991047,
+            61.83884100028081,
+            65.80245700024534,
+            74.23172700146097,
+            69.36250599756022,
+            74.14310500098509,
+            73.88287800131366
+          ],
+          "update_intervals_ms": [
+            85.67419199971482,
+            73.34607599841547,
+            70.38731500142603,
+            68.93976100036525,
+            72.86570799988112,
+            66.10530599937192,
+            66.91355899965856,
+            65.31535300018732,
+            70.78735499817412,
+            69.9245530013286,
+            62.205975998949725,
+            68.15361000190023,
+            58.206518999213586,
+            65.02269900011015,
+            68.80285900115268,
+            68.09661999795935,
+            60.131377998914104,
+            72.4845050026488,
+            74.77168900004472,
+            64.84400899717002,
+            60.893536003277404,
+            72.28503399892361,
+            64.03194700033055,
+            68.7477259998559,
+            69.97189100002288,
+            63.39868899885914,
+            65.1263250001648,
+            64.98318300145911,
+            67.69494199761539,
+            63.25276300049154,
+            63.23059100031969,
+            70.91929300077027,
+            67.33064999934868,
+            76.49748399853706,
+            73.75803500326583,
+            75.07110399819794,
+            61.648732000321615,
+            65.86299999980838,
+            74.18221500120126,
+            69.42982299733558,
+            74.69140300236177
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 7,
+          "max": 657756160.0,
+          "median": 657317888.0,
+          "p95": 657624678.4,
+          "p99": 657729863.68
+        },
+        "snapshot_to_paint_ms": {
+          "count": 43,
+          "max": 871.3202180006192,
+          "median": 67.78697299887426,
+          "p95": 74.21429319874733,
+          "p99": 537.1023254603629
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 42,
+          "max": 22.84726699872408,
+          "median": 17.355650999888894,
+          "p95": 21.565255100540526,
+          "p99": 22.62174198927823
+        },
+        "update_hz": 14.232693542277751,
+        "update_interval_ms": {
+          "count": 41,
+          "max": 85.67419199971482,
+          "median": 68.15361000190023,
+          "p95": 75.07110399819794,
+          "p99": 82.00350879924373
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.6653603779996047,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "follow_120",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_follow_120_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      52%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "c57758348a2c4f6f87d3eb493b12ba2ca81e960257498070b7605eeb90aee7e4",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "43ccf27d92fdf3ba220cbc934e43b1f11cc92cfcca5d96066dad0fd94c145cb6",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:13:16.529625+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 35,
+        "cpu_percent_one_core": 99.9432838070683,
+        "deadline_misses": 34,
+        "deadline_slots_missed": 312,
+        "elapsed_seconds": 2.8913700220000464,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            30,
+            4,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 34,
+          "max": 109.99564299709164,
+          "median": 80.25836699926003,
+          "p95": 104.53908484851125,
+          "p99": 109.42099452848197
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.6537745959976746,
+        "input_to_first_paint_ms": {
+          "zoom": {
+            "count": 12,
+            "max": 101.35823000018718,
+            "median": 85.28840999861131,
+            "p95": 97.47388525120186,
+            "p99": 100.58136105039011
+          }
+        },
+        "logical_draw_hz": 12.104988200641806,
+        "paint_events": 35,
+        "paint_submission_ms": {
+          "count": 35,
+          "max": 87.60406800138298,
+          "median": 54.02209100066102,
+          "p95": 78.08474929988732,
+          "p99": 85.66643486054089
+        },
+        "process_lifetime_peak_rss_bytes": 718348288,
+        "raw": {
+          "frame_intervals_ms": [
+            88.54937399883056,
+            89.92454700273811,
+            79.4322049987386,
+            81.48840200010454,
+            71.3863279997895,
+            78.65367900012643,
+            79.85629700124264,
+            94.57549299986567,
+            92.44221599874436,
+            85.83943499979796,
+            73.27555600204505,
+            76.28556299823686,
+            77.32106000185013,
+            102.53859299700707,
+            100.00995300288196,
+            109.99564299709164,
+            89.5888350023597,
+            74.8270349977247,
+            84.21857700159308,
+            108.25428400130477,
+            86.04147699952591,
+            95.6341290002456,
+            73.99606699982542,
+            71.94750999769894,
+            81.92322700051591,
+            88.18632499969681,
+            68.67077300194069,
+            70.21875999998883,
+            68.83059299798333,
+            67.4347240019415,
+            66.82634499884443,
+            68.90385800215881,
+            80.66043699727743,
+            79.74698100224487
+          ],
+          "update_intervals_ms": [
+            88.75438899849541,
+            90.03438199943048,
+            79.03398700000253,
+            81.69855500091217,
+            71.13435399878654,
+            78.66758800082607,
+            79.9163280025823,
+            94.45926699845586,
+            92.6856609985407,
+            85.57069300150033,
+            73.29991799997515,
+            76.25747299971408,
+            77.51768299931427,
+            103.15136400095071,
+            99.45472199979122,
+            110.1017180008057,
+            89.32319899759023,
+            74.73319400014589,
+            84.32797600107733,
+            108.34241599877714,
+            86.18282000315958,
+            95.63335499842651,
+            73.67237400103477,
+            72.29521100089187,
+            82.6161469994986,
+            87.27281899700756,
+            68.6093130025256,
+            70.10648099821992,
+            68.82649500039406,
+            67.42058300005738,
+            66.9344550005917,
+            68.86106000092695,
+            80.6462759974238
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 6,
+          "max": 645091328.0,
+          "median": 644567040.0,
+          "p95": 644960256.0,
+          "p99": 645065113.6
+        },
+        "snapshot_to_paint_ms": {
+          "count": 35,
+          "max": 599.4080039999972,
+          "median": 79.72776499809697,
+          "p95": 107.70627580095606,
+          "p99": 432.60958713952107
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 34,
+          "max": 36.18348899908597,
+          "median": 23.186788501334377,
+          "p95": 33.308263249273296,
+          "p99": 35.536966858380765
+        },
+        "update_hz": 11.759131394909183,
+        "update_interval_ms": {
+          "count": 33,
+          "max": 110.1017180008057,
+          "median": 80.6462759974238,
+          "p95": 105.22778480008127,
+          "p99": 109.53874136015656
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.8639395330028492,
+        "waveform_rebuilds": 20
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "zoom",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_zoom_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      49%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "c57758348a2c4f6f87d3eb493b12ba2ca81e960257498070b7605eeb90aee7e4",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "43ccf27d92fdf3ba220cbc934e43b1f11cc92cfcca5d96066dad0fd94c145cb6",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:13:27.732936+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 66,
+        "cpu_percent_one_core": 100.07014921101172,
+        "deadline_misses": 65,
+        "deadline_slots_missed": 282,
+        "elapsed_seconds": 2.901999853998859,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            55,
+            9,
+            1,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 65,
+          "max": 593.2957000004535,
+          "median": 31.587327997840475,
+          "p95": 64.94675099893357,
+          "p99": 263.1600455984878
+        },
+        "incomplete_or_duplicate_events": 2,
+        "initialization_seconds": 1.4139928939985111,
+        "input_to_first_paint_ms": {
+          "pan": {
+            "count": 10,
+            "max": 66.02290000228095,
+            "median": 59.39062549805385,
+            "p95": 65.28005485197355,
+            "p99": 65.87433097221947
+          },
+          "zoom": {
+            "count": 10,
+            "max": 66.06091499998001,
+            "median": 59.440196499053854,
+            "p95": 65.32146285062481,
+            "p99": 65.91302457010897
+          }
+        },
+        "logical_draw_hz": 22.74293705048062,
+        "paint_events": 68,
+        "paint_submission_ms": {
+          "count": 68,
+          "max": 71.96914000087418,
+          "median": 26.706407001256594,
+          "p95": 44.43313074934849,
+          "p99": 55.05125675965242
+        },
+        "process_lifetime_peak_rss_bytes": 718196736,
+        "raw": {
+          "frame_intervals_ms": [
+            593.2957000004535,
+            77.45873999738251,
+            30.907242002285784,
+            30.576467997889267,
+            32.575592002103804,
+            33.99657199770445,
+            29.714739001065027,
+            31.72920499855536,
+            59.991193000314524,
+            30.730151000170736,
+            30.074607002461562,
+            31.27367499837419,
+            28.469373999541858,
+            32.34115699888207,
+            29.368451003392693,
+            65.2928659983445,
+            27.633949001028668,
+            28.69487600037246,
+            32.98543399796472,
+            29.585095999209443,
+            29.3273120005324,
+            33.948341999348486,
+            67.00914800239843,
+            35.53168799771811,
+            32.371463003073586,
+            29.811532996973256,
+            32.2787960030837,
+            31.488842996623134,
+            30.499288001010427,
+            57.9367190002813,
+            27.1341180014133,
+            29.37686999939615,
+            33.139765000669286,
+            28.47454299990204,
+            32.643602000462124,
+            27.74355499786907,
+            58.09809299898916,
+            29.646639002748998,
+            27.878733999386895,
+            28.51581299910322,
+            29.091418000462,
+            29.941712000436382,
+            27.73050199903082,
+            28.36256999944453,
+            58.72154000098817,
+            27.28654699967592,
+            29.652197001269087,
+            30.297273999167373,
+            29.29502299957676,
+            28.54290500181378,
+            33.16123799959314,
+            60.97007999778725,
+            31.719812002847902,
+            31.587327997840475,
+            31.966890001058346,
+            32.27304499887396,
+            31.97165399978985,
+            31.779151999216992,
+            63.56229100128985,
+            31.641849000152433,
+            33.43389200017555,
+            30.11687899925164,
+            32.10976500122342,
+            32.63654699912877,
+            33.27593400172191
+          ],
+          "update_intervals_ms": [
+            328.0841859996144,
+            77.26151599854347,
+            30.794791000516852,
+            30.9193730026891,
+            32.32131199911237,
+            34.02920699954848,
+            29.90060199954314,
+            31.47873600028106,
+            59.94375299997046,
+            30.805719001364196,
+            30.935759998101275,
+            30.36367499953485,
+            28.49466300176573,
+            32.558725997660076,
+            29.120106002665125,
+            65.26643599863746,
+            27.606636002019513,
+            29.155311996873934,
+            32.595131000562105,
+            29.69163300076616,
+            29.243634999147616,
+            33.97742600282072,
+            66.9223549994058,
+            35.58509899812634,
+            32.387375002144836,
+            29.819062998285517,
+            32.54264499992132,
+            31.186227999569383,
+            30.786744002398336,
+            57.567273997847224,
+            27.291482001601253,
+            29.87669199865195,
+            32.619737001368776,
+            29.41013999952702,
+            31.665063001128146,
+            27.695319997292245,
+            58.23591599983047,
+            29.51750000283937,
+            27.90334099699976,
+            28.564817002916243,
+            29.098958999384195,
+            29.877162000047974,
+            27.70304799923906,
+            28.437929999199696,
+            58.71205600124085,
+            27.64799599754042,
+            32.16562099987641,
+            27.359403000446036,
+            29.353201000049012,
+            28.583163002622314,
+            33.348860997648444,
+            60.66217199986568,
+            31.780877001438057,
+            31.617919998097932,
+            31.988260001526214,
+            32.29272699900321,
+            31.9338700028311,
+            31.87404799973592,
+            63.52326499836636,
+            31.91059099845006,
+            33.16897700278787,
+            31.049507997522596,
+            31.10197600108222,
+            32.67543499896419
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 7,
+          "max": 645038080.0,
+          "median": 644730880.0,
+          "p95": 644945920.0,
+          "p99": 645019648.0
+        },
+        "snapshot_to_paint_ms": {
+          "count": 68,
+          "max": 28427012.011914,
+          "median": 30.65667249938997,
+          "p95": 239.2521739006039,
+          "p99": 28426988.054681793
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 65,
+          "max": 284.9667340015003,
+          "median": 3.1293739993998315,
+          "p95": 19.23433979973197,
+          "p99": 120.3003282412827
+        },
+        "update_hz": 22.398347095170305,
+        "update_interval_ms": {
+          "count": 64,
+          "max": 328.0841859996144,
+          "median": 31.33248199992522,
+          "p95": 65.00496034859678,
+          "p99": 170.0659038989391
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.7372508799999196,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "pan_zoom",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_pan_zoom_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      50%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "c57758348a2c4f6f87d3eb493b12ba2ca81e960257498070b7605eeb90aee7e4",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "43ccf27d92fdf3ba220cbc934e43b1f11cc92cfcca5d96066dad0fd94c145cb6",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:13:38.902695+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 45,
+        "cpu_percent_one_core": 100.30464298134898,
+        "deadline_misses": 44,
+        "deadline_slots_missed": 305,
+        "elapsed_seconds": 2.914011988999846,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            44,
+            0,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 44,
+          "max": 78.49497600182076,
+          "median": 65.8034724983736,
+          "p95": 72.62882410104794,
+          "p99": 78.4142301706379
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.3164335780020338,
+        "input_to_first_paint_ms": {
+          "seek": {
+            "count": 6,
+            "max": 77.31156400041073,
+            "median": 64.968715498253,
+            "p95": 75.33010074985214,
+            "p99": 76.91527135029901
+          }
+        },
+        "logical_draw_hz": 15.442626924621887,
+        "paint_events": 45,
+        "paint_submission_ms": {
+          "count": 45,
+          "max": 59.94312400071067,
+          "median": 47.52472699692589,
+          "p95": 52.99558339829673,
+          "p99": 57.19655644046726
+        },
+        "process_lifetime_peak_rss_bytes": 718426112,
+        "raw": {
+          "frame_intervals_ms": [
+            78.49497600182076,
+            78.3071949990699,
+            68.06928899823106,
+            65.28539200007799,
+            54.53052099983324,
+            57.970016001490876,
+            54.83032800111687,
+            67.77449099899968,
+            66.04115099980845,
+            59.52489199989941,
+            66.2341950010159,
+            55.627514000661904,
+            65.8827819970611,
+            65.72416299968609,
+            64.68156100163469,
+            55.643207000684924,
+            69.29193799805944,
+            54.809733999718446,
+            67.18503600131953,
+            66.08797000080813,
+            59.595839000394335,
+            66.03097399784019,
+            59.519780003029155,
+            67.64264099911088,
+            62.48549099836964,
+            61.86540300041088,
+            57.2570389995235,
+            69.5718040005886,
+            63.6151990001963,
+            70.29485499879229,
+            68.04680099958205,
+            67.11662400266505,
+            61.549160000140546,
+            67.92688600035035,
+            69.59461699807434,
+            61.425693002092885,
+            62.54089099820703,
+            63.13837500056252,
+            70.00725399848307,
+            66.03974199970253,
+            69.10376599989831,
+            73.040701001446,
+            60.98761799876229,
+            63.23089600118692
+          ],
+          "update_intervals_ms": [
+            78.32164700084832,
+            78.22417900024448,
+            68.06530700123403,
+            65.41200099673006,
+            54.42281100113178,
+            58.081273000425426,
+            54.71600400051102,
+            67.76766099937959,
+            66.05468500129064,
+            59.57741499878466,
+            66.24527299936744,
+            55.5574419995537,
+            65.86450900067575,
+            65.77542800005176,
+            64.64410600165138,
+            55.65303799812682,
+            69.67825800165883,
+            54.41971099935472,
+            67.17704599941499,
+            66.05826099985279,
+            59.62989399995422,
+            66.04330399932223,
+            59.536999000556534,
+            67.59727000098792,
+            62.49373899845523,
+            61.885756000265246,
+            57.25115700261085,
+            69.57285199678154,
+            63.604619001125684,
+            70.32455000080517,
+            68.10018299802323,
+            67.11856400215765,
+            61.42472799911047,
+            67.93760499931523,
+            70.00111299930722,
+            61.03675000122166,
+            62.55144000169821,
+            63.16939499811269,
+            70.02627900146763,
+            66.03131299925735,
+            69.07573300122749,
+            73.01419699797407,
+            61.09777900201152
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 6,
+          "max": 644939776.0,
+          "median": 644546560.0,
+          "p95": 644841472.0,
+          "p99": 644920115.2
+        },
+        "snapshot_to_paint_ms": {
+          "count": 45,
+          "max": 562.114472999383,
+          "median": 64.99525999970501,
+          "p95": 76.3079527998343,
+          "p99": 348.8239093605091
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 44,
+          "max": 24.22776499952306,
+          "median": 16.38088800063997,
+          "p95": 20.42330194981332,
+          "p99": 22.71583296958852
+        },
+        "update_hz": 15.099457437408068,
+        "update_interval_ms": {
+          "count": 43,
+          "max": 78.32164700084832,
+          "median": 65.86450900067575,
+          "p95": 72.74523229825718,
+          "p99": 78.2807104405947
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.6983535680010391,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "seek",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_seek_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      53%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "c57758348a2c4f6f87d3eb493b12ba2ca81e960257498070b7605eeb90aee7e4",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "43ccf27d92fdf3ba220cbc934e43b1f11cc92cfcca5d96066dad0fd94c145cb6",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:13:49.931409+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 0,
+        "buffer_upload_bytes_per_second": 0.0,
+        "buffer_upload_calls": 0,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 7,
+        "cpu_percent_one_core": 100.0216755159521,
+        "deadline_misses": 6,
+        "deadline_slots_missed": 383,
+        "elapsed_seconds": 3.2495697000013024,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            6,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 6,
+          "max": 810.9396729996661,
+          "median": 574.0348764993541,
+          "p95": 755.7754324998314,
+          "p99": 799.9068248996991
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.2591061220009578,
+        "input_to_first_paint_ms": {
+          "marker": {
+            "count": 6,
+            "max": 322.9242570014321,
+            "median": 316.0357410015422,
+            "p95": 322.66903675099456,
+            "p99": 322.8732129513446
+          }
+        },
+        "logical_draw_hz": 2.1541313608374653,
+        "paint_events": 7,
+        "paint_submission_ms": {
+          "count": 7,
+          "max": 50.924324001243804,
+          "median": 46.48384399843053,
+          "p95": 50.25605330047256,
+          "p99": 50.790669861089555
+        },
+        "process_lifetime_peak_rss_bytes": 718594048,
+        "raw": {
+          "frame_intervals_ms": [
+            320.5954040022334,
+            324.5178389988723,
+            590.2827110003273,
+            581.8561870000849,
+            566.2135659986234,
+            810.9396729996661
+          ],
+          "update_intervals_ms": [
+            320.55504100208054,
+            324.53474199792254,
+            590.2535970017198,
+            581.8760389993258,
+            566.1232489983377
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 5,
+          "max": 645431296.0,
+          "median": 645165056.0,
+          "p95": 645384601.6,
+          "p99": 645421957.12
+        },
+        "snapshot_to_paint_ms": {
+          "count": 7,
+          "max": 810.0527530004911,
+          "median": 565.2363289991627,
+          "p95": 743.8257907007936,
+          "p99": 796.8073605405515
+        },
+        "stream": {
+          "history_capacity_samples": null,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": null
+        },
+        "update_cpu_ms": {
+          "count": 6,
+          "max": 765.3361390002829,
+          "median": 529.3969000013021,
+          "p95": 708.9232955004263,
+          "p99": 754.0535703003115
+        },
+        "update_hz": 1.8463983092892562,
+        "update_interval_ms": {
+          "count": 5,
+          "max": 590.2535970017198,
+          "median": 566.1232489983377,
+          "p95": 588.578085401241,
+          "p99": 589.918494681624
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.6352296080003725,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "markers",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_markers_0_vispy.json"
+    },
+    {
+      "conditions": {
+        "audio_devices": "0 HDA Intel PCH: ALC257 Analog (hw:0,0), ALSA (2 in, 2 out)\n   1 HDA Intel PCH: HDMI 0 (hw:0,3), ALSA (0 in, 8 out)\n   2 HDA Intel PCH: HDMI 1 (hw:0,7), ALSA (0 in, 8 out)\n   3 HDA Intel PCH: HDMI 2 (hw:0,8), ALSA (0 in, 8 out)\n   4 sysdefault, ALSA (128 in, 128 out)\n   5 front, ALSA (0 in, 2 out)\n   6 surround40, ALSA (0 in, 2 out)\n   7 surround51, ALSA (0 in, 2 out)\n   8 surround71, ALSA (0 in, 2 out)\n   9 hdmi, ALSA (0 in, 8 out)\n  10 lavrate, ALSA (128 in, 128 out)\n  11 samplerate, ALSA (128 in, 128 out)\n  12 speexrate, ALSA (128 in, 128 out)\n  13 pipewire, ALSA (64 in, 64 out)\n  14 pulse, ALSA (32 in, 32 out)\n  15 speex, ALSA (1 in, 1 out)\n  16 upmix, ALSA (8 in, 8 out)\n  17 vdownmix, ALSA (6 in, 6 out)\n  18 dmix, ALSA (0 in, 2 out)\n* 19 default, ALSA (64 in, 64 out)",
+        "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           39 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  8\nOn-line CPU(s) list:                     0-7\nVendor ID:                               GenuineIntel\nModel name:                              Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz\nCPU family:                              6\nModel:                                   142\nThread(s) per core:                      2\nCore(s) per socket:                      4\nSocket(s):                               1\nStepping:                                10\nCPU(s) scaling MHz:                      56%\nCPU max MHz:                             4000.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                3999.93\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust sgx bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               128 KiB (4 instances)\nL1i cache:                               128 KiB (4 instances)\nL2 cache:                                1 MiB (4 instances)\nL3 cache:                                8 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-7\nVulnerability Gather data sampling:      Vulnerable\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             KVM: Mitigation: Split huge pages\nVulnerability L1tf:                      Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable\nVulnerability Mds:                       Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Meltdown:                  Mitigation; PTI\nVulnerability Mmio stale data:           Mitigation; Clear CPU buffers; SMT vulnerable\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Mitigation; IBRS\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; IBRS; IBPB conditional; STIBP conditional; RSB filling; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Mitigation; Microcode\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+        "display": {
+          "device_pixel_ratio": 2.0,
+          "geometry": [
+            1280,
+            720
+          ],
+          "logical_dpi": 96.0,
+          "name": "eDP-1",
+          "physical_dpi": 106.22694497153698,
+          "platform": "wayland",
+          "reported_refresh_hz": 60.01100158691406,
+          "timeline": [
+            1280,
+            776
+          ],
+          "window": [
+            1280,
+            800
+          ]
+        },
+        "experiment_source_sha256": {
+          "benchmarks/review_performance/__init__.py": "8b7bd1e239d7536162baf7c4e829e71a46144c9c44467adee03dc8a8561c05bd",
+          "benchmarks/review_performance/__main__.py": "c57758348a2c4f6f87d3eb493b12ba2ca81e960257498070b7605eeb90aee7e4",
+          "benchmarks/review_performance/baseline.py": "d7b1dae2d1d83460c38ecc22000f738f32131547733df9968d7131b8cd434e51",
+          "benchmarks/review_performance/data.py": "801b3dc6ea85630a81e097785bedad839b507e6205156e626349dd70515be745",
+          "benchmarks/review_performance/metrics.py": "203050c6f0ba6f8a71d4bed5416327fb6f3a1d9aa9b1778525dddbe0920191b2",
+          "benchmarks/review_performance/runner.py": "f2a67bc814fde03357cf77590208c9cb637f49643ee6a32ce5cd4238c2c4d338",
+          "benchmarks/review_performance/streaming.py": "7bd65021d2400e76ee8b3336cc759588eac3909b73d84f32f9a6108c3f5a4894",
+          "benchmarks/review_performance/vispy_timeline.py": "43ccf27d92fdf3ba220cbc934e43b1f11cc92cfcca5d96066dad0fd94c145cb6",
+          "benchmarks/review_performance/waveform.py": "d5ed0fcb2c9cebe4a53a350ede9c9877f8131db65cc2a77d35a4f1896a4266c2"
+        },
+        "gpu_memory_bytes": null,
+        "gpu_metrics_note": "No portable reliable per-process GPU counters used; buffer payload bytes are CPU-side enqueue counts, not driver residency or PCIe traffic.",
+        "gpu_utilization": null,
+        "graphics": {
+          "GL_RENDERER": "Mesa Intel(R) UHD Graphics 620 (KBL GT2)",
+          "GL_VENDOR": "Intel",
+          "GL_VERSION": "4.6 (Compatibility Profile) Mesa 25.2.8-0ubuntu0.24.04.5",
+          "hardware_accelerated": true,
+          "physical_canvas_size": [
+            2560,
+            1552
+          ],
+          "samples": 4,
+          "vsync_requested": false
+        },
+        "platform": "Linux-7.0.0-44-generic-x86_64-with-glibc2.39",
+        "python": "3.15.2 (main, Nov 11 2026, 00:19:20) [Clang 23.1.3 ]",
+        "recorded_utc": "2026-11-27T02:14:01.094952+00:00",
+        "revision": "0a5ce5a7ef5f9e5a719b5d30785fbecba3806b39",
+        "timing_note": "Qt paint/VisPy scene draw CPU completion; neither GPU execution nor swap/compositor presentation. No glFinish or synchronous GPU readbacks in measured runs.",
+        "versions": {
+          "PySide6": "6.12.0",
+          "numpy": "2.5.5",
+          "pyqtgraph": "0.14.0",
+          "scipy": "1.18.1",
+          "sounddevice": "0.5.6",
+          "vispy": "0.17.0"
+        },
+        "worktree_diff_sha256": "596f9151697b7d570963cf79b4ef245d340868a01cad90b6e743b1a785a70685"
+      },
+      "measurements": {
+        "audio": {
+          "buffering_recovery": null,
+          "clock_generation": null,
+          "final_speed": null,
+          "mode": "rendering",
+          "software_timing_only": true,
+          "underruns": null
+        },
+        "buffer_upload_bytes": 2196480,
+        "buffer_upload_bytes_per_second": 752466.2526957003,
+        "buffer_upload_calls": 71,
+        "callback_ms": {
+          "count": 0,
+          "max": null,
+          "median": null,
+          "p95": null,
+          "p99": null
+        },
+        "complete_logical_frames": 72,
+        "cpu_percent_one_core": 101.58145564572433,
+        "deadline_misses": 71,
+        "deadline_slots_missed": 278,
+        "elapsed_seconds": 2.9190412089992606,
+        "frame_interval_histogram_ms": {
+          "counts": [
+            0,
+            0,
+            0,
+            69,
+            2,
+            0,
+            0
+          ],
+          "edges": [
+            0,
+            8.3334,
+            16.6667,
+            25,
+            50,
+            100,
+            1000,
+            1000000000.0
+          ]
+        },
+        "frame_interval_ms": {
+          "count": 71,
+          "max": 75.62631799737574,
+          "median": 38.31354399881093,
+          "p95": 45.16933400009293,
+          "p99": 58.94065040083653
+        },
+        "incomplete_or_duplicate_events": 0,
+        "initialization_seconds": 1.2224224429992319,
+        "input_to_first_paint_ms": {},
+        "logical_draw_hz": 24.66563328329437,
+        "paint_events": 72,
+        "paint_submission_ms": {
+          "count": 72,
+          "max": 99.69883500161814,
+          "median": 30.450148498857743,
+          "p95": 36.83529290065053,
+          "p99": 65.96000348992705
+        },
+        "process_lifetime_peak_rss_bytes": 718217216,
+        "raw": {
+          "frame_intervals_ms": [
+            75.62631799737574,
+            42.941108000377426,
+            51.78965000231983,
+            45.167502998083364,
+            40.40688800159842,
+            38.30191700035357,
+            38.31354399881093,
+            36.05542899822467,
+            38.17574200002127,
+            39.135374001489254,
+            37.01529799946002,
+            36.54268500031321,
+            36.40395500042359,
+            41.02625100131263,
+            36.30578899901593,
+            37.72136499901535,
+            36.18486000050325,
+            37.693354999646544,
+            36.769957001524745,
+            36.35142199709662,
+            38.66915300022811,
+            40.8536790018843,
+            41.78021999905468,
+            38.48307899897918,
+            37.01997200187179,
+            38.08392100108904,
+            38.030379997508135,
+            35.749897000641795,
+            36.86987900073291,
+            34.91410800052108,
+            35.24504799861461,
+            37.77250300117885,
+            35.119068998028524,
+            35.509844001353486,
+            37.43270999984816,
+            36.425024998607114,
+            37.299156003427925,
+            37.79212399967946,
+            36.744601999089355,
+            43.151482997927815,
+            36.10471300271456,
+            36.42476700042607,
+            39.35002399884979,
+            39.543653998407535,
+            39.43209900171496,
+            36.58634499879554,
+            37.10742399925948,
+            39.56993100291584,
+            38.33960599877173,
+            40.46447300061118,
+            39.00599799817428,
+            43.27977200227906,
+            38.92837300008978,
+            42.41821100004017,
+            35.66160999980639,
+            36.9173969993426,
+            39.168562998384004,
+            39.56584300249233,
+            38.02500899837469,
+            37.16307699869503,
+            38.9778330027184,
+            41.85339600007865,
+            43.44887199840741,
+            40.67958200175781,
+            41.40437899695826,
+            45.72071800066624,
+            45.1711650021025,
+            42.54455899717868,
+            40.08463100035442,
+            42.01177200229722,
+            42.83666999981506
+          ],
+          "update_intervals_ms": [
+            75.54010199964978,
+            43.28982899824041,
+            51.43691700141062,
+            45.171932000812376,
+            40.32470200036187,
+            38.23916100009228,
+            38.28861500005587,
+            36.07383299822686,
+            38.270549001026666,
+            39.08477299773949,
+            36.964784001611406,
+            36.535782001010375,
+            36.42638699966483,
+            41.027922998182476,
+            36.324099000921706,
+            37.72940500130062,
+            36.18536099747871,
+            37.657865999790374,
+            36.777253000764176,
+            36.343703999591526,
+            38.74734200144303,
+            43.168837000848725,
+            39.55832899737288,
+            38.306877002469264,
+            37.026088997663464,
+            38.3387980000407,
+            37.77799200179288,
+            35.7175509998342,
+            36.98209199865232,
+            34.82987100142054,
+            36.70086800048011,
+            36.3364980003098,
+            35.13961099815788,
+            35.47775900005945,
+            37.50691499953973,
+            36.326794001070084,
+            37.40010099863866,
+            37.72018300151103,
+            36.72691300016595,
+            43.204154000704875,
+            36.1124689989083,
+            36.362039998493856,
+            39.37351400236366,
+            39.871442000730895,
+            39.27478399782558,
+            36.45995000260882,
+            37.05067899863934,
+            40.02344800028368,
+            38.02463899774011,
+            40.381642000284046,
+            39.47259200140252,
+            42.79951300122775,
+            38.93986199909705,
+            42.337867998867296,
+            35.68259900202975,
+            36.92338099790504,
+            39.34822100200108,
+            39.429309999832185,
+            38.05003899833537,
+            37.158926999836694,
+            38.90990299987607,
+            42.070461000548676,
+            43.297169999277685,
+            40.68446699966444,
+            41.369768001459306,
+            45.766683000692865,
+            45.192203997430624,
+            42.474590001802426,
+            40.109782999934396,
+            41.986304000602104
+          ]
+        },
+        "recording": {
+          "audio_sha256": "cf03fd8bdebd4581365c6e363efeef1df2dd1a70603eb7bde6b379908f73c3d0",
+          "candidate_count": 1990,
+          "duration_seconds": 317.0,
+          "protected_files_unchanged": true,
+          "saved_manual_events": 0,
+          "saved_overrides": 42,
+          "track": "universal"
+        },
+        "recording_preparation_seconds": 3.0984460239997134,
+        "rss_bytes": {
+          "count": 6,
+          "max": 646385664.0,
+          "median": 645648384.0,
+          "p95": 646201344.0,
+          "p99": 646348800.0
+        },
+        "snapshot_to_paint_ms": {
+          "count": 72,
+          "max": 600.1982510024391,
+          "median": 37.382927499493235,
+          "p95": 44.468991099893174,
+          "p99": 226.95402070920284
+        },
+        "stream": {
+          "history_capacity_samples": 480000,
+          "overwritten_before_consumption": 0,
+          "samples_ingested": 139680
+        },
+        "update_cpu_ms": {
+          "count": 71,
+          "max": 17.82882299812627,
+          "median": 6.376008997904137,
+          "p95": 8.8882484997157,
+          "p99": 12.046230100531806
+        },
+        "update_hz": 24.323055043248615,
+        "update_interval_ms": {
+          "count": 70,
+          "max": 75.54010199964978,
+          "median": 38.27958200054127,
+          "p95": 45.18308159895241,
+          "p99": 58.908904350864816
+        },
+        "waveform_cpu_geometry_bytes": 81152048,
+        "waveform_preprocessing_seconds": 0.6509414280008059,
+        "waveform_rebuilds": 0
+      },
+      "parameters": {
+        "axes": true,
+        "backend": "vispy",
+        "duration_seconds": 3.0,
+        "mode": "rendering",
+        "profiled": true,
+        "scenario": "stream",
+        "stream_full_upload": false,
+        "target_hz": 120,
+        "warmup_seconds": 1.0,
+        "waveform": "lod"
+      },
+      "repeat": 0,
+      "source_file": "/tmp/spectra-profile_runs/universal_120_stream_0_vispy.json"
+    }
+  ],
+  "schema_version": 1,
+  "wall_seconds": 81.75584961999994,
+  "coverage_note": "Earlier stock-axis prototype attribution only: seven 3-second profiled scenarios, one repetition. Different prototype stage and profiling overhead prevent causal frame-rate comparisons with the primary final-configuration runs.",
+  "profiles": [
+    {
+      "scenario": "universal_120_follow_10_0_vispy",
+      "total_profiled_seconds": 2.8787655839999986,
+      "top_cumulative": [
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 2161,
+          "total_calls": 11927,
+          "self_seconds": 0.085379284,
+          "cumulative_seconds": 2.42290214
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 1444,
+          "total_calls": 8707,
+          "self_seconds": 0.012152544000000001,
+          "cumulative_seconds": 2.3771570950000003
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.00048181000000000005,
+          "cumulative_seconds": 2.137365317
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x761bbc66f1c0>",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.0034711110000000002,
+          "cumulative_seconds": 2.1367786140000002
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.000707095,
+          "cumulative_seconds": 2.133307503
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 47,
+          "function": "on_draw",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.00029133500000000004,
+          "cumulative_seconds": 2.1098874960000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.000263655,
+          "cumulative_seconds": 2.109218787
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.000302768,
+          "cumulative_seconds": 2.1087061250000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.007655670000000001,
+          "cumulative_seconds": 2.103434071
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 736,
+          "total_calls": 736,
+          "self_seconds": 0.0022397800000000002,
+          "cumulative_seconds": 2.0733955070000003
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 598,
+          "total_calls": 1058,
+          "self_seconds": 0.006307257,
+          "cumulative_seconds": 1.9704488350000002
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 1012,
+          "total_calls": 1012,
+          "self_seconds": 0.005668058,
+          "cumulative_seconds": 1.722093638
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 920,
+          "total_calls": 920,
+          "self_seconds": 0.005858344000000001,
+          "cumulative_seconds": 0.911934805
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.0021934610000000003,
+          "cumulative_seconds": 0.7414002670000001
+        },
+        {
+          "file": "runner.py",
+          "line": 325,
+          "function": "render_position",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.001450005,
+          "cumulative_seconds": 0.7282020520000001
+        },
+        {
+          "file": "timeline.py",
+          "line": 432,
+          "function": "follow",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.002140882,
+          "cumulative_seconds": 0.72634874
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 166,
+          "function": "_set_interval",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.0020086830000000003,
+          "cumulative_seconds": 0.623226484
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 920,
+          "total_calls": 920,
+          "self_seconds": 0.031872538,
+          "cumulative_seconds": 0.542162958
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 2210,
+          "total_calls": 2210,
+          "self_seconds": 0.0060807000000000005,
+          "cumulative_seconds": 0.538164269
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 2210,
+          "total_calls": 2210,
+          "self_seconds": 0.0019413000000000002,
+          "cumulative_seconds": 0.527751553
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 2210,
+          "total_calls": 2210,
+          "self_seconds": 0.008268476,
+          "cumulative_seconds": 0.5258102530000001
+        },
+        {
+          "file": "text.py",
+          "line": 572,
+          "function": "_prepare_draw",
+          "primitive_calls": 276,
+          "total_calls": 276,
+          "self_seconds": 0.031112220000000003,
+          "cumulative_seconds": 0.513249053
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 176,
+          "function": "_layout_views",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.002601004,
+          "cumulative_seconds": 0.511818758
+        },
+        {
+          "file": "glir.py",
+          "line": 812,
+          "function": "parse",
+          "primitive_calls": 2256,
+          "total_calls": 2256,
+          "self_seconds": 0.032342111,
+          "cumulative_seconds": 0.500027223
+        },
+        {
+          "file": "panzoom.py",
+          "line": 147,
+          "function": "rect",
+          "primitive_calls": 90,
+          "total_calls": 90,
+          "self_seconds": 0.001131986,
+          "cumulative_seconds": 0.498221772
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_follow_120_0_vispy",
+      "total_profiled_seconds": 2.8953709719999985,
+      "top_cumulative": [
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 2017,
+          "total_calls": 11122,
+          "self_seconds": 0.075958387,
+          "cumulative_seconds": 2.445067003
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 1348,
+          "total_calls": 8119,
+          "self_seconds": 0.011085318,
+          "cumulative_seconds": 2.400909309
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.000375479,
+          "cumulative_seconds": 2.1730535790000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x7b24f026f110>",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.0037427740000000004,
+          "cumulative_seconds": 2.172570267
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.000770198,
+          "cumulative_seconds": 2.168827493
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 47,
+          "function": "on_draw",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.000321093,
+          "cumulative_seconds": 2.145735139
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.00030904900000000004,
+          "cumulative_seconds": 2.145024943
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.000337318,
+          "cumulative_seconds": 2.144502687
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.008661234,
+          "cumulative_seconds": 2.138245805
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 688,
+          "total_calls": 688,
+          "self_seconds": 0.0025637750000000003,
+          "cumulative_seconds": 2.1033005950000003
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 559,
+          "total_calls": 989,
+          "self_seconds": 0.006902308,
+          "cumulative_seconds": 1.981134398
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 946,
+          "total_calls": 946,
+          "self_seconds": 0.006365171,
+          "cumulative_seconds": 1.7604026460000002
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 860,
+          "total_calls": 860,
+          "self_seconds": 0.006615617000000001,
+          "cumulative_seconds": 0.9404782500000001
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 43,
+          "total_calls": 43,
+          "self_seconds": 0.002597317,
+          "cumulative_seconds": 0.7223173930000001
+        },
+        {
+          "file": "runner.py",
+          "line": 325,
+          "function": "render_position",
+          "primitive_calls": 42,
+          "total_calls": 42,
+          "self_seconds": 0.001888838,
+          "cumulative_seconds": 0.717328312
+        },
+        {
+          "file": "timeline.py",
+          "line": 432,
+          "function": "follow",
+          "primitive_calls": 42,
+          "total_calls": 42,
+          "self_seconds": 0.0026381900000000003,
+          "cumulative_seconds": 0.714938356
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 166,
+          "function": "_set_interval",
+          "primitive_calls": 42,
+          "total_calls": 42,
+          "self_seconds": 0.0023537320000000003,
+          "cumulative_seconds": 0.6018695550000001
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 860,
+          "total_calls": 860,
+          "self_seconds": 0.034123129,
+          "cumulative_seconds": 0.566799794
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 2202,
+          "total_calls": 2202,
+          "self_seconds": 0.006477320000000001,
+          "cumulative_seconds": 0.561142224
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 2202,
+          "total_calls": 2202,
+          "self_seconds": 0.002157426,
+          "cumulative_seconds": 0.549682764
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 2202,
+          "total_calls": 2202,
+          "self_seconds": 0.008763556,
+          "cumulative_seconds": 0.547525338
+        },
+        {
+          "file": "glir.py",
+          "line": 812,
+          "function": "parse",
+          "primitive_calls": 2245,
+          "total_calls": 2245,
+          "self_seconds": 0.034364631,
+          "cumulative_seconds": 0.520661943
+        },
+        {
+          "file": "text.py",
+          "line": 572,
+          "function": "_prepare_draw",
+          "primitive_calls": 258,
+          "total_calls": 258,
+          "self_seconds": 0.030604537,
+          "cumulative_seconds": 0.5083403900000001
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 176,
+          "function": "_layout_views",
+          "primitive_calls": 42,
+          "total_calls": 42,
+          "self_seconds": 0.002516509,
+          "cumulative_seconds": 0.489563091
+        },
+        {
+          "file": "glir.py",
+          "line": 743,
+          "function": "_parse",
+          "primitive_calls": 15079,
+          "total_calls": 15079,
+          "self_seconds": 0.04723903,
+          "cumulative_seconds": 0.48495141300000005
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_markers_0_vispy",
+      "total_profiled_seconds": 3.234658219999998,
+      "top_cumulative": [
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 0.000397995,
+          "cumulative_seconds": 2.907462723
+        },
+        {
+          "file": "runner.py",
+          "line": 247,
+          "function": "run_actions",
+          "primitive_calls": 6,
+          "total_calls": 6,
+          "self_seconds": 0.012630029000000001,
+          "cumulative_seconds": 2.8355784440000003
+        },
+        {
+          "file": "runner.py",
+          "line": 132,
+          "function": "refresh_markers",
+          "primitive_calls": 11,
+          "total_calls": 11,
+          "self_seconds": 0.010287719,
+          "cumulative_seconds": 2.7838225910000003
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 266,
+          "function": "update_candidates",
+          "primitive_calls": 11,
+          "total_calls": 11,
+          "self_seconds": 0.276541769,
+          "cumulative_seconds": 2.7346460770000003
+        },
+        {
+          "file": "color_array.py",
+          "line": 392,
+          "function": "__init__",
+          "primitive_calls": 43811,
+          "total_calls": 43811,
+          "self_seconds": 0.11554038800000001,
+          "cumulative_seconds": 2.023760957
+        },
+        {
+          "file": "color_array.py",
+          "line": 39,
+          "function": "_user_to_rgba",
+          "primitive_calls": 87810,
+          "total_calls": 87810,
+          "self_seconds": 0.5496830140000001,
+          "cumulative_seconds": 1.839272282
+        },
+        {
+          "file": "color_array.py",
+          "line": 229,
+          "function": "rgba",
+          "primitive_calls": 43905,
+          "total_calls": 43905,
+          "self_seconds": 0.033050958000000005,
+          "cumulative_seconds": 0.645353665
+        },
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 388,
+          "total_calls": 1722,
+          "self_seconds": 0.010088504,
+          "cumulative_seconds": 0.35550105600000004
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 196,
+          "total_calls": 1183,
+          "self_seconds": 0.001209617,
+          "cumulative_seconds": 0.348938222
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 4.8378e-05,
+          "cumulative_seconds": 0.327195497
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x78e9c235b1c0>",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 0.000461177,
+          "cumulative_seconds": 0.32712884200000003
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 0.000100789,
+          "cumulative_seconds": 0.326667665
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 50,
+          "function": "on_draw",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 4.2630000000000004e-05,
+          "cumulative_seconds": 0.32308854400000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 3.7687e-05,
+          "cumulative_seconds": 0.32295141400000005
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 3.8623e-05,
+          "cumulative_seconds": 0.322888885
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 7,
+          "total_calls": 7,
+          "self_seconds": 0.00110059,
+          "cumulative_seconds": 0.32218220200000003
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 112,
+          "total_calls": 112,
+          "self_seconds": 0.000303201,
+          "cumulative_seconds": 0.317957879
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 91,
+          "total_calls": 161,
+          "self_seconds": 0.0009456960000000001,
+          "cumulative_seconds": 0.30264196200000004
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 154,
+          "total_calls": 154,
+          "self_seconds": 0.000847265,
+          "cumulative_seconds": 0.268221918
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'reduce' of 'numpy.ufunc' objects>",
+          "primitive_calls": 176278,
+          "total_calls": 176278,
+          "self_seconds": 0.261322853,
+          "cumulative_seconds": 0.261322853
+        },
+        {
+          "file": "color_array.py",
+          "line": 19,
+          "function": "_string_to_rgb",
+          "primitive_calls": 43813,
+          "total_calls": 43813,
+          "self_seconds": 0.155192556,
+          "cumulative_seconds": 0.250828775
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'min' of 'numpy.ndarray' objects>",
+          "primitive_calls": 87858,
+          "total_calls": 87858,
+          "self_seconds": 0.056243525,
+          "cumulative_seconds": 0.246940717
+        },
+        {
+          "file": "shape_base.py",
+          "line": 78,
+          "function": "atleast_2d",
+          "primitive_calls": 88781,
+          "total_calls": 88781,
+          "self_seconds": 0.16797146500000001,
+          "cumulative_seconds": 0.23078388500000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'max' of 'numpy.ndarray' objects>",
+          "primitive_calls": 87858,
+          "total_calls": 87858,
+          "self_seconds": 0.055442869000000006,
+          "cumulative_seconds": 0.20552346600000002
+        },
+        {
+          "file": "_methods.py",
+          "line": 43,
+          "function": "_amin",
+          "primitive_calls": 87858,
+          "total_calls": 87858,
+          "self_seconds": 0.042824493000000005,
+          "cumulative_seconds": 0.19069719200000002
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_pan_zoom_0_vispy",
+      "total_profiled_seconds": 2.7419494770000017,
+      "top_cumulative": [
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 855,
+          "total_calls": 5235,
+          "self_seconds": 0.043085779000000005,
+          "cumulative_seconds": 2.123471082
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 72,
+          "total_calls": 73,
+          "self_seconds": 0.0006352510000000001,
+          "cumulative_seconds": 2.107635883
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x7cc9d5b6f1c0>",
+          "primitive_calls": 72,
+          "total_calls": 73,
+          "self_seconds": 0.059746812,
+          "cumulative_seconds": 2.1068423920000003
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 716,
+          "total_calls": 3852,
+          "self_seconds": 0.005476686000000001,
+          "cumulative_seconds": 2.0994725290000003
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 68,
+          "total_calls": 68,
+          "self_seconds": 0.001284062,
+          "cumulative_seconds": 2.024422792
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 50,
+          "function": "on_draw",
+          "primitive_calls": 68,
+          "total_calls": 68,
+          "self_seconds": 0.000535455,
+          "cumulative_seconds": 1.987686462
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 68,
+          "total_calls": 68,
+          "self_seconds": 0.0005018700000000001,
+          "cumulative_seconds": 1.9864857150000002
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 68,
+          "total_calls": 68,
+          "self_seconds": 0.0005416300000000001,
+          "cumulative_seconds": 1.9855857430000001
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 68,
+          "total_calls": 68,
+          "self_seconds": 0.013596976,
+          "cumulative_seconds": 1.974714113
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 1023,
+          "total_calls": 1023,
+          "self_seconds": 0.003896327,
+          "cumulative_seconds": 1.91906108
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 819,
+          "total_calls": 1434,
+          "self_seconds": 0.010516812,
+          "cumulative_seconds": 1.750769454
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 1366,
+          "total_calls": 1366,
+          "self_seconds": 0.009515717,
+          "cumulative_seconds": 1.6237562120000002
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 1295,
+          "total_calls": 1295,
+          "self_seconds": 0.010048406000000001,
+          "cumulative_seconds": 0.8551261200000001
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 66,
+          "total_calls": 66,
+          "self_seconds": 0.004511834,
+          "cumulative_seconds": 0.6343135940000001
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 1295,
+          "total_calls": 1295,
+          "self_seconds": 0.053945338,
+          "cumulative_seconds": 0.6121614750000001
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 1736,
+          "total_calls": 1736,
+          "self_seconds": 0.006397272000000001,
+          "cumulative_seconds": 0.5552528280000001
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 1736,
+          "total_calls": 1736,
+          "self_seconds": 0.001969897,
+          "cumulative_seconds": 0.542096258
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 1736,
+          "total_calls": 1736,
+          "self_seconds": 0.008516816,
+          "cumulative_seconds": 0.540126361
+        },
+        {
+          "file": "glir.py",
+          "line": 812,
+          "function": "parse",
+          "primitive_calls": 1804,
+          "total_calls": 1804,
+          "self_seconds": 0.034064830000000004,
+          "cumulative_seconds": 0.514611802
+        },
+        {
+          "file": "glir.py",
+          "line": 743,
+          "function": "_parse",
+          "primitive_calls": 14705,
+          "total_calls": 14705,
+          "self_seconds": 0.049341703,
+          "cumulative_seconds": 0.479658246
+        },
+        {
+          "file": "runner.py",
+          "line": 247,
+          "function": "run_actions",
+          "primitive_calls": 65,
+          "total_calls": 65,
+          "self_seconds": 0.0006304160000000001,
+          "cumulative_seconds": 0.439598912
+        },
+        {
+          "file": "timeline.py",
+          "line": 252,
+          "function": "set_interval",
+          "primitive_calls": 12,
+          "total_calls": 12,
+          "self_seconds": 6.385100000000001e-05,
+          "cumulative_seconds": 0.438196291
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 172,
+          "function": "_set_interval",
+          "primitive_calls": 12,
+          "total_calls": 12,
+          "self_seconds": 0.000567632,
+          "cumulative_seconds": 0.438102341
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 182,
+          "function": "_layout_views",
+          "primitive_calls": 13,
+          "total_calls": 13,
+          "self_seconds": 0.001726082,
+          "cumulative_seconds": 0.40805018200000004
+        },
+        {
+          "file": "chain.py",
+          "line": 133,
+          "function": "map",
+          "primitive_calls": 3018,
+          "total_calls": 11074,
+          "self_seconds": 0.031851232,
+          "cumulative_seconds": 0.383265501
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_seek_0_vispy",
+      "total_profiled_seconds": 2.871620708000002,
+      "top_cumulative": [
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 2121,
+          "total_calls": 11786,
+          "self_seconds": 0.08586334100000001,
+          "cumulative_seconds": 2.423422671
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 1420,
+          "total_calls": 8584,
+          "self_seconds": 0.012828368000000001,
+          "cumulative_seconds": 2.377314411
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.000309969,
+          "cumulative_seconds": 2.117745569
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x7964bc0871c0>",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.003271384,
+          "cumulative_seconds": 2.117327956
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.0006651410000000001,
+          "cumulative_seconds": 2.114056572
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 50,
+          "function": "on_draw",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.000306042,
+          "cumulative_seconds": 2.091427298
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.000253081,
+          "cumulative_seconds": 2.090730716
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.000291015,
+          "cumulative_seconds": 2.0903008510000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.007582286000000001,
+          "cumulative_seconds": 2.085188162
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 720,
+          "total_calls": 720,
+          "self_seconds": 0.0022160500000000002,
+          "cumulative_seconds": 2.0557980550000003
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 585,
+          "total_calls": 1035,
+          "self_seconds": 0.006290367000000001,
+          "cumulative_seconds": 1.9541930820000002
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 990,
+          "total_calls": 990,
+          "self_seconds": 0.005717201000000001,
+          "cumulative_seconds": 1.711793434
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 900,
+          "total_calls": 900,
+          "self_seconds": 0.005838506,
+          "cumulative_seconds": 0.9067299200000001
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 45,
+          "total_calls": 45,
+          "self_seconds": 0.002256207,
+          "cumulative_seconds": 0.753875139
+        },
+        {
+          "file": "runner.py",
+          "line": 325,
+          "function": "render_position",
+          "primitive_calls": 44,
+          "total_calls": 44,
+          "self_seconds": 0.0013770590000000001,
+          "cumulative_seconds": 0.749614607
+        },
+        {
+          "file": "timeline.py",
+          "line": 432,
+          "function": "follow",
+          "primitive_calls": 44,
+          "total_calls": 44,
+          "self_seconds": 0.0023475740000000003,
+          "cumulative_seconds": 0.74385403
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 172,
+          "function": "_set_interval",
+          "primitive_calls": 44,
+          "total_calls": 44,
+          "self_seconds": 0.002062764,
+          "cumulative_seconds": 0.637256569
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 900,
+          "total_calls": 900,
+          "self_seconds": 0.031254847,
+          "cumulative_seconds": 0.5433026440000001
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 2181,
+          "total_calls": 2181,
+          "self_seconds": 0.005934938000000001,
+          "cumulative_seconds": 0.540103966
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 2181,
+          "total_calls": 2181,
+          "self_seconds": 0.001951042,
+          "cumulative_seconds": 0.529772384
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 182,
+          "function": "_layout_views",
+          "primitive_calls": 44,
+          "total_calls": 44,
+          "self_seconds": 0.002630836,
+          "cumulative_seconds": 0.529538709
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 2181,
+          "total_calls": 2181,
+          "self_seconds": 0.008303297000000001,
+          "cumulative_seconds": 0.5278213420000001
+        },
+        {
+          "file": "panzoom.py",
+          "line": 147,
+          "function": "rect",
+          "primitive_calls": 88,
+          "total_calls": 88,
+          "self_seconds": 0.001083805,
+          "cumulative_seconds": 0.515372676
+        },
+        {
+          "file": "text.py",
+          "line": 572,
+          "function": "_prepare_draw",
+          "primitive_calls": 270,
+          "total_calls": 270,
+          "self_seconds": 0.031332074,
+          "cumulative_seconds": 0.5126128520000001
+        },
+        {
+          "file": "base_camera.py",
+          "line": 437,
+          "function": "view_changed",
+          "primitive_calls": 88,
+          "total_calls": 88,
+          "self_seconds": 0.000508286,
+          "cumulative_seconds": 0.509610003
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_stream_0_vispy",
+      "total_profiled_seconds": 2.9123684799999996,
+      "top_cumulative": [
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'acquire' of '_thread.lock' objects>",
+          "primitive_calls": 1165,
+          "total_calls": 1166,
+          "self_seconds": 0.07291840000000001,
+          "cumulative_seconds": 2.929826137
+        },
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 751,
+          "total_calls": 2170,
+          "self_seconds": 0.022445562000000002,
+          "cumulative_seconds": 2.383573616
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0006025480000000001,
+          "cumulative_seconds": 2.3826940970000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x7636c81231c0>",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0056096670000000005,
+          "cumulative_seconds": 2.3818861310000004
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0012541540000000002,
+          "cumulative_seconds": 2.376174867
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 597,
+          "total_calls": 1228,
+          "self_seconds": 0.0018274320000000001,
+          "cumulative_seconds": 2.3584638360000003
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 50,
+          "function": "on_draw",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.00047665500000000004,
+          "cumulative_seconds": 2.3361606310000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.00053303,
+          "cumulative_seconds": 2.334936926
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0006008060000000001,
+          "cumulative_seconds": 2.3322808260000003
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.013179279,
+          "cumulative_seconds": 2.3136833020000003
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 1152,
+          "total_calls": 1152,
+          "self_seconds": 0.004375233,
+          "cumulative_seconds": 2.272088176
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 1584,
+          "total_calls": 1584,
+          "self_seconds": 0.009771611000000001,
+          "cumulative_seconds": 2.082489942
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 864,
+          "total_calls": 1584,
+          "self_seconds": 0.010247796,
+          "cumulative_seconds": 2.008874036
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 1440,
+          "total_calls": 1440,
+          "self_seconds": 0.015616718000000002,
+          "cumulative_seconds": 1.388095839
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 1440,
+          "total_calls": 1440,
+          "self_seconds": 0.054129685000000004,
+          "cumulative_seconds": 0.795844026
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 1641,
+          "total_calls": 1641,
+          "self_seconds": 0.0060448640000000005,
+          "cumulative_seconds": 0.7346675260000001
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 1641,
+          "total_calls": 1641,
+          "self_seconds": 0.001757328,
+          "cumulative_seconds": 0.7216729850000001
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 1641,
+          "total_calls": 1641,
+          "self_seconds": 0.010637431000000001,
+          "cumulative_seconds": 0.719509195
+        },
+        {
+          "file": "glir.py",
+          "line": 812,
+          "function": "parse",
+          "primitive_calls": 1713,
+          "total_calls": 1713,
+          "self_seconds": 0.040002679,
+          "cumulative_seconds": 0.685033122
+        },
+        {
+          "file": "glir.py",
+          "line": 743,
+          "function": "_parse",
+          "primitive_calls": 15906,
+          "total_calls": 15906,
+          "self_seconds": 0.052903273,
+          "cumulative_seconds": 0.6189660490000001
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 71,
+          "total_calls": 71,
+          "self_seconds": 0.004349412,
+          "cumulative_seconds": 0.462125055
+        },
+        {
+          "file": "runner.py",
+          "line": 325,
+          "function": "render_position",
+          "primitive_calls": 71,
+          "total_calls": 71,
+          "self_seconds": 0.0030799940000000004,
+          "cumulative_seconds": 0.461820402
+        },
+        {
+          "file": "chain.py",
+          "line": 133,
+          "function": "map",
+          "primitive_calls": 3100,
+          "total_calls": 11328,
+          "self_seconds": 0.030231129000000002,
+          "cumulative_seconds": 0.363201341
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 243,
+          "function": "_position_cursor",
+          "primitive_calls": 142,
+          "total_calls": 142,
+          "self_seconds": 0.009321392000000001,
+          "cumulative_seconds": 0.35814417000000004
+        },
+        {
+          "file": "program.py",
+          "line": 104,
+          "function": "build_if_needed",
+          "primitive_calls": 1440,
+          "total_calls": 1440,
+          "self_seconds": 0.0031677470000000003,
+          "cumulative_seconds": 0.352046741
+        }
+      ]
+    },
+    {
+      "scenario": "universal_120_zoom_0_vispy",
+      "total_profiled_seconds": 2.8560280609999986,
+      "top_cumulative": [
+        {
+          "file": "event.py",
+          "line": 402,
+          "function": "__call__",
+          "primitive_calls": 2398,
+          "total_calls": 10996,
+          "self_seconds": 0.08183446400000001,
+          "cumulative_seconds": 2.287614505
+        },
+        {
+          "file": "event.py",
+          "line": 467,
+          "function": "_invoke_callback",
+          "primitive_calls": 1412,
+          "total_calls": 7777,
+          "self_seconds": 0.011101588,
+          "cumulative_seconds": 2.233148414
+        },
+        {
+          "file": "_qt.py",
+          "line": 704,
+          "function": "event",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.00026442800000000004,
+          "cumulative_seconds": 2.010718775
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<function QtBaseCanvasBackend.event at 0x788942083270>",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.002624556,
+          "cumulative_seconds": 2.010330096
+        },
+        {
+          "file": "_qt.py",
+          "line": 1008,
+          "function": "paintGL",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.000606263,
+          "cumulative_seconds": 2.0077055400000003
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 50,
+          "function": "on_draw",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.000238795,
+          "cumulative_seconds": 1.9863295840000001
+        },
+        {
+          "file": "canvas.py",
+          "line": 211,
+          "function": "on_draw",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.00022838300000000003,
+          "cumulative_seconds": 1.985640939
+        },
+        {
+          "file": "canvas.py",
+          "line": 281,
+          "function": "_draw_scene",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.000244378,
+          "cumulative_seconds": 1.9852469490000002
+        },
+        {
+          "file": "canvas.py",
+          "line": 287,
+          "function": "draw_visual",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.006483367,
+          "cumulative_seconds": 1.9809473910000002
+        },
+        {
+          "file": "visuals.py",
+          "line": 103,
+          "function": "draw",
+          "primitive_calls": 560,
+          "total_calls": 560,
+          "self_seconds": 0.0019006740000000002,
+          "cumulative_seconds": 1.956141761
+        },
+        {
+          "file": "visual.py",
+          "line": 659,
+          "function": "draw",
+          "primitive_calls": 455,
+          "total_calls": 805,
+          "self_seconds": 0.005684646000000001,
+          "cumulative_seconds": 1.8705165680000002
+        },
+        {
+          "file": "visual.py",
+          "line": 502,
+          "function": "draw",
+          "primitive_calls": 770,
+          "total_calls": 770,
+          "self_seconds": 0.005449019,
+          "cumulative_seconds": 1.6593635160000002
+        },
+        {
+          "file": "program.py",
+          "line": 99,
+          "function": "draw",
+          "primitive_calls": 700,
+          "total_calls": 700,
+          "self_seconds": 0.0053621450000000005,
+          "cumulative_seconds": 0.8967520040000001
+        },
+        {
+          "file": "runner.py",
+          "line": 277,
+          "function": "tick",
+          "primitive_calls": 35,
+          "total_calls": 35,
+          "self_seconds": 0.00208966,
+          "cumulative_seconds": 0.8453092860000001
+        },
+        {
+          "file": "timeline.py",
+          "line": 432,
+          "function": "follow",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.003801323,
+          "cumulative_seconds": 0.838166417
+        },
+        {
+          "file": "runner.py",
+          "line": 325,
+          "function": "render_position",
+          "primitive_calls": 34,
+          "total_calls": 34,
+          "self_seconds": 0.0013109180000000001,
+          "cumulative_seconds": 0.7833305660000001
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 172,
+          "function": "_set_interval",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0030708660000000002,
+          "cumulative_seconds": 0.6684837170000001
+        },
+        {
+          "file": "timeline.py",
+          "line": 468,
+          "function": "advance_zoom",
+          "primitive_calls": 46,
+          "total_calls": 46,
+          "self_seconds": 0.000703371,
+          "cumulative_seconds": 0.64166897
+        },
+        {
+          "file": "context.py",
+          "line": 156,
+          "function": "flush_commands",
+          "primitive_calls": 1815,
+          "total_calls": 1815,
+          "self_seconds": 0.005434612,
+          "cumulative_seconds": 0.5490324080000001
+        },
+        {
+          "file": "program.py",
+          "line": 464,
+          "function": "draw",
+          "primitive_calls": 700,
+          "total_calls": 700,
+          "self_seconds": 0.027928548,
+          "cumulative_seconds": 0.5476667860000001
+        },
+        {
+          "file": "glir.py",
+          "line": 582,
+          "function": "flush",
+          "primitive_calls": 1815,
+          "total_calls": 1815,
+          "self_seconds": 0.0018497560000000001,
+          "cumulative_seconds": 0.539869296
+        },
+        {
+          "file": "glir.py",
+          "line": 501,
+          "function": "flush",
+          "primitive_calls": 1815,
+          "total_calls": 1815,
+          "self_seconds": 0.007803172000000001,
+          "cumulative_seconds": 0.5380195400000001
+        },
+        {
+          "file": "glir.py",
+          "line": 812,
+          "function": "parse",
+          "primitive_calls": 1850,
+          "total_calls": 1850,
+          "self_seconds": 0.031444221,
+          "cumulative_seconds": 0.513545864
+        },
+        {
+          "file": "vispy_timeline.py",
+          "line": 182,
+          "function": "_layout_views",
+          "primitive_calls": 72,
+          "total_calls": 72,
+          "self_seconds": 0.0035371290000000004,
+          "cumulative_seconds": 0.49769172
+        },
+        {
+          "file": "text.py",
+          "line": 572,
+          "function": "_prepare_draw",
+          "primitive_calls": 210,
+          "total_calls": 210,
+          "self_seconds": 0.028709466000000003,
+          "cumulative_seconds": 0.491048238
+        }
+      ]
+    }
+  ]
+}
