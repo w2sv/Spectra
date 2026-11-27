@@ -39,9 +39,7 @@ benchmarks/results/review_performance/*
 !benchmarks/results/review_performance/matplotlib_baseline.json
 !benchmarks/results/review_performance/qt_rendering_comparison.json
 !benchmarks/results/review_performance/README.md
-# Curated VisPy experiment artifacts; per-run scratch directories remain local.
-!benchmarks/results/review_performance/vispy_*.json
-!benchmarks/results/review_performance/vispy_summary.md
+# Curated rendering results; scratch/profiling output stays ignored.
+!benchmarks/results/review_performance/vispy_measurements.json.gz
 !benchmarks/results/review_performance/vispy_summary.svg
-!benchmarks/results/review_performance/vispy_summary.png
 !benchmarks/results/review_performance/vispy_report.md

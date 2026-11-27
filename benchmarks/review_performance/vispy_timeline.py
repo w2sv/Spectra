@@ -162,12 +162,15 @@ class VispyTimeline(Timeline):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.canvas.native)
         self.wave_lines: list = []
-        self.pyramid = WaveformPyramid(analysis.mono, PARAMETERS.sample_rate) if strategy == "lod" else None
+        self.pyramid = (
+            WaveformPyramid(analysis.mono, PARAMETERS.sample_rate) if strategy in ("lod", "windowed") else None
+        )
         self.preprocessing_seconds = self.pyramid.seconds if self.pyramid is not None else 0.0
         self.geometry_cpu_bytes = self.pyramid.bytes if self.pyramid is not None else 0
         self.waveform = self._line(self.wave_view, "#aaaeb5")
         self.wave_key: object = None
-        if self.pyramid is not None:
+        self.wave_window: tuple[int, float, float] | None = None
+        if self.pyramid is not None and strategy == "lod":
             for level in self.pyramid.levels:
                 line = self._line(self.wave_view, "#aaaeb5", level.points)
                 line.visible = False
@@ -325,6 +328,25 @@ class VispyTimeline(Timeline):
         rate = PARAMETERS.sample_rate
         pixels = max(1, round(self.wave_view.size[0] * self.canvas.pixel_scale))
         level = self.pyramid.level((right - left) * rate, pixels) if self.pyramid is not None else None
+        if level is not None and self.strategy == "windowed":
+            cached = self.wave_window
+            if cached is not None and cached[0] == level.block and cached[1] <= left and cached[2] >= right:
+                return
+            padding = (right - left) * 0.5
+            start, end = max(0, left - padding), min(self.analysis.duration_seconds, right + padding)
+            first, last = np.searchsorted(level.points[:, 0], [start, end])
+            points = level.points[max(0, int(first) - 2) : min(len(level.points), int(last) + 2)]
+            from vispy.visuals.transforms import STTransform
+
+            self.waveform.transform = STTransform()
+            self.waveform.visible = True
+            self.waveform.set_data(pos=points)
+            self.wave_window = (level.block, start, end)
+            if self.measurements.active:
+                self.measurements.rebuilds += 1
+                self.measurements.cpu_geometry_bytes += points.nbytes
+            return
+        self.wave_window = None
         if level is not None and self.pyramid is not None:
             key = ("level", level.block)
             if key == self.wave_key:

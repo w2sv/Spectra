@@ -1,127 +1,76 @@
-# VisPy timeline experiment
+# VisPy rendering results
 
-## Recommendation
+VisPy is selected for the annotation timeline and runtime plots. The production migration preserves the annotation
+model, acoustic analysis, playback clock and LED algorithms.
 
-**Prefer VisPy for a future annotation-timeline migration.** It clearly improves the measured following workloads: P95
-software frame intervals fell **41–55%**, with moderately lower CPU use. The experiment leaves production rendering
-unchanged. Migration should retain the current navigation, correction model and DAC-synchronized playback.
+## Evidence for migration
 
-**Continue with VisPy for a dedicated runtime prototype**, reusing the bounded streaming buffer and batched marker
-approach. Streaming is feasible; sustained 120 Hz, long-run memory stability and a scrolling spectrogram remain
-unproven.
+Universal, deterministic playback, 60 Hz requested, three independent 30-second runs per renderer/view with warm-up and
+alternating renderer order. Values are medians of per-run statistics; these are actual software paint/draw completions,
+not compositor presentation FPS.
 
-Collection was stopped at the user's request after the advantage was established. This is a focused positive result, not
-completion of the originally proposed matrix.
+| View  | Qt draw Hz | VisPy draw Hz | Qt P95 ms | VisPy P95 ms | P95 reduction | Qt / VisPy CPU % |
+| ----- | ---------: | ------------: | --------: | -----------: | ------------: | ---------------: |
+| 2.5 s |       25.1 |          44.4 |     47.30 |        28.05 |         40.7% |     100.7 / 92.5 |
+| 10 s  |       19.4 |          42.5 |     60.56 |        31.51 |         48.0% |     100.5 / 94.8 |
+| 40 s  |       15.2 |          37.8 |     81.56 |        36.77 |         54.9% |     100.4 / 93.8 |
 
-## Repeated comparative results
+![Frame interval distributions](vispy_summary.svg)
 
-Universal, rendering-only deterministic clock, 60 Hz requested, three independent 30-second runs per renderer and view,
-three-second warm-up, alternating renderer order. Tables show medians of per-run statistics. Draw Hz means completion of
-actual Qt composite paints or VisPy scene draws, not display presentation.
+Solid curves are VisPy, dashed curves are Qt. Vertical lines mark 8.3/16.7 ms. VisPy used roughly 73 MB more process RSS
+in this initial comparison. Consistent 60/120 Hz was not established and is not a migration prerequisite.
 
-| View  | Qt draw Hz | VisPy draw Hz | Qt P95 ms | VisPy P95 ms | P95 reduction | Qt / VisPy P99 ms |
-| ----- | ---------: | ------------: | --------: | -----------: | ------------: | ----------------: |
-| 2.5 s |       25.1 |          44.4 |     47.30 |        28.05 |         40.7% |     57.26 / 35.23 |
-| 10 s  |       19.4 |          42.5 |     60.56 |        31.51 |         48.0% |     73.19 / 36.40 |
-| 40 s  |       15.2 |          37.8 |     81.56 |        36.77 |         54.9% |    103.05 / 43.91 |
+The original collection stopped after 22 completed runs at the user's request. Short actual-PCM checks favored VisPy's
+software cursor freshness: 10-second following cursor-gap P95 was 23.2 versus 52.6 ms; adaptive seeking was 34.6 versus
+64.4 ms. Measured underruns were 0/0 for normal following and 2/0 for seeking (Qt/VisPy), with one initial warm-up
+underrun in each VisPy run. These three-second checks do not establish physical synchronization or long-run audio
+reliability.
 
-The demanding-workload improvement target is met in these cases. Consistent 60 Hz is **not** achieved. Unsatisfied 60 Hz
-draw slots fell approximately 51–57%, but neither implementation consistently meets the 16.7 ms deadline.
+## Selected waveform strategy
 
-![Empirical frame-interval distributions](vispy_summary.svg)
+Short targeted checks on the same hardware compare four strategies, at 120 Hz requested, one three-second run per case.
+These settle implementation choices, not statistical performance claims.
 
-Solid curves are VisPy; dashed curves are PyQtGraph. Vertical references mark 8.3 and 16.7 ms. The figure pools raw
-intervals from the fully repeated cases; structured results retain individual runs, histograms and maxima.
+| Strategy                       | 2.5 s P95 ms | 120 s P95 ms | 2.5 s measured buffer payload MB | Precomputed CPU geometry MB |
+| ------------------------------ | -----------: | -----------: | -------------------------------: | --------------------------: |
+| Visible-range extrema          |        26.23 |        35.06 |                             4.91 |                           0 |
+| Fully resident original PCM    |        45.09 |       336.21 |                            0.006 |                      121.73 |
+| Fully resident envelope levels |        20.36 |        35.53 |                            15.22 |                       81.15 |
+| Padded envelope window         |        21.57 |        34.80 |                            0.486 |                       81.15 |
 
-| View  | Qt CPU % | VisPy CPU % | Qt RSS MB | VisPy RSS MB |
-| ----- | -------: | ----------: | --------: | -----------: |
-| 2.5 s |    100.7 |        92.5 |     556.8 |        629.4 |
-| 10 s  |    100.5 |        94.8 |     556.6 |        629.3 |
-| 40 s  |    100.4 |        93.8 |     555.8 |        629.3 |
+**Retain padded multiresolution windows.** They preserve comparable pacing while reducing measured detailed-view
+payloads by 97% relative to whole-track envelope residency and avoiding offscreen whole-track vertices. The window spans
+two viewport widths and stays resident until the view leaves its padding or resolution changes. Initial/warm-up buffer
+payloads fell from 6.27 to 2.69 MB. The pyramid takes about 0.65–0.69 seconds in the original measurements; direct
+visible-range reduction starts faster but repeats PCM scanning. Original samples replace extrema at inspection zoom.
+Extrema preserve transient amplitudes, sample order and incomplete final buckets.
 
-CPU uses 100% for one occupied core; RSS uses decimal MB. VisPy uses about 73 MB more RSS here. Its constructor takes
-roughly 1.1–1.2 seconds versus Qt's 0.7–0.75 seconds, including 0.65–0.69 seconds for an 81.2 MB waveform pyramid. GPU
-physical memory and utilization were not reliably measured.
+Earlier profiling also justified caching marker colors and axis glyph geometry, and moving the cursor with a transform.
+These optimizations were combined rather than independently benchmarked. Buffer payloads are CPU enqueue counts, not
+physical GPU residency or bus traffic. Physical GPU memory/utilization were not reliably available.
 
-The four additional 120-second-view runs are retained but excluded from the headline comparison. They contain 4.9–12.9
-second gaps between draws despite continued timer updates, and only two paired repetitions completed. Visibility,
-compositor or scheduling effects were not isolated; these gaps cannot be assigned to rendering cost.
+## Wide-view draw gaps
 
-## Geometry and profiling
+A controlled nine-second 120-second-view check deliberately hid the window between seconds three and five. Updates
+continued, while draw counts were 132 before hiding, five during the visibility transition, and 154 after showing again.
+Visible-period maximum intervals were 37.3/52.8 ms; hiding reproduced the multi-second gap signature without an
+expensive geometry update. The original gaps therefore provide no evidence of a wide-view algorithmic stall: external
+visibility and presentation scheduling can produce them. Their exact original trigger was not recorded, so those four
+runs remain flagged and excluded from headline comparisons. Future instrumentation records exposure alongside updates
+and draws.
 
-All fully repeated VisPy following cases recorded **zero waveform geometry rebuilds**. Ten-second following enqueued
-about 1.9 kB/s of buffer payloads after warm-up, primarily axis updates. Changing from the warm-up view to the detailed
-view incurs an approximately 15 MB resident-level upload. Following subsequently changes camera transforms.
+## Conditions and retained data
 
-The earlier, separately marked stock-axis profiles identified scene traversal, text preparation and repeated color
-parsing as substantial costs. Marker refresh spent about 2.0 of 3.2 profiled seconds parsing colors. The retained
-implementation caches marker colors and tick geometry, and moves a resident cursor mesh through a transform. These
-changes were combined; their individual end-to-end gains were not isolated. Profiling timings are excluded from the
-comparative tables.
+Hardware OpenGL: Intel UHD 620, Mesa 25.2.8, i7-8550U, Ubuntu/Wayland; a 60.011 Hz panel at 2× scaling. Primary windows
+were 1180 × 620 logical pixels. Python 3.15.2, VisPy 0.17.0, PySide6 6.12.0 and PyQtGraph 0.14.0. Renderer
+configuration, recording/correction identity, source hashes, raw intervals, resource counters, audio checks and earlier
+profiling attribution are preserved losslessly in [the compressed measurement archive](vispy_measurements.json.gz).
 
-The three waveform strategies are implemented: visible-range peak geometry, fully resident raw PCM, and resident
-multiresolution extrema with original PCM at inspection zoom. Their comparative strategy matrix was not run before
-collection stopped. The default pyramid preserves extrema, their sample times and incomplete final buckets. Numerical
-checks protect these properties. Stock resident lines still submit offscreen vertices; padded envelope windows would be
-a useful next experiment, not a measured optimization in this report.
+A short streaming check demonstrated incremental buffer writes at 0.76 MB/s and 54.4 draws/s, with independent ingestion
+and no overwritten pending data. Its three-second duration was insufficient to establish long-run stability. GPU timer
+median/P95 was 2.52/5.80 ms; those asynchronous query intervals may include submission gaps. Production validation is
+recorded with the migration checks rather than another benchmark campaign.
 
-Axes use the same coordinate scales with a different tick layout. Marker colors, sizes, diagnostic outlines, dashed
-grids and cursor widths retain their meanings; pixel-identical rasterization is not claimed. Tests and desktop checks
-cover hit-testing, individual corrections, selection, accumulated zoom, resizing and the interactive DAC-player launch.
-The GUI requires more custom axis, cursor and interaction code than PyQtGraph. No permanent renderer interface was
-added.
-
-## Audio and streaming: exploratory evidence
-
-These audio runs used Universal, actual PCM and the existing DAC clock, a 120 Hz requested update target, one
-three-second run per case, and a 1280 × 650 window. Their size and duration differ from the primary rendering-only
-matrix.
-
-| Case             | Qt / VisPy draw Hz | Qt / VisPy cursor-gap P95 ms | Qt / VisPy callback P95 ms | Qt / VisPy measured underruns |
-| ---------------- | -----------------: | ---------------------------: | -------------------------: | ----------------------------: |
-| 10 s following   |        19.0 / 43.7 |                52.56 / 23.18 |              0.085 / 0.126 |                         0 / 0 |
-| Adaptive seeking |        16.1 / 32.9 |                64.43 / 34.55 |              17.68 / 13.31 |                         2 / 0 |
-
-Each VisPy audio run also had one warm-up underrun. Cursor gaps are recording milliseconds against a fresh DAC-clock
-position at paint completion. These short checks favor VisPy's software cursor freshness but cannot establish absence of
-audio regressions. No physical audio-to-display timing or human listening alignment was measured.
-
-The three-second streaming check achieved 54.4 scene draws/s at a requested 120 Hz, approximately 92% of one CPU core,
-0.76 MB/s of buffer payloads, and about 641 MB process RSS. Asynchronous GPU queries reported median/P95 scene elapsed
-intervals of 2.52/5.80 ms; those intervals can include submission gaps. No synchronization wait was added.
-
-Ingestion was independent at 100 Hz with a preallocated 480,000-sample CPU history and partial GPU writes. The check
-consumed 142,560 samples without overwritten pending data, with maximum ingestion lateness around 10 ms. Three seconds
-does not fill the ten-second history or establish long-run stability. Separate deterministic payload checks exercise
-CPU/GPU ring wraparound, overwritten-history recovery and adjacent-sample continuity. Full-history upload comparisons
-were not collected.
-
-A scrolling spectrogram remains a plausible follow-up using offset texture updates supported by
-[VisPy's texture API](https://vispy.org/api/vispy.gloo.texture.html). This is an inference from the API, not an
-implemented or benchmarked result. Runtime DSP, capture and LED output were not changed.
-
-## Conditions, coverage and artifacts
-
-Python 3.15.2, VisPy 0.17.0, PySide6 6.12.0, PyQtGraph 0.14.0; Ubuntu/Wayland, Intel i7-8550U and hardware Mesa Intel
-UHD 620 OpenGL 4.6, Mesa 25.2.8. The panel reports 60.011 Hz with 2× scaling. Primary windows were fixed at 1180 × 620
-logical pixels. VisPy requested four-sample multisampling and disabled vsync; Qt retained native peak downsampling,
-clipping, segmented lines and device-coordinate caching. No software OpenGL results support this recommendation.
-
-The application-level update timer is independent of the editor's 16 ms timer. Actual paints/draws are counted
-separately; Qt component paints and duplicate events are explicitly accounted for. Neither swapping nor compositor
-presentation was measured. GPU timer runs are separate from the primary comparison. The desktop session was not an
-isolated graphics lab.
-
-No Trust, the complete rendering-only 120 Hz matrix, full-track following, three-repeat interaction/idle scenarios,
-alternative waveform comparisons and long streaming runs remain unmeasured. The CLI supports them. Measurements record
-their source hashes; subsequent interactive startup, input-handling and error-cleanup fixes were not rebenchmarked.
-
-- [Repeated raw measurements](vispy_comparison.json), including the user-requested stop and flagged wide-view cases.
-- [Audio checks](vispy_integrated.json), [streaming/GPU check](vispy_streaming.json), and
-  [earlier profiling attribution](vispy_profiling.json).
-- [Structured summary](vispy_summary.json), [complete tables with evidence labels](vispy_summary.md), and
-  [input manifest](vispy_input_manifest.json).
-- [Invocation and measurement methodology](../../review_performance/README.md).
-
-All completed workers verified that protected proposal/draft bytes remained unchanged. Historical Matplotlib and Qt
-reports are unchanged. Production annotation rendering and runtime visualization remain unchanged.
+No Trust and the original extensive matrix were not completed. The decision to migrate does not depend on them. Hardware
+WLED delivery and physical audio-to-display alignment remain unverified. Historical Matplotlib/Qt reports keep their
+original measurements. See [the harness](../../review_performance/README.md) for short reproducible checks.
